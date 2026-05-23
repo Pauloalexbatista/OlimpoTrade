@@ -1,0 +1,5 @@
+# my_trading_bot/requirements.txt
+python-dotenv==1.0.1
+ccxt==4.3.56
+pandas==2.2.2
+numpy==1.26.4
