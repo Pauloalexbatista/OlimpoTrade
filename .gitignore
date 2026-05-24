@@ -1,0 +1,20 @@
+# Python standard ignores
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+
+# Environments and secrets
+.env
+.env.local
+.env.*
+
+# Logs
+*.log
+
+# Streamlit
+.streamlit/
+
+# OS files
+.DS_Store
+Thumbs.db

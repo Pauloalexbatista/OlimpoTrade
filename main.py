@@ -1,11 +1,11 @@
 # my_trading_bot/main.py
 import asyncio
-from .logger import setup_logging
-from .config import load_config
-from .data_collector import DataCollector
-from .strategy import TradingStrategy
-from .risk_manager import RiskManager
-from .order_executor import OrderExecutor
+from logger import setup_logging
+from config import load_config
+from data_collector import DataCollector
+from strategy import TradingStrategy
+from risk_manager import RiskManager
+from order_executor import OrderExecutor
 
 async def main():
     config = load_config()

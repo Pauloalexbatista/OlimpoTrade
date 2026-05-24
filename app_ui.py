@@ -1,0 +1,810 @@
+# my_trading_bot/app_ui.py
+import streamlit as st
+import pandas as pd
+import numpy as np
+import plotly.graph_objects as go
+import asyncio
+import ta
+import logging
+from data_collector import DataCollector
+from backtester import Backtester
+from config import load_config
+from logger import setup_logging
+
+# 1. Configuração da Página do Streamlit
+st.set_page_config(
+    page_title="OlimpoTrade - Algorithmic Trading Lab",
+    page_icon="⚡",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# 2. Inicialização de Session State para persistência e ligação dinâmica de inputs
+if "short_window_val" not in st.session_state:
+    st.session_state.short_window_val = 12
+if "long_window_val" not in st.session_state:
+    st.session_state.long_window_val = 26
+if "stop_loss_pct_val" not in st.session_state:
+    st.session_state.stop_loss_pct_val = 2.0
+if "take_profit_pct_val" not in st.session_state:
+    st.session_state.take_profit_pct_val = 7.0
+
+if "backtest_results" not in st.session_state:
+    st.session_state.backtest_results = None
+if "optimizer_results" not in st.session_state:
+    st.session_state.optimizer_results = None
+
+# 3. Injeção de CSS Customizado para Estética Premium Glassmorphic (Tema Claro / Light Mode)
+st.markdown("""
+<style>
+    /* Importar Fonte Outfit do Google Fonts */
+    @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap');
+    
+    /* Configuração de Fontes e Fundo Principal */
+    html, body, [class*="css"], .stApp {
+        font-family: 'Outfit', sans-serif;
+        background-color: #f1f5f9;
+        color: #0f172a;
+    }
+    
+    /* Efeito de Fundo Gradiente Suave Claro */
+    .stApp {
+        background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+    }
+
+    /* Estilo do Menu Lateral (Sidebar) com alto contraste */
+    section[data-testid="stSidebar"] {
+        background-color: #ffffff;
+        border-right: 1px solid rgba(0, 0, 0, 0.08);
+        box-shadow: 4px 0 16px rgba(0, 0, 0, 0.02);
+    }
+    
+    /* Cabeçalho Principal */
+    .main-title {
+        font-size: 3rem;
+        font-weight: 800;
+        background: linear-gradient(135deg, #0284c7 0%, #7c3aed 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        text-align: center;
+        margin-bottom: 0.2rem;
+        letter-spacing: -1px;
+    }
+    
+    .sub-title {
+        font-size: 1.1rem;
+        font-weight: 400;
+        color: #475569;
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+    
+    /* Cards Glassmorphic Light Premium */
+    .glass-card {
+        background: rgba(255, 255, 255, 0.75);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border-radius: 16px;
+        border: 1px solid rgba(255, 255, 255, 0.6);
+        padding: 24px;
+        margin-bottom: 20px;
+        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.04);
+        transition: transform 0.3s ease, border 0.3s ease;
+        color: #0f172a;
+    }
+    
+    .glass-card:hover {
+        border: 1px solid rgba(2, 132, 199, 0.2);
+        transform: translateY(-2px);
+    }
+    
+    /* Cards de Métricas Rápidas */
+    .metric-container {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 15px;
+        margin-bottom: 25px;
+    }
+    
+    .metric-card {
+        background: rgba(255, 255, 255, 0.9);
+        border-radius: 12px;
+        border: 1px solid rgba(0, 0, 0, 0.05);
+        padding: 18px;
+        text-align: center;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.01);
+        transition: all 0.2s ease;
+    }
+    
+    .metric-card:hover {
+        border-color: rgba(124, 58, 237, 0.2);
+        box-shadow: 0 4px 15px rgba(124, 58, 237, 0.06);
+    }
+    
+    .metric-value {
+        font-size: 1.6rem;
+        font-weight: 700;
+        margin-top: 5px;
+    }
+    
+    .metric-label {
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: #64748b;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+    
+    /* Cores de Alto Contraste */
+    .text-green { color: #059669; font-weight: bold; }
+    .text-red { color: #e11d48; font-weight: bold; }
+    .text-cyan { color: #0369a1; font-weight: bold; }
+    .text-purple { color: #6d28d9; font-weight: bold; }
+    .text-orange { color: #c2410c; font-weight: bold; }
+    
+    /* Indicador de Conexão */
+    .status-badge {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 9999px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 20px;
+    }
+    .status-active {
+        background-color: rgba(5, 150, 105, 0.1);
+        color: #059669;
+        border: 1px solid rgba(5, 150, 105, 0.25);
+    }
+    
+    /* Estilizar inputs e botões do Streamlit */
+    div.stButton > button {
+        background: linear-gradient(135deg, #0284c7 0%, #7c3aed 100%) !important;
+        color: white !important;
+        font-weight: 600 !important;
+        border: none !important;
+        padding: 10px 24px !important;
+        border-radius: 8px !important;
+        box-shadow: 0 4px 15px rgba(124, 58, 237, 0.25) !important;
+        transition: all 0.3s ease !important;
+        width: 100% !important;
+    }
+    div.stButton > button:hover {
+        transform: translateY(-2px) !important;
+        box-shadow: 0 6px 20px rgba(124, 58, 237, 0.4) !important;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# 4. Cabeçalho da Aplicação
+st.markdown('<div class="main-title">OLIMPOTRADE</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub-title">Algorithmic Trading & Analytics Lab</div>', unsafe_allow_html=True)
+
+# Status de Conexão (Paper trading ativo)
+col_status1, col_status2 = st.columns([1, 6])
+with col_status1:
+    st.markdown('<span class="status-badge status-active">● SIMULADOR ATIVO</span>', unsafe_allow_html=True)
+
+# 5. Painel de Ajuda Rápida no Topo da Sidebar
+with st.sidebar.expander("📚 Guia e Dicionário de Parâmetros"):
+    st.markdown("""
+    **Como testar 1 Ano Inteiro (Instantâneo):**
+    1. Defina o **Timeframe** para `1d` (velas diárias).
+    2. Defina a **Quantidade de Candles** para `365` (1 ano) ou `1000` (quase 3 anos).
+    *Isto descarrega instantaneamente dados reais de longo prazo da Binance!*
+    
+    ---
+    
+    **Conceitos Rápidos:**
+    * **Risco por Trade (%)**: Percentagem da sua banca que aceita perder se o trade correr mal (bater no Stop Loss). Recomenda-se **1%**.
+    * **Stop Loss (SL)**: Limite de perda automática. Vende se o ativo cair esta % abaixo do preço de compra.
+    * **Take Profit (TP)**: Alvo de lucro. Vende automaticamente quando o ativo subir esta % para embolsar o ganho.
+    * **Médias Móveis (SMA)**:
+      * **Curta (Rápida)**: Média de curto prazo. Reage rápido ao preço (ex: 9 a 20).
+      * **Longa (Lenta)**: Média de médio prazo. Reage devagar (ex: 21 a 50).
+    """)
+
+# 6. Configurações da Strategy e Risk Management no Menu Lateral
+st.sidebar.markdown("### ⚙️ Configurações Gerais")
+symbol = st.sidebar.selectbox(
+    "Par de Trading", 
+    ["BTC/USDT", "ETH/USDT", "SOL/USDT", "BNB/USDT"], 
+    index=0,
+    help="Par de moedas a transacionar. Todos os cálculos de banca e lucro são exibidos na sua moeda local (EUR)."
+)
+timeframe = st.sidebar.selectbox(
+    "Timeframe", 
+    ["15m", "1h", "4h", "1d"], 
+    index=1,
+    help="Escala de tempo de cada candle (vela). Timeframes maiores (1h, 1d) filtram ruído e mostram tendências mais fortes."
+)
+limit_candles = st.sidebar.slider(
+    "Quantidade de Candles", 
+    100, 1000, 500, 
+    step=50,
+    help="Quantidade de velas a obter do histórico. Dica: Para simular 1 ano instantaneamente, use timeframe '1d' e 365 candles."
+)
+
+st.sidebar.markdown("### 📈 Estratégia (Cruzamento SMA)")
+short_window = st.sidebar.number_input(
+    "Janela Curta (Rápida)", 
+    min_value=2, max_value=100, 
+    value=st.session_state.short_window_val,
+    help="Número de candles para calcular a média móvel curta. Padrões profissionais: 9 a 20."
+)
+long_window = st.sidebar.number_input(
+    "Janela Longa (Lenta)", 
+    min_value=5, max_value=200, 
+    value=st.session_state.long_window_val,
+    help="Número de candles para calcular a média móvel lenta. Padrões profissionais: 21 a 50."
+)
+
+st.sidebar.markdown("### 🛡️ Gestão de Risco")
+initial_capital = st.sidebar.number_input(
+    "Capital Inicial (EUR)", 
+    min_value=100.0, max_value=100000.0, 
+    value=1000.0, 
+    step=100.0,
+    help="Saldo simulado de Euros (€) com que inicia a sua conta no primeiro dia."
+)
+max_risk_pct = st.sidebar.slider(
+    "Risco por Trade (%)", 
+    0.1, 5.0, 1.0, 
+    step=0.1,
+    help="A percentagem máxima da sua banca total que aceita perder caso a operação atinja o Stop Loss. Padrão profissional: 1.0%."
+)
+stop_loss_pct = st.sidebar.slider(
+    "Stop Loss (%)", 
+    0.5, 10.0, 
+    value=st.session_state.stop_loss_pct_val,
+    step=0.1,
+    help="Limite de perda automática. Se o preço cair esta percentagem abaixo da compra, o robô vende imediatamente para o proteger."
+)
+take_profit_pct = st.sidebar.slider(
+    "Take Profit (%)", 
+    1.0, 30.0, 
+    value=st.session_state.take_profit_pct_val,
+    step=0.5,
+    help="Alvo de ganho automático. Se o preço subir esta percentagem acima da compra, o robô vende para guardar o lucro."
+)
+max_daily_loss_pct = st.sidebar.slider(
+    "Limite Perda Diária (%)", 
+    1.0, 20.0, 5.0, 
+    step=0.5,
+    help="Se a sua conta perder esta percentagem total num único dia, o robô desliga-se automaticamente para o proteger contra quedas catastróficas."
+)
+
+# Sincronizar o estado interno caso o utilizador tenha mexido manualmente nos widgets
+st.session_state.short_window_val = short_window
+st.session_state.long_window_val = long_window
+st.session_state.stop_loss_pct_val = stop_loss_pct
+st.session_state.take_profit_pct_val = take_profit_pct
+
+# Carregar configurações e atualizar com a seleção da UI
+config = load_config()
+config.update({
+    "INITIAL_CAPITAL": initial_capital,
+    "SYMBOL": symbol,
+    "TIMEFRAME": timeframe,
+    "SHORT_WINDOW": short_window,
+    "LONG_WINDOW": long_window,
+    "MAX_RISK_PER_TRADE_PERCENT": max_risk_pct,
+    "STOP_LOSS_PERCENT": stop_loss_pct,
+    "TAKE_PROFIT_PERCENT": take_profit_pct,
+    "MAX_DAILY_LOSS_PERCENT": max_daily_loss_pct
+})
+
+# Inicializar logger
+logger = setup_logging()
+
+# Botão para Executar Backtesting Principal
+run_button = st.sidebar.button("⚡ Executar Simulação")
+
+# 7. Abas Principais do Laboratório (Tabs)
+tab_backtest, tab_optimizer = st.tabs(["📊 Simulação & Gráficos", "🧠 Otimizador de Parâmetros"])
+
+# Ação do Botão Principal do Backtester
+if run_button:
+    st.markdown("### ⏳ Recolhendo dados e processando simulação...")
+    progress_bar = st.progress(0)
+    
+    # Obter dados da Binance
+    collector = DataCollector(exchange_id='binance', symbol=symbol, timeframe=timeframe)
+    progress_bar.progress(30)
+    
+    df_ohlcv = collector.get_ohlcv(limit=limit_candles)
+    progress_bar.progress(60)
+    
+    if df_ohlcv is not None and not df_ohlcv.empty:
+        # Criar backtester
+        backtester = Backtester(config, logger)
+        
+        # Correr backtest
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        trades, capital_history = loop.run_until_complete(backtester.run_backtest(df_ohlcv))
+        metrics = backtester.get_performance_metrics()
+        
+        progress_bar.progress(100)
+        progress_bar.empty()
+        
+        # Guardar no Session State
+        st.session_state.backtest_results = {
+            "trades": trades,
+            "capital_history": capital_history,
+            "metrics": metrics,
+            "df_ohlcv": df_ohlcv
+        }
+    else:
+        st.error("Erro ao obter dados históricos da Binance.")
+
+# --- CONTEÚDO DA ABA 1: BACKTEST & GRAFICOS ---
+with tab_backtest:
+    if st.session_state.backtest_results is not None:
+        results = st.session_state.backtest_results
+        trades = results["trades"]
+        capital_history = results["capital_history"]
+        metrics = results["metrics"]
+        df_ohlcv = results["df_ohlcv"]
+        
+        # Calcular as SMAs no histórico para exibição visual
+        df_visualization = df_ohlcv.copy()
+        df_visualization['SMA_Short'] = ta.trend.sma_indicator(df_visualization['close'], window=short_window)
+        df_visualization['SMA_Long'] = ta.trend.sma_indicator(df_visualization['close'], window=long_window)
+        
+        # --- EXIBIÇÃO DE MÉTRICAS (METRICS CARDS) ---
+        st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+        st.markdown('<h4 style="margin-top:0;">📊 Sumário de Desempenho</h4>', unsafe_allow_html=True)
+        
+        total_pnl = metrics["total_pnl"]
+        pnl_class = "text-green" if total_pnl >= 0 else "text-red"
+        pnl_sign = "+" if total_pnl >= 0 else ""
+        
+        st.markdown(f"""
+        <div class="metric-container">
+            <div class="metric-card">
+                <div class="metric-label">Capital Final</div>
+                <div class="metric-value text-cyan">{metrics['final_capital']:.2f} EUR</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Retorno Total</div>
+                <div class="metric-value {pnl_class}">{pnl_sign}{total_pnl:.2f} EUR ({pnl_sign}{metrics['total_return_pct']:.2f}%)</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Taxa de Vitória</div>
+                <div class="metric-value text-purple">{metrics['win_rate']*100:.1f}%</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Max Drawdown</div>
+                <div class="metric-value text-red">{metrics['max_drawdown_pct']:.2f}%</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Sharpe / Sortino</div>
+                <div class="metric-value text-orange">{metrics['sharpe_ratio']:.2f} / {metrics['sortino_ratio']:.2f}</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Fator de Lucro</div>
+                <div class="metric-value text-cyan">{metrics['profit_factor']:.2f}</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Outras métricas rápidas
+        st.markdown(
+            f"**Total de Operações:** {metrics['num_trades']} | "
+            f"**Vitórias:** <span class='text-green'>{metrics['num_wins']}</span> ✅ | "
+            f"**Derrotas:** <span class='text-red'>{metrics['num_losses']}</span> ❌",
+            unsafe_allow_html=True
+        )
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+        # --- GRÁFICOS INTERATIVOS ---
+        
+        # 1. Curva de Capital (Equity Curve)
+        st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+        st.markdown('<h4>📈 Curva de Capital (Equity Curve)</h4>', unsafe_allow_html=True)
+        
+        dates_chart = df_ohlcv.index
+        capital_padded = capital_history[:len(dates_chart)]
+        while len(capital_padded) < len(dates_chart):
+            capital_padded.append(capital_padded[-1])
+            
+        fig_equity = go.Figure()
+        
+        # Equity Curve
+        fig_equity.add_trace(go.Scatter(
+            x=dates_chart, 
+            y=capital_padded,
+            mode='lines',
+            name='Capital (EUR)',
+            line=dict(color='#0284c7', width=3),
+            fill='tozeroy',
+            fillcolor='rgba(2, 132, 199, 0.04)'
+        ))
+        
+        # Preço do Ativo de Fundo (Normalizado para Capital Inicial)
+        price_normalized = df_ohlcv['close'] / df_ohlcv['close'].iloc[0] * initial_capital
+        fig_equity.add_trace(go.Scatter(
+            x=dates_chart,
+            y=price_normalized,
+            mode='lines',
+            name=f'Estratégia Buy & Hold {symbol}',
+            line=dict(color='rgba(71, 85, 105, 0.4)', width=1.5, dash='dash')
+        ))
+        
+        fig_equity.update_layout(
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            margin=dict(l=0, r=0, t=20, b=0),
+            legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01),
+            xaxis=dict(gridcolor='rgba(0,0,0,0.05)', tickfont=dict(color='#475569')),
+            yaxis=dict(gridcolor='rgba(0,0,0,0.05)', tickfont=dict(color='#475569')),
+            height=350
+        )
+        
+        st.plotly_chart(fig_equity, use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+        # 2. Gráfico Interativo de Sinais no Preço do Ativo + Médias Móveis (SMA)
+        st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+        st.markdown('<h4>🎯 Justificação Visual: Preço & Cruzamento das Médias Móveis (SMA)</h4>', unsafe_allow_html=True)
+        st.markdown(
+            "💡 **Por que o robô entra e sai?** O robô compra quando a linha azul clara (Curta) cruza **acima** da laranja (Lenta). "
+            "Ele vende no cruzamento inverso, ou quando bate no seu Stop Loss automático (limite de segurança) ou Take Profit (alvo de lucro)."
+        )
+        
+        fig_prices = go.Figure()
+        
+        # Linha do Preço Real do Ativo
+        fig_prices.add_trace(go.Scatter(
+            x=df_visualization.index,
+            y=df_visualization['close'],
+            mode='lines',
+            name=f'Preço {symbol}',
+            line=dict(color='rgba(71, 85, 105, 0.25)', width=1.5),
+            hoverinfo='skip'
+        ))
+        
+        # Linha da SMA Curta (Rápida)
+        fig_prices.add_trace(go.Scatter(
+            x=df_visualization.index,
+            y=df_visualization['SMA_Short'],
+            mode='lines',
+            name=f'Média Curta ({short_window})',
+            line=dict(color='#0ea5e9', width=2),
+            hoverinfo='skip'
+        ))
+        
+        # Linha da SMA Longa (Lenta)
+        fig_prices.add_trace(go.Scatter(
+            x=df_visualization.index,
+            y=df_visualization['SMA_Long'],
+            mode='lines',
+            name=f'Média Lenta ({long_window})',
+            line=dict(color='#f97316', width=2),
+            hoverinfo='skip'
+        ))
+        
+        # Filtrar e agrupar marcas de BUY e SELL/SL/TP com explicações pedagógicas completas
+        buy_x, buy_y, buy_text = [], [], []
+        sell_x, sell_y, sell_text = [], [], []
+        
+        for trade in trades:
+            # Entrada (BUY)
+            buy_x.append(trade['entry_timestamp'])
+            buy_y.append(trade['entry_price'])
+            invested_val = trade['entry_price'] * trade['quantity']
+            buy_text.append(
+                f"🟢 <b>ENTRADA (BUY)</b><br>"
+                f"<b>Data</b>: {trade['entry_timestamp'].strftime('%Y-%m-%d %H:%M')}<br>"
+                f"<b>Preço Compra</b>: {trade['entry_price']:.2f} EUR<br>"
+                f"<b>Quantidade</b>: {trade['quantity']:.6f}<br>"
+                f"<b>Valor Investido (Aposta)</b>: {invested_val:.2f} EUR<br>"
+                f"<b>Justificação</b>: A Média Rápida ({short_window}) cruzou acima da Lenta ({long_window}), "
+                f"confirmando padrão de reversão e início de tendência de alta."
+            )
+            
+            # Saída (SELL / STOP LOSS / TAKE PROFIT)
+            sell_x.append(trade['exit_timestamp'])
+            sell_y.append(trade['exit_price'])
+            pnl_sign = "+" if trade['pnl'] >= 0 else ""
+            pnl_pct_sign = "+" if trade['pnl_pct'] >= 0 else ""
+            
+            if trade['reason'] == "STOP_LOSS":
+                justification = f"O preço caiu abaixo do limite de segurança ({stop_loss_pct}%). Operação cortada para proteger o seu capital."
+            elif trade['reason'] == "TAKE_PROFIT":
+                justification = f"O preço subiu e atingiu o seu alvo de ganho ideal ({take_profit_pct}%). Lucro embolsado com sucesso."
+            elif trade['reason'] == "STRATEGY_SELL":
+                justification = f"A Média Rápida ({short_window}) cruzou abaixo da Lenta ({long_window}), indicando exaustão dos compradores e fim da tendência."
+            else:
+                justification = "Fim do período de testes. Posição fechada de forma virtual ao preço final de mercado para fins de cálculo."
+                
+            sell_text.append(
+                f"🔴 <b>SAÍDA ({trade['reason']})</b><br>"
+                f"<b>Data</b>: {trade['exit_timestamp'].strftime('%Y-%m-%d %H:%M')}<br>"
+                f"<b>Preço Venda</b>: {trade['exit_price']:.2f} EUR<br>"
+                f"<b>Valor Ganho</b>: {pnl_sign}{trade['pnl']:.2f} EUR ({pnl_pct_sign}{trade['pnl_pct']:.2f}%)<br>"
+                f"<b>Justificação</b>: {justification}"
+            )
+            
+        # Adicionar marcadores verdes de compra
+        if buy_x:
+            fig_prices.add_trace(go.Scatter(
+                x=buy_x,
+                y=buy_y,
+                mode='markers',
+                name='Entradas (BUY)',
+                marker=dict(symbol='triangle-up', size=14, color='#10b981', line=dict(color='#047857', width=1.5)),
+                text=buy_text,
+                hoverinfo='text'
+            ))
+            
+        # Adicionar marcadores vermelhos de venda
+        if sell_x:
+            fig_prices.add_trace(go.Scatter(
+                x=sell_x,
+                y=sell_y,
+                mode='markers',
+                name='Saídas (SELL/SL/TP)',
+                marker=dict(symbol='triangle-down', size=14, color='#ef4444', line=dict(color='#b91c1c', width=1.5)),
+                text=sell_text,
+                hoverinfo='text'
+            ))
+            
+        fig_prices.update_layout(
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            margin=dict(l=0, r=0, t=20, b=0),
+            legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01),
+            xaxis=dict(gridcolor='rgba(0,0,0,0.05)', tickfont=dict(color='#475569')),
+            yaxis=dict(gridcolor='rgba(0,0,0,0.05)', tickfont=dict(color='#475569')),
+            height=400
+        )
+        
+        st.plotly_chart(fig_prices, use_container_width=True)
+        st.caption("💡 Dica: Passe com o rato por cima das setas de Entrada e Saída para ler a justificação técnica exata de cada operação!")
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+        # --- TABELA DE OPERAÇÕES ---
+        st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+        st.markdown('<h4>📜 Histórico de Ordens Efetuadas</h4>', unsafe_allow_html=True)
+        
+        if trades:
+            trades_df = pd.DataFrame(trades)
+            
+            # Cálculo dinâmico direto na UI para contornar qualquer bug de cache
+            trades_df['position_value'] = trades_df['entry_price'] * trades_df['quantity']
+            trades_df['capital_after'] = initial_capital + trades_df['pnl'].cumsum()
+                
+            trades_df_display = trades_df[[
+                'entry_timestamp', 'exit_timestamp', 'action', 'entry_price', 'exit_price', 'quantity', 'position_value', 'pnl', 'pnl_pct', 'capital_after', 'reason'
+            ]].copy()
+            
+            trades_df_display.columns = [
+                'Entrada', 'Saída', 'Ação', 'Preço Entrada', 'Preço Saída', 'Quantidade', 'Valor Investido (EUR)', 'PnL (EUR)', 'Retorno (%)', 'Saldo da Banca (EUR)', 'Motivo Fecho'
+            ]
+            
+            def color_pnl(val):
+                color = '#059669' if val >= 0 else '#e11d48'
+                return f'color: {color}; font-weight: bold;'
+            
+            st.dataframe(
+                trades_df_display.style.map(color_pnl, subset=['PnL (EUR)', 'Retorno (%)'])
+                .format({'Preço Entrada': '{:.2f}', 'Preço Saída': '{:.2f}', 'Quantidade': '{:.6f}', 'Valor Investido (EUR)': '{:.2f}', 'PnL (EUR)': '{:+.2f}', 'Retorno (%)': '{:+.2f}%', 'Saldo da Banca (EUR)': '{:.2f}'}),
+                use_container_width=True
+            )
+        else:
+            st.info("Nenhuma operação foi efetuada durante esta simulação. Tente ajustar os parâmetros das médias móveis ou selecione um número maior de candles.")
+        
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+    else:
+        # Estado Inicial da UI
+        st.markdown('<div class="glass-card" style="text-align: center; padding: 50px 20px;">', unsafe_allow_html=True)
+        st.markdown('<h3 style="margin-top:0;">🚀 Pronto para Começar!</h3>', unsafe_allow_html=True)
+        st.markdown(
+            'Configure os parâmetros de estratégia e gestão de risco no **painel esquerdo** '
+            'e carregue no botão **"Executar Simulação"** para correr o backtest com dados de mercado reais da Binance.',
+            unsafe_allow_html=True
+        )
+        st.markdown('</div>', unsafe_allow_html=True)
+
+# --- CONTEÚDO DA ABA 2: OTIMIZADOR DE PARÂMETROS ---
+with tab_optimizer:
+    st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+    st.markdown('<h3>🧠 Otimizador de Parâmetros Inteligente</h3>', unsafe_allow_html=True)
+    st.markdown("""
+    Este painel permite-lhe descobrir **as melhores configurações históricas** para a sua estratégia de médias móveis.
+    O sistema realiza uma pesquisa matemática detalhada (**Grid Search**) cruzando dezenas de combinações de médias móveis,
+    valores de Stop Loss e Take Profit.
+    
+    Para o proteger contra o risco de **Overfitting** (otimização perfeita do passado que depois perde dinheiro no futuro),
+    dividimos os dados em dois períodos específicos:
+    1. **Período de Treino (In-Sample)**: Onde o robô pesquisa e descobre as melhores configurações.
+    2. **Período de Teste (Out-of-Sample)**: Onde testamos as melhores configurações em dados 100% novos, simulando o futuro real!
+    """)
+    
+    # Inputs do Otimizador
+    col_opt1, col_opt2 = st.columns(2)
+    with col_opt1:
+        train_pct = st.slider(
+            "Divisão de Treino / In-Sample (%)",
+            min_value=50, max_value=90, value=65, step=5,
+            help="Percentagem do histórico usada para procurar os melhores parâmetros. O restante é guardado para testar no futuro simulado."
+        )
+    with col_opt2:
+        st.markdown("<br>", unsafe_allow_html=True)
+        opt_button = st.button("🧠 Iniciar Pesquisa de Parâmetros Ideais")
+        
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    if opt_button:
+        st.markdown("### ⏳ A carregar dados históricos e a processar pesquisa inteligente...")
+        
+        # Obter dados
+        collector = DataCollector(exchange_id='binance', symbol=symbol, timeframe=timeframe)
+        df_ohlcv = collector.get_ohlcv(limit=limit_candles)
+        
+        if df_ohlcv is not None and not df_ohlcv.empty:
+            # Função para correr a otimização
+            async def execute_optimization_flow():
+                # Split dados
+                split_idx = int(len(df_ohlcv) * (train_pct / 100))
+                df_train = df_ohlcv.iloc[:split_idx]
+                df_test = df_ohlcv.iloc[split_idx:]
+                
+                st.info(f"Dados divididos em: **{len(df_train)} velas de Treino** e **{len(df_test)} velas de Teste**.")
+                
+                # Silenciar logs para extrema velocidade de CPU
+                main_logger = logging.getLogger("TradingBot")
+                old_level = main_logger.level
+                main_logger.setLevel(logging.WARNING)
+                
+                # Grids inteligentes
+                short_grid = [5, 9, 12, 15]
+                long_grid = [21, 26, 30, 50]
+                sl_grid = [1.0, 1.5, 2.0, 3.0]
+                tp_grid = [3.0, 5.0, 7.0, 10.0]
+                
+                results_list = []
+                
+                # Calcular total
+                total_comb = 0
+                for sw in short_grid:
+                    for lw in long_grid:
+                        if sw >= lw: continue
+                        for sl in sl_grid:
+                            for tp in tp_grid:
+                                total_comb += 1
+                                
+                progress_bar_opt = st.progress(0)
+                status_text = st.empty()
+                
+                current = 0
+                for sw in short_grid:
+                    for lw in long_grid:
+                        if sw >= lw: continue
+                        for sl in sl_grid:
+                            for tp in tp_grid:
+                                local_config = config.copy()
+                                local_config.update({
+                                    "SHORT_WINDOW": sw,
+                                    "LONG_WINDOW": lw,
+                                    "STOP_LOSS_PERCENT": sl,
+                                    "TAKE_PROFIT_PERCENT": tp,
+                                    "INITIAL_CAPITAL": 1000.0
+                                })
+                                
+                                # Treino
+                                bt_train = Backtester(local_config, main_logger)
+                                await bt_train.run_backtest(df_train)
+                                m_train = bt_train.get_performance_metrics()
+                                
+                                # Teste
+                                bt_test = Backtester(local_config, main_logger)
+                                await bt_test.run_backtest(df_test)
+                                m_test = bt_test.get_performance_metrics()
+                                
+                                results_list.append({
+                                    "SMA Rápida": sw,
+                                    "SMA Lenta": lw,
+                                    "Stop Loss (%)": sl,
+                                    "Take Profit (%)": tp,
+                                    "Retorno Treino": m_train["total_return_pct"],
+                                    "Retorno Teste (Futuro)": m_test["total_return_pct"],
+                                    "Trades Treino": m_train["num_trades"],
+                                    "Trades Teste": m_test["num_trades"],
+                                    "Win Rate Treino (%)": m_train["win_rate"] * 100,
+                                    "Max Drawdown (%)": m_train["max_drawdown_pct"]
+                                })
+                                
+                                current += 1
+                                progress_bar_opt.progress(int((current / total_comb) * 100))
+                                status_text.text(f"A analisar combinação {current}/{total_comb} (Curta: {sw}, Lenta: {lw})")
+                                
+                progress_bar_opt.empty()
+                status_text.empty()
+                main_logger.setLevel(old_level)
+                
+                df_results = pd.DataFrame(results_list)
+                if not df_results.empty:
+                    df_results = df_results.sort_values(by="Retorno Treino", ascending=False).reset_index(drop=True)
+                return df_results
+
+            # Correr fluxo
+            loop_opt = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop_opt)
+            df_opt = loop_opt.run_until_complete(execute_optimization_flow())
+            
+            st.session_state.optimizer_results = df_opt
+            
+        else:
+            st.error("Erro ao obter dados históricos para otimização.")
+            
+    # Exibir resultados guardados
+    if st.session_state.optimizer_results is not None:
+        df_opt = st.session_state.optimizer_results
+        
+        st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+        st.markdown("<h4>🏆 Top 5 Configurações Encontradas</h4>", unsafe_allow_html=True)
+        st.markdown(
+            "💡 **Dica de Ouro**: Escolha configurações que tenham um **Retorno Treino** excelente "
+            "E que também tenham mantido um **Retorno Teste (Futuro)** positivo. Isso prova que o padrão é estável!"
+        )
+        
+        # Mostrar tabela formatada
+        df_display_opt = df_opt.head(5).copy()
+        
+        def color_opt_pnl(val):
+            color = '#059669' if val >= 0 else '#e11d48'
+            return f'color: {color}; font-weight: bold;'
+            
+        st.dataframe(
+            df_display_opt.style.map(color_opt_pnl, subset=['Retorno Treino', 'Retorno Teste (Futuro)'])
+            .format({
+                'SMA Rápida': '{:d}',
+                'SMA Lenta': '{:d}',
+                'Stop Loss (%)': '{:.1f}%',
+                'Take Profit (%)': '{:.1f}%',
+                'Retorno Treino': '{:+.2f}%',
+                'Retorno Teste (Futuro)': '{:+.2f}%',
+                'Trades Treino': '{:d}',
+                'Trades Teste': '{:d}',
+                'Win Rate Treino (%)': '{:.1f}%',
+                'Max Drawdown (%)': '{:+.2f}%'
+            }),
+            use_container_width=True
+        )
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+        # Aplicar Parâmetros Recomendados
+        st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+        st.markdown("<h4>⚙️ Aplicar Configuração Recomendada</h4>", unsafe_allow_html=True)
+        
+        options_list = []
+        for idx, row in df_display_opt.iterrows():
+            label = (
+                f"Rank #{idx+1}: Média Curta: {int(row['SMA Rápida'])}, Média Lenta: {int(row['SMA Lenta'])}, "
+                f"SL: {row['Stop Loss (%)']:.1f}%, TP: {row['Take Profit (%)']:.1f}% | "
+                f"Retorno Treino: {row['Retorno Treino']:.2f}% | Retorno Teste: {row['Retorno Teste (Futuro)']:.2f}%"
+            )
+            options_list.append((label, row))
+            
+        selected_option = st.selectbox(
+            "Selecione uma configuração para aplicar no Simulador Principal:",
+            options=range(len(options_list)),
+            format_func=lambda x: options_list[x][0]
+        )
+        
+        if st.button("🚀 Aplicar Configuração Selecionada"):
+            chosen_row = options_list[selected_option][1]
+            st.session_state.short_window_val = int(chosen_row['SMA Rápida'])
+            st.session_state.long_window_val = int(chosen_row['SMA Lenta'])
+            st.session_state.stop_loss_pct_val = float(chosen_row['Stop Loss (%)'])
+            st.session_state.take_profit_pct_val = float(chosen_row['Take Profit (%)'])
+            st.success("Configurações aplicadas com sucesso! Vá para o separador 'Simulação & Gráficos' e clique em 'Executar Simulação'!")
+            st.rerun()
+            
+        st.markdown('</div>', unsafe_allow_html=True)
