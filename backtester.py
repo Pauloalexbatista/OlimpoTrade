@@ -1,22 +1,19 @@
-# my_trading_bot/backtester.py
 import pandas as pd
 import numpy as np
+import asyncio
 from strategy import TradingStrategy
 from risk_manager import RiskManager
 from config import load_config
 from logger import setup_logging
-import asyncio
 
 class Backtester:
-    def __init__(self, config, logger, strategy_class=TradingStrategy, risk_manager_class=RiskManager):
+    def __init__(self, config, logger):
         self.config = config
         self.logger = logger
-        self.strategy = strategy_class(config, logger)
-        self.risk_manager = risk_manager_class(config, logger)
-        self.logger.info("Backtester initialized with advanced metrics.")
-        
+        self.strategy = TradingStrategy(config, logger)
+        self.risk_manager = RiskManager(config, logger)
         self.trades = []
-        self.capital_history = [config["INITIAL_CAPITAL"]]
+        self.capital_history = []
         self.current_capital = config["INITIAL_CAPITAL"]
         self.open_position = None
 
@@ -45,8 +42,22 @@ class Backtester:
                 low_price = current_candle['low'].iloc[-1]
                 high_price = current_candle['high'].iloc[-1]
                 
+                # --- UPDATE TRAILING STOP LOGIC ---
+                if self.config.get("TRAILING_STOP_ACTIVE", False):
+                    # Inicializar se necessário
+                    if "highest_price" not in self.open_position:
+                        self.open_position["highest_price"] = max(self.open_position["entry_price"], high_price)
+                        
+                    if high_price > self.open_position["highest_price"]:
+                        self.open_position["highest_price"] = high_price
+                        new_sl = high_price * (1 - self.config["STOP_LOSS_PERCENT"] / 100)
+                        if new_sl > self.open_position["stop_loss"]:
+                            self.open_position["stop_loss"] = new_sl
+                            self.open_position["reason_override"] = "TRAILING_STOP"
+                
                 if low_price <= self.open_position['stop_loss']:
-                    self._close_position(self.open_position['stop_loss'], "STOP_LOSS", current_time)
+                    reason = self.open_position.get("reason_override", "STOP_LOSS")
+                    self._close_position(self.open_position['stop_loss'], reason, current_time)
                     position_closed_this_candle = True
                 elif high_price >= self.open_position['take_profit']:
                     self._close_position(self.open_position['take_profit'], "TAKE_PROFIT", current_time)
@@ -93,7 +104,8 @@ class Backtester:
             "quantity": order_details["quantity"],
             "stop_loss": order_details["stop_loss"],
             "take_profit": order_details["take_profit"],
-            "status": "OPEN"
+            "status": "OPEN",
+            "highest_price": entry_price
         }
         self.current_capital -= (entry_price * order_details["quantity"])
         self.logger.info(f"[{timestamp}] Opened position: {self.open_position}")
