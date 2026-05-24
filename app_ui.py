@@ -28,8 +28,8 @@ if "stop_loss_pct_val" not in st.session_state:
     st.session_state.stop_loss_pct_val = 2.0
 if "take_profit_pct_val" not in st.session_state:
     st.session_state.take_profit_pct_val = 7.0
-if "disable_tp_val" not in st.session_state:
-    st.session_state.disable_tp_val = False
+if "tp_active_val" not in st.session_state:
+    st.session_state.tp_active_val = True
 if "trailing_stop_active_val" not in st.session_state:
     st.session_state.trailing_stop_active_val = False
 
@@ -275,14 +275,14 @@ trailing_stop_active = st.sidebar.checkbox(
     help="Se ativado, o seu Stop Loss subirá automaticamente acompanhando o preço sempre que a moeda valorizar. Isto protege o seu lucro acumulado contra quedas repentinas sem limitar a subida!"
 )
 
-# Checkbox: Desativar Take Profit para Deixar Lucros Correr
-disable_tp = st.sidebar.checkbox(
-    "Deixar Lucros Correr (Sem Take Profit)",
-    value=st.session_state.disable_tp_val,
-    help="Se ativado, o robô não vende por meta de lucro fixa. Ele continuará na operação enquanto a tendência for de alta, vendendo apenas quando as médias se cruzarem no sentido inverso (STRATEGY_SELL) ou se bater no Stop Loss (ou Trailing Stop) de segurança."
+# Checkbox: Ativar/Desativar Meta de Lucro (Take Profit)
+tp_active = st.sidebar.checkbox(
+    "Take Profit Ativo (Meta de Lucro)",
+    value=st.session_state.tp_active_val,
+    help="Se ativado, o robô vende quando atinge a percentagem de ganho definida no slider abaixo. Se desativado, o robô não vende por meta de lucro fixa e deixa os lucros correrem livremente até as médias se cruzarem de volta no sentido inverso (STRATEGY_SELL)."
 )
 
-if disable_tp:
+if not tp_active:
     take_profit_pct = 999.0
     st.sidebar.info("ℹ️ Take Profit desativado. Lucros a correr sem limite!")
 else:
@@ -305,9 +305,9 @@ max_daily_loss_pct = st.sidebar.slider(
 st.session_state.short_window_val = short_window
 st.session_state.long_window_val = long_window
 st.session_state.stop_loss_pct_val = stop_loss_pct
-st.session_state.disable_tp_val = disable_tp
+st.session_state.tp_active_val = tp_active
 st.session_state.trailing_stop_active_val = trailing_stop_active
-if not disable_tp:
+if tp_active:
     st.session_state.take_profit_pct_val = take_profit_pct
 
 # Carregar configurações e atualizar com a seleção da UI
@@ -862,9 +862,9 @@ with tab_optimizer:
 
             # Tratar o toggle de desativar TP
             if chosen_row['Take Profit Ativo'] == "Não":
-                st.session_state.disable_tp_val = True
+                st.session_state.tp_active_val = False
             else:
-                st.session_state.disable_tp_val = False
+                st.session_state.tp_active_val = True
                 # Limpar a string formatada para obter o float original
                 tp_val = float(chosen_row['Take Profit (%)'].replace('%', ''))
                 st.session_state.take_profit_pct_val = tp_val
