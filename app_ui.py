@@ -794,6 +794,8 @@ with tab_optimizer:
 
         # Mostrar tabela formatada
         df_display_opt = df_opt.head(5).copy()
+        df_display_opt.index = range(1, len(df_display_opt) + 1)
+        df_display_opt.index.name = "Rank"
 
         # Formatando Take Profit bonita
         df_display_opt['Take Profit (%)'] = df_display_opt['Take Profit (%)'].apply(
@@ -840,7 +842,7 @@ with tab_optimizer:
             ts_label = "Sim" if row['Stop Móvel (Trailing)'] == "Sim" else "Não"
             tp_active = "Sim" if row['Take Profit Ativo'] == "Sim" else "Não"
             label = (
-                f"Rank #{idx+1}: Média Curta: {int(row['SMA Rápida'])}, Média Lenta: {int(row['SMA Lenta'])}, "
+                f"Rank #{idx}: Média Curta: {int(row['SMA Rápida'])}, Média Lenta: {int(row['SMA Lenta'])}, "
                 f"SL: {row['Stop Loss (%)']:.1f}%, TP Ativo: {tp_active} ({tp_label}), Stop Móvel: {ts_label} | "
                 f"Retorno Treino: {row['Retorno Treino']:.2f}% | Retorno Teste: {row['Retorno Teste (Futuro)']:.2f}%"
             )
