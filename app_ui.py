@@ -10,6 +10,104 @@ from data_collector import DataCollector
 from backtester import Backtester
 from config import load_config
 from logger import setup_logging
+import os
+
+def load_recipes_db():
+    csv_path = r"c:\Users\paulo\.gemini\antigravity\playground\core-omega\PRJT_OlimpoTrade\registro_otimizacao_moedas.csv"
+    columns = [
+        "Criptomoeda", "SMA Rápida", "SMA Lenta", "Stop Loss (%)",
+        "Take Profit", "Stop Móvel (Trailing)", "Take Profit Ativo",
+        "Retorno Treino (%)", "Retorno Teste (%)", "Trades Treino",
+        "Trades Teste", "Win Rate Treino (%)", "Max Drawdown (%)", "Notas"
+    ]
+    if not os.path.exists(csv_path):
+        initial_data = [
+            {
+                "Criptomoeda": "ETH/USDT",
+                "SMA Rápida": 15,
+                "SMA Lenta": 21,
+                "Stop Loss (%)": 1.0,
+                "Take Profit": "10.0%",
+                "Stop Móvel (Trailing)": "Não",
+                "Take Profit Ativo": "Sim",
+                "Retorno Treino (%)": 24.08,
+                "Retorno Teste (%)": 0.0,
+                "Trades Treino": 10,
+                "Trades Teste": 0,
+                "Win Rate Treino (%)": 30.0,
+                "Max Drawdown (%)": 0.0,
+                "Notas": "Seguidor de Tendência / Breakout: Lucros brutais nas grandes ondas (+10%) com perdas muito pequenas e controladas (-1%). Ideal para mercados com tendências fortes e rápidas."
+            },
+            {
+                "Criptomoeda": "SOL/USDT",
+                "SMA Rápida": 15,
+                "SMA Lenta": 21,
+                "Stop Loss (%)": 2.0,
+                "Take Profit": "5.0%",
+                "Stop Móvel (Trailing)": "Não",
+                "Take Profit Ativo": "Sim",
+                "Retorno Treino (%)": 4.53,
+                "Retorno Teste (%)": 0.0,
+                "Trades Treino": 35,
+                "Trades Teste": 0,
+                "Win Rate Treino (%)": 51.4,
+                "Max Drawdown (%)": -4.10,
+                "Notas": "Equilibrado e Consistente: Curva de capital extremamente estável e segura (Drawdown baixíssimo de 4%). A amplitude curta das médias corta perdas muito antes de atingir o Stop Loss."
+            },
+            {
+                "Criptomoeda": "BTC/USDT",
+                "SMA Rápida": 9,
+                "SMA Lenta": 21,
+                "Stop Loss (%)": 1.0,
+                "Take Profit": "3.0%",
+                "Stop Móvel (Trailing)": "Não",
+                "Take Profit Ativo": "Sim",
+                "Retorno Treino (%)": 8.14,
+                "Retorno Teste (%)": -0.26,
+                "Trades Treino": 15,
+                "Trades Teste": 0,
+                "Win Rate Treino (%)": 60.0,
+                "Max Drawdown (%)": 0.0,
+                "Notas": "Filtro de Tendência Estável: Configuração moderada e muito estável. Quase break-even no teste futuro (-0.26%), provando excelente resiliência contra ruído e volatilidade rápida."
+            }
+        ]
+        df = pd.DataFrame(initial_data, columns=columns)
+        df.to_csv(csv_path, index=False, encoding="utf-8")
+        return df
+    else:
+        try:
+            return pd.read_csv(csv_path, encoding="utf-8")
+        except Exception:
+            return pd.read_csv(csv_path, encoding="latin-1")
+
+def save_recipe(recipe):
+    csv_path = r"c:\Users\paulo\.gemini\antigravity\playground\core-omega\PRJT_OlimpoTrade\registro_otimizacao_moedas.csv"
+    df = load_recipes_db()
+
+    # Check if duplicate exists to avoid cluttering
+    duplicate_mask = (
+        (df["Criptomoeda"] == recipe["Criptomoeda"]) &
+        (df["SMA Rápida"] == recipe["SMA Rápida"]) &
+        (df["SMA Lenta"] == recipe["SMA Lenta"]) &
+        (df["Stop Loss (%)"] == recipe["Stop Loss (%)"]) &
+        (df["Take Profit"] == recipe["Take Profit"]) &
+        (df["Stop Móvel (Trailing)"] == recipe["Stop Móvel (Trailing)"]) &
+        (df["Take Profit Ativo"] == recipe["Take Profit Ativo"])
+    )
+    if duplicate_mask.any():
+        idx = df[duplicate_mask].index[0]
+        df.at[idx, "Retorno Treino (%)"] = recipe["Retorno Treino (%)"]
+        df.at[idx, "Retorno Teste (%)"] = recipe["Retorno Teste (%)"]
+        df.at[idx, "Trades Treino"] = recipe["Trades Treino"]
+        df.at[idx, "Trades Teste"] = recipe["Trades Teste"]
+        df.at[idx, "Win Rate Treino (%)"] = recipe["Win Rate Treino (%)"]
+        df.at[idx, "Max Drawdown (%)"] = recipe["Max Drawdown (%)"]
+        df.at[idx, "Notas"] = recipe["Notas"]
+    else:
+        new_row = pd.DataFrame([recipe])
+        df = pd.concat([df, new_row], ignore_index=True)
+
+    df.to_csv(csv_path, index=False, encoding="utf-8")
 
 # 1. Configuração da Página do Streamlit
 st.set_page_config(
@@ -332,7 +430,7 @@ logger = setup_logging()
 run_button = st.sidebar.button("⚡ Executar Simulação")
 
 # 7. Abas Principais do Laboratório (Tabs)
-tab_backtest, tab_optimizer = st.tabs(["📊 Simulação & Gráficos", "🧠 Otimizador de Parâmetros"])
+tab_backtest, tab_optimizer, tab_recipes = st.tabs(["📊 Simulação & Gráficos", "🔬 Otimizador de Parâmetros", "📚 Livro de Receitas"])
 
 # Ação do Botão Principal do Backtester
 if run_button:
@@ -879,3 +977,146 @@ with tab_optimizer:
             st.rerun()
 
         st.markdown('</div>', unsafe_allow_html=True)
+
+        # --- NOVO: Registar no Livro de Receitas ---
+        st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+        st.markdown("<h4>💾 Registar no Livro de Receitas</h4>", unsafe_allow_html=True)
+        st.markdown(
+            "Guarde esta configuração diretamente na base de dados local do seu Livro de Receitas "
+            "para poder consultá-la ou filtrá-la mais tarde!"
+        )
+
+        recipe_note = st.text_input(
+            "Comportamento do Mercado / Notas do Teste:",
+            placeholder="Ex: Excelente rampa de alta em ETH, muito robusta, drawdown baixo.",
+            key="opt_recipe_note"
+        )
+
+        if st.button("💾 Guardar Configuração no Livro de Receitas"):
+            chosen_row = options_list[selected_option][1]
+
+            recipe_tp_val = chosen_row['Take Profit (%)']
+            recipe_ts_val = chosen_row['Stop Móvel (Trailing)']
+            recipe_tp_active = chosen_row['Take Profit Ativo']
+
+            new_recipe = {
+                "Criptomoeda": symbol,
+                "SMA Rápida": int(chosen_row['SMA Rápida']),
+                "SMA Lenta": int(chosen_row['SMA Lenta']),
+                "Stop Loss (%)": float(chosen_row['Stop Loss (%)']),
+                "Take Profit": recipe_tp_val if isinstance(recipe_tp_val, str) else f"{recipe_tp_val:.1f}%",
+                "Stop Móvel (Trailing)": recipe_ts_val,
+                "Take Profit Ativo": recipe_tp_active,
+                "Retorno Treino (%)": float(chosen_row['Retorno Treino']),
+                "Retorno Teste (%)": float(chosen_row['Retorno Teste (Futuro)']),
+                "Trades Treino": int(chosen_row['Trades Treino']),
+                "Trades Teste": int(chosen_row['Trades Teste']),
+                "Win Rate Treino (%)": float(chosen_row['Win Rate Treino (%)']),
+                "Max Drawdown (%)": float(chosen_row['Max Drawdown (%)']),
+                "Notas": recipe_note if recipe_note.strip() != "" else "Sem observações."
+            }
+
+            save_recipe(new_recipe)
+            st.success("💾 Configuração guardada com sucesso! Vá ao separador 'Livro de Receitas' para ver e filtrar!")
+            st.rerun()
+
+        st.markdown('</div>', unsafe_allow_html=True)
+
+# --- CONTEÚDO DA ABA 3: LIVRO DE RECEITAS ---
+with tab_recipes:
+    st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+    st.markdown('<h3>📚 Livro de Receitas de Parâmetros</h3>', unsafe_allow_html=True)
+    st.markdown("""
+    Consulte, filtre e faça a gestão de **todas as configurações otimizadas** que guardou anteriormente.
+    Use os filtros abaixo para encontrar rapidamente a parametrização perfeita para cada mercado sem misturar as moedas!
+    """)
+
+    df_db = load_recipes_db()
+
+    if not df_db.empty:
+        col_f1, col_f2 = st.columns([1, 2])
+        with col_f1:
+            available_coins = ["Todas"] + sorted(list(df_db["Criptomoeda"].unique()))
+            filter_coin = st.selectbox(
+                "🔍 Filtrar por Criptomoeda:",
+                options=available_coins,
+                help="Escolha uma moeda específica para ver apenas os seus testes otimizados."
+            )
+
+        if filter_coin != "Todas":
+            df_display_db = df_db[df_db["Criptomoeda"] == filter_coin].copy()
+        else:
+            df_display_db = df_db.copy()
+
+        df_display_db.index = range(1, len(df_display_db) + 1)
+        df_display_db.index.name = "Receita"
+
+        st.markdown("<h4>📋 Parametrizações Guardadas</h4>", unsafe_allow_html=True)
+
+        def color_db_pnl(val):
+            if isinstance(val, (int, float)):
+                color = '#059669' if val >= 0 else '#e11d48'
+                return f'color: {color}; font-weight: bold;'
+            return ''
+
+        st.dataframe(
+            df_display_db.style.map(color_db_pnl, subset=['Retorno Treino (%)', 'Retorno Teste (%)'])
+            .format({
+                'SMA Rápida': '{:d}',
+                'SMA Lenta': '{:d}',
+                'Stop Loss (%)': '{:.1f}%',
+                'Retorno Treino (%)': '{:+.2f}%',
+                'Retorno Teste (%)': '{:+.2f}%',
+                'Trades Treino': '{:d}',
+                'Trades Teste': '{:d}',
+                'Win Rate Treino (%)': '{:.1f}%',
+                'Max Drawdown (%)': '{:+.2f}%'
+            }),
+            use_container_width=True
+        )
+
+        st.markdown("<h4>🗑️ Apagar Receita do Livro</h4>", unsafe_allow_html=True)
+        col_del1, col_del2 = st.columns([2, 1])
+        with col_del1:
+            delete_options = []
+            for idx, row in df_display_db.iterrows():
+                tp_lbl = row['Take Profit']
+                ts_lbl = row['Stop Móvel (Trailing)']
+                label = (
+                    f"Receita #{idx}: {row['Criptomoeda']} | Médias: {row['SMA Rápida']}/{row['SMA Lenta']} | "
+                    f"SL: {row['Stop Loss (%)']:.1f}% | TP: {tp_lbl} | Stop Móvel: {ts_lbl} | "
+                    f"Retorno Treino: {row['Retorno Treino (%)']:.2f}%"
+                )
+                delete_options.append((label, row, idx))
+
+            selected_to_delete = st.selectbox(
+                "Selecione uma receita para remover permanentemente:",
+                options=range(len(delete_options)),
+                format_func=lambda x: delete_options[x][0],
+                key="delete_recipe_select"
+            )
+
+        with col_del2:
+            st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
+            if st.button("🗑️ Apagar Receita Selecionada", use_container_width=True):
+                target_row = delete_options[selected_to_delete][1]
+                original_df = load_recipes_db()
+                mask = (
+                    (original_df["Criptomoeda"] == target_row["Criptomoeda"]) &
+                    (original_df["SMA Rápida"] == int(target_row["SMA Rápida"])) &
+                    (original_df["SMA Lenta"] == int(target_row["SMA Lenta"])) &
+                    (original_df["Stop Loss (%)"] == float(target_row["Stop Loss (%)"])) &
+                    (original_df["Take Profit"] == target_row["Take Profit"]) &
+                    (original_df["Stop Móvel (Trailing)"] == target_row["Stop Móvel (Trailing)"]) &
+                    (original_df["Take Profit Ativo"] == target_row["Take Profit Ativo"])
+                )
+                original_df = original_df[~mask].reset_index(drop=True)
+                csv_path = r"c:\Users\paulo\.gemini\antigravity\playground\core-omega\PRJT_OlimpoTrade\registro_otimizacao_moedas.csv"
+                original_df.to_csv(csv_path, index=False, encoding="utf-8")
+                st.success("Receita removida com sucesso!")
+                st.rerun()
+
+    else:
+        st.info("Nenhuma receita guardada. Execute uma otimização e guarde as suas melhores configurações!")
+
+    st.markdown('</div>', unsafe_allow_html=True)
