@@ -430,7 +430,7 @@ logger = setup_logging()
 run_button = st.sidebar.button("⚡ Executar Simulação")
 
 # 7. Abas Principais do Laboratório (Tabs)
-tab_backtest, tab_optimizer, tab_recipes, tab_scanner = st.tabs(["📊 Simulação & Gráficos", "🔬 Otimizador de Parâmetros", "📚 Livro de Receitas", "🔍 Scanner de Mercado"])
+tab_backtest, tab_optimizer, tab_recipes, tab_scanner, tab_news = st.tabs(["📊 Simulação & Gráficos", "🔬 Otimizador de Parâmetros", "📚 Livro de Receitas", "🔍 Scanner de Mercado", "📰 Notícias & Sentimento"])
 
 # Ação do Botão Principal do Backtester
 if run_button:
@@ -1187,5 +1187,75 @@ with tab_scanner:
                 
             except Exception as e:
                 st.error(f"Erro ao executar o scanner de mercado: {e}")
+                
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# --- CONTEÚDO DA ABA 5: NOTÍCIAS & SENTIMENTO ---
+with tab_news:
+    st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+    st.markdown('<h3>📰 Notícias Cripto & Sentimento em Tempo Real</h3>', unsafe_allow_html=True)
+    st.markdown("""
+    Acompanhe as notícias de mercado mais quentes e saiba a "temperatura fundamental" do ecossistema cripto.
+    O OlimpoTrade analisa automaticamente o texto de cada notícia e atribui uma classificação emocional rápida.
+    """)
+    
+    if st.button("🔄 Carregar Últimas Notícias (CoinTelegraph / CoinDesk)", use_container_width=True):
+        st.markdown("---")
+        with st.spinner("A descarregar e a analisar notícias de mercado..."):
+            from crypto_news_service import CryptoNewsService
+            try:
+                ns = CryptoNewsService()
+                news = ns.fetch_news()
+                
+                # Calcular estatísticas do sentimento geral
+                sentiments = [item["sentiment"] for item in news]
+                pos_count = sentiments.count("🟢 Alta (Bullish)")
+                neg_count = sentiments.count("🔴 Baixa (Bearish)")
+                neu_count = sentiments.count("⚪ Neutro")
+                
+                st.markdown("<h4>📊 Termómetro de Sentimento do Mercado</h4>", unsafe_allow_html=True)
+                col_n1, col_n2, col_n3 = st.columns(3)
+                with col_n1:
+                    st.metric("🟢 Notícias de Alta", f"{pos_count} / {len(news)}")
+                with col_n2:
+                    st.metric("🔴 Notícias de Baixa", f"{neg_count} / {len(news)}")
+                with col_n3:
+                    st.metric("⚪ Neutras", f"{neu_count} / {len(news)}")
+                    
+                if pos_count > neg_count:
+                    st.success("📈 **Sentimento Geral: BULLISH (Alta)** — O mercado está com sentimentos maioritariamente otimistas. Excelente para estratégias de tendência de alta!")
+                elif neg_count > pos_count:
+                    st.error("📉 **Sentimento Geral: BEARISH (Baixa)** — O mercado está sob sentimentos de medo ou realização. Mantenha os seus Stops de proteção bem ajustados!")
+                else:
+                    st.info("⚖️ **Sentimento Geral: NEUTRO** — O mercado está em consolidação e equilíbrio emocional.")
+                
+                st.markdown("---")
+                st.markdown("<h4>📰 Breaking News Recentes</h4>", unsafe_allow_html=True)
+                
+                for idx, art in enumerate(news):
+                    color_border = "#059669" if "Alta" in art["sentiment"] else ("#e11d48" if "Baixa" in art["sentiment"] else "#64748b")
+                    
+                    st.markdown(f"""
+                    <div style="
+                        background: rgba(255, 255, 255, 0.7);
+                        border-left: 5px solid {color_border};
+                        padding: 15px;
+                        margin-bottom: 15px;
+                        border-radius: 8px;
+                        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+                    ">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                            <span style="font-weight: bold; color: {color_border}; font-size: 0.9rem;">{art["sentiment"]}</span>
+                            <span style="color: #64748b; font-size: 0.8rem;">{art["date"]}</span>
+                        </div>
+                        <h4 style="margin: 5px 0; color: #0f172a;"><a href="{art["link"]}" target="_blank" style="text-decoration: none; color: inherit; hover: color: #3b82f6;">{art["title"]}</a></h4>
+                        <p style="margin: 5px 0 0 0; color: #334155; font-size: 0.9rem; line-height: 1.4;">{art["desc"]}</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                st.success("✨ Notícias carregadas e analisadas com sucesso!")
+                
+            except Exception as e:
+                st.error(f"Erro ao carregar notícias: {e}")
                 
     st.markdown('</div>', unsafe_allow_html=True)
