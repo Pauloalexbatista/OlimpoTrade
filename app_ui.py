@@ -430,7 +430,7 @@ logger = setup_logging()
 run_button = st.sidebar.button("⚡ Executar Simulação")
 
 # 7. Abas Principais do Laboratório (Tabs)
-tab_backtest, tab_optimizer, tab_recipes = st.tabs(["📊 Simulação & Gráficos", "🔬 Otimizador de Parâmetros", "📚 Livro de Receitas"])
+tab_backtest, tab_optimizer, tab_recipes, tab_scanner = st.tabs(["📊 Simulação & Gráficos", "🔬 Otimizador de Parâmetros", "📚 Livro de Receitas", "🔍 Scanner de Mercado"])
 
 # Ação do Botão Principal do Backtester
 if run_button:
@@ -1119,4 +1119,73 @@ with tab_recipes:
     else:
         st.info("Nenhuma receita guardada. Execute uma otimização e guarde as suas melhores configurações!")
 
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# --- CONTEÚDO DA ABA 4: SCANNER DE MERCADO ---
+with tab_scanner:
+    st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+    st.markdown('<h3>🔍 Scanner de Mercado em Tempo Real</h3>', unsafe_allow_html=True)
+    st.markdown("""
+    Analise o mercado das criptomoedas na **Binance** em direto! 
+    Este scanner pesquisa mais de 100 ativos voláteis e exibe as **Top 10 moedas mais líquidas** e as **Top 10 com maior crescimento (Top Gainers)**.
+    Use estes dados para escolher o par de trading ideal na barra lateral e otimizar a sua estratégia antes de todos!
+    """)
+    
+    if st.button("⚡ Executar Varredura de Mercado (Binance)", use_container_width=True):
+        st.markdown("---")
+        with st.spinner("A ligar à Binance e a analisar mais de 100 ativos..."):
+            from daily_market_scanner import DailyMarketScanner
+            try:
+                scanner = DailyMarketScanner()
+                top_volume, top_gainers = scanner.scan_market()
+                
+                col_s1, col_s2 = st.columns(2)
+                
+                with col_s1:
+                    st.markdown("<h4>🔥 Moedas mais Transacionadas (Volume)</h4>", unsafe_allow_html=True)
+                    st.markdown("Representa o maior interesse e liquidez das baleias e do mercado institucional.")
+                    df_vol = pd.DataFrame(top_volume)
+                    df_vol.index = range(1, len(df_vol) + 1)
+                    df_vol.index.name = "Rank"
+                    
+                    st.dataframe(
+                        df_vol.style.format({
+                            'Preço Atual (USDT)': '{:,.4f}',
+                            'Variação 24h (%)': '{:+.2f}%',
+                            'Volume 24h (USDT)': '${:,.0f}',
+                            'Máxima 24h (USDT)': '{:,.4f}',
+                            'Mínima 24h (USDT)': '{:,.4f}'
+                        }),
+                        use_container_width=True
+                    )
+                    
+                with col_s2:
+                    st.markdown("<h4>🚀 Moedas em Maior Crescimento (Gainers)</h4>", unsafe_allow_html=True)
+                    st.markdown("Ativos com forte impulso vertical nas últimas 24h. Excelentes para estratégias de seguimento de tendência!")
+                    df_gain = pd.DataFrame(top_gainers)
+                    df_gain.index = range(1, len(df_gain) + 1)
+                    df_gain.index.name = "Rank"
+                    
+                    def color_positive_gain(val):
+                        if isinstance(val, (int, float)):
+                            return 'color: #059669; font-weight: bold;'
+                        return ''
+                        
+                    st.dataframe(
+                        df_gain.style.map(color_positive_gain, subset=['Variação 24h (%)'])
+                        .format({
+                            'Preço Atual (USDT)': '{:,.4f}',
+                            'Variação 24h (%)': '{:+.2f}%',
+                            'Volume 24h (USDT)': '${:,.0f}',
+                            'Máxima 24h (USDT)': '{:,.4f}',
+                            'Mínima 24h (USDT)': '{:,.4f}'
+                        }),
+                        use_container_width=True
+                    )
+                    
+                st.success("✨ Varredura de mercado concluída com sucesso!")
+                
+            except Exception as e:
+                st.error(f"Erro ao executar o scanner de mercado: {e}")
+                
     st.markdown('</div>', unsafe_allow_html=True)
