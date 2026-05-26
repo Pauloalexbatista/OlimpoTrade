@@ -793,7 +793,7 @@ with tab_backtest:
             mode='lines',
             name=line1_name,
             line=dict(color=line1_color if strategy_type != "MULTIPOINT_VECTOR" else "#0ea5e9", width=2),
-            hovertemplate=f'{line1_name}: %{y:.2f} EUR<extra></extra>'
+            hovertemplate=f'{line1_name}: %{{y:.2f}} EUR<extra></extra>'
         ))
 
         fig_prices.add_trace(go.Scatter(
@@ -802,7 +802,7 @@ with tab_backtest:
             mode='lines',
             name=line2_name,
             line=dict(color=line2_color if strategy_type != "MULTIPOINT_VECTOR" else "#f97316", width=2),
-            hovertemplate=f'{line2_name}: %{y:.2f} EUR<extra></extra>'
+            hovertemplate=f'{line2_name}: %{{y:.2f}} EUR<extra></extra>'
         ))
         
         if strategy_type == "MULTIPOINT_VECTOR":
@@ -812,7 +812,7 @@ with tab_backtest:
                 mode='lines',
                 name=line3_name,
                 line=dict(color='#10b981', width=1.5),
-                hovertemplate=f'{line3_name}: %{y:.2f} EUR<extra></extra>'
+                hovertemplate=f'{line3_name}: %{{y:.2f}} EUR<extra></extra>'
             ))
             fig_prices.add_trace(go.Scatter(
                 x=df_visualization.index,
@@ -820,7 +820,7 @@ with tab_backtest:
                 mode='lines',
                 name=line4_name,
                 line=dict(color='#8b5cf6', width=1.5),
-                hovertemplate=f'{line4_name}: %{y:.2f} EUR<extra></extra>'
+                hovertemplate=f'{line4_name}: %{{y:.2f}} EUR<extra></extra>'
             ))
 
         # Filtrar e agrupar marcas de BUY e SELL/SL/TP com explicações pedagógicas completas
