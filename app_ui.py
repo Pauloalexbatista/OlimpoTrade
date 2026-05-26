@@ -1680,6 +1680,8 @@ with tab_simulator:
         Descubra instantaneamente qual a melhor forma biológica de se mover perante estas ondas!
         """)
         
+        st.info("💡 **Segredo Quantitativo**: Se os resultados de saídas diferentes (P2, P3, P4) derem o mesmo valor na tabela, significa que a tua **Gestão de Risco (Take Profit ou Stop Loss)** fechou as operações antes de o preço tocar nos gatilhos de saída das médias! Para veres a diferença dinâmica das saídas da lagarta pura, experimenta desativar o Take Profit ou alargar o Stop Loss!")
+        
         matrix_list = st.session_state.logic_matrix_results
         
         # Encontrar a melhor combinação absoluta para destacar
