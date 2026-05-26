@@ -140,6 +140,8 @@ if "entry_mode_val" not in st.session_state:
     st.session_state.entry_mode_val = "4PONTOS"
 if "exit_mode_val" not in st.session_state:
     st.session_state.exit_mode_val = "P3" 
+if "operation_mode_val" not in st.session_state:
+    st.session_state.operation_mode_val = "TREND_FOLLOWING" 
 
 if "short_window_val" not in st.session_state:
     st.session_state.short_window_val = 12
@@ -389,6 +391,14 @@ else:
     short_window = 9
     long_window = 21
     
+    operation_mode = st.sidebar.selectbox(
+        "Modo Operacional da Lagarta",
+        ["TREND_FOLLOWING", "MEAN_REVERSION"],
+        index=0 if st.session_state.operation_mode_val == "TREND_FOLLOWING" else 1,
+        format_func=lambda x: "Seguimento de Tendência (Lagarta Clássica)" if x == "TREND_FOLLOWING" else "Reversão à Média (Lagarta Reversa)",
+        help="Seguimento de Tendência compra na alta e vende na queda. Reversão à Média compra nos baixos (sobrevenda) e vende nos altos (picos)!"
+    )
+    
     multipoint_mode = st.sidebar.selectbox(
         "Modo do Vetor de Pontos",
         ["AGILE", "CONSERVATIVE"],
@@ -530,6 +540,7 @@ st.session_state.exhaustion_threshold_val = exhaustion_threshold
 st.session_state.p5_filter_active_val = p5_filter_active
 st.session_state.entry_mode_val = entry_mode
 st.session_state.exit_mode_val = exit_mode
+st.session_state.operation_mode_val = operation_mode
 
 st.session_state.stop_loss_pct_val = stop_loss_pct
 st.session_state.tp_active_val = tp_active
@@ -556,6 +567,7 @@ config.update({
     "P5_SLOPE_FILTER_ACTIVE": p5_filter_active,
     "ENTRY_MODE": entry_mode,
     "EXIT_MODE": exit_mode,
+    "OPERATION_MODE": operation_mode,
     "MAX_RISK_PER_TRADE_PERCENT": max_risk_pct,
     "STOP_LOSS_PERCENT": stop_loss_pct,
     "TAKE_PROFIT_PERCENT": take_profit_pct,

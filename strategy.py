@@ -253,6 +253,7 @@ class StrategyFactory:
                 p5_filter_active=config.get("P5_SLOPE_FILTER_ACTIVE", True),
                 entry_mode=config.get("ENTRY_MODE", "4PONTOS"),
                 exit_mode=config.get("EXIT_MODE", "P3"),
+                operation_mode=config.get("OPERATION_MODE", "TREND_FOLLOWING"),
                 logger=logger
             )
         else:
