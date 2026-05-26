@@ -119,7 +119,7 @@ class MultiPointVectorStrategy(BaseStrategy):
     Possui Modo Ágil (4 pontos) e Modo Conservador (5 pontos) com Filtro de Exaustão de Preço.
     """
     def __init__(self, p2_window=9, p3_window=21, p4_window=50, p5_window=200, 
-                 mode="AGILE", exhaustion_filter=True, exhaustion_threshold=2.5, logger=None):
+                 mode="AGILE", exhaustion_filter=True, exhaustion_threshold=2.5, p5_filter_active=True, logger=None):
         self.p2_window = p2_window  # Muito Rápida (Média 9)
         self.p3_window = p3_window  # Curta (Média 21)
         self.p4_window = p4_window  # Média (Média 50)
@@ -127,11 +127,12 @@ class MultiPointVectorStrategy(BaseStrategy):
         self.mode = mode.upper()     # "AGILE" ou "CONSERVATIVE"
         self.exhaustion_filter = exhaustion_filter
         self.exhaustion_threshold = exhaustion_threshold
+        self.p5_filter_active = p5_filter_active
         self.logger = logger
 
         msg = (f"Estratégia Vetor de 5 Pontos inicializada | Modo={self.mode} | "
                f"P2={self.p2_window}, P3={self.p3_window}, P4={self.p4_window}, P5={self.p5_window} | "
-               f"Filtro Exaustão={self.exhaustion_filter} (Limiar={self.exhaustion_threshold}%)")
+               f"Filtro Exaustão={self.exhaustion_filter} (Limiar={self.exhaustion_threshold}%) | Filtro P5={self.p5_filter_active}")
         if self.logger:
             self.logger.info(msg)
         else:
@@ -150,7 +151,10 @@ class MultiPointVectorStrategy(BaseStrategy):
         df['P4_MA'] = ta.trend.sma_indicator(df['close'], window=self.p4_window)
         df['P5_MA'] = ta.trend.sma_indicator(df['close'], window=self.p5_window)
         
-        df = df.dropna(subset=['P2_MA', 'P3_MA', 'P4_MA', 'P5_MA'])
+        needed_cols = ['P2_MA', 'P3_MA', 'P4_MA']
+        if self.mode == "CONSERVATIVE" or self.p5_filter_active:
+            needed_cols.append('P5_MA')
+        df = df.dropna(subset=needed_cols)
         
         if df.empty:
             return {"action": "HOLD", "signal": "HOLD", "price": None, "message": "Dados insuficientes após cálculo de vetores."}
@@ -187,7 +191,10 @@ class MultiPointVectorStrategy(BaseStrategy):
             # Modo Ágil (Padrão): Exige alinhamento dos 4 pontos dinâmicos (P1 > P2 > P3 > P4)
             # A de 200 períodos (P5) é usada apenas como filtro de inclinação (slope) para evitar bear markets fortes.
             p5_slope_positive = (p5_prev is not None) and (p5_curr >= p5_prev)
-            curr_aligned = (p1_curr > p2_curr) and (p2_curr > p3_curr) and (p3_curr > p4_curr) and p5_slope_positive
+            if self.p5_filter_active:
+                curr_aligned = (p1_curr > p2_curr) and (p2_curr > p3_curr) and (p3_curr > p4_curr) and p5_slope_positive
+            else:
+                curr_aligned = (p1_curr > p2_curr) and (p2_curr > p3_curr) and (p3_curr > p4_curr)
             prev_aligned = (p1_prev is not None) and (p1_prev > p2_prev) and (p2_prev > p3_prev) and (p3_prev > p4_prev)
 
         # GATILHO DE COMPRA: Acaba de alinhar
@@ -240,6 +247,7 @@ class StrategyFactory:
                 mode=config.get("MULTIPOINT_MODE", "AGILE"),
                 exhaustion_filter=config.get("EXHAUSTION_FILTER", True),
                 exhaustion_threshold=float(config.get("EXHAUSTION_THRESHOLD", 2.5)),
+                p5_filter_active=config.get("P5_SLOPE_FILTER_ACTIVE", True),
                 logger=logger
             )
         else:

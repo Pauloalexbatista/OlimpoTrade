@@ -134,6 +134,8 @@ if "exhaustion_filter_val" not in st.session_state:
     st.session_state.exhaustion_filter_val = True
 if "exhaustion_threshold_val" not in st.session_state:
     st.session_state.exhaustion_threshold_val = 2.5
+if "p5_filter_active_val" not in st.session_state:
+    st.session_state.p5_filter_active_val = True
 
 if "short_window_val" not in st.session_state:
     st.session_state.short_window_val = 12
@@ -376,6 +378,7 @@ if strategy_type in ["SMA_CROSSOVER", "EMA_CROSSOVER"]:
     multipoint_mode = "AGILE"
     exhaustion_filter = True
     exhaustion_threshold = 2.5
+    p5_filter_active = True
 else:
     short_window = 9
     long_window = 21
@@ -411,6 +414,11 @@ else:
         min_value=50, max_value=500,
         value=st.session_state.p5_window_val,
         help="Representa o Ponto 5 (Média Longa da tendência macro global, ex: 200)."
+    )
+    p5_filter_active = st.sidebar.checkbox(
+        "Filtro de Inclinação P5 (Média 200) Ativo",
+        value=st.session_state.p5_filter_active_val if "p5_filter_active_val" in st.session_state else True,
+        help="Se ativado, bloqueia novas compras se a Média 200 estiver inclinada para baixo (macro queda)."
     )
     
     exhaustion_filter = st.sidebar.checkbox(
@@ -497,6 +505,7 @@ st.session_state.p5_window_val = p5_window
 st.session_state.multipoint_mode_val = multipoint_mode
 st.session_state.exhaustion_filter_val = exhaustion_filter
 st.session_state.exhaustion_threshold_val = exhaustion_threshold
+st.session_state.p5_filter_active_val = p5_filter_active
 
 st.session_state.stop_loss_pct_val = stop_loss_pct
 st.session_state.tp_active_val = tp_active
@@ -520,6 +529,7 @@ config.update({
     "MULTIPOINT_MODE": multipoint_mode,
     "EXHAUSTION_FILTER": exhaustion_filter,
     "EXHAUSTION_THRESHOLD": exhaustion_threshold,
+    "P5_SLOPE_FILTER_ACTIVE": p5_filter_active,
     "MAX_RISK_PER_TRADE_PERCENT": max_risk_pct,
     "STOP_LOSS_PERCENT": stop_loss_pct,
     "TAKE_PROFIT_PERCENT": take_profit_pct,
@@ -1281,8 +1291,7 @@ with tab_simulator:
     Este simulador utiliza o modelo matemático de **Movimento Browniano Geométrico (Geometric Brownian Motion)**
     para gerar um gráfico de preços com base na volatilidade e na tendência que escolher.
     Ideal para ver o robô a "aprender" e a reagir ao vivo sem riscos.
-    """
-    )
+    """)
     
     col_sim_1, col_sim_2, col_sim_3 = st.columns(3)
     with col_sim_1:
@@ -1319,6 +1328,10 @@ with tab_simulator:
             sim_df['high'] = sim_df[['open', 'close', 'high']].max(axis=1)
             sim_df['low'] = sim_df[['open', 'close', 'low']].min(axis=1)
 
+            # Salvar no session state para o otimizador local sintético
+            st.session_state.sim_df_val = sim_df
+            st.session_state.opt_sim_results = None # Limpar otimização anterior
+
             sim_config = config.copy()
             sim_config["INITIAL_CAPITAL"] = 1000.0
             
@@ -1349,8 +1362,13 @@ with tab_simulator:
                 sim_viz['Line_1'] = ta.trend.sma_indicator(sim_viz['close'], window=p2_window)
                 sim_viz['Line_2'] = ta.trend.sma_indicator(sim_viz['close'], window=p3_window)
                 sim_viz['Line_3'] = ta.trend.sma_indicator(sim_viz['close'], window=p4_window)
-                sim_viz['Line_4'] = ta.trend.sma_indicator(sim_viz['close'], window=p5_window)
-                l1_n, l2_n, l3_n, l4_n = f"P2 ({p2_window})", f"P3 ({p3_window})", f"P4 ({p4_window})", f"P5 ({p5_window})"
+                
+                # Apenas calcula e exibe Média 200 (Line_4) se o filtro P5 estiver ativo
+                if p5_filter_active:
+                    sim_viz['Line_4'] = ta.trend.sma_indicator(sim_viz['close'], window=p5_window)
+                
+                l1_n, l2_n, l3_n = f"P2 ({p2_window})", f"P3 ({p3_window})", f"P4 ({p4_window})"
+                l4_n = f"P5 ({p5_window})" if p5_filter_active else None
             
             fig_sim = go.Figure()
             
@@ -1360,7 +1378,8 @@ with tab_simulator:
             
             if strategy_type == "MULTIPOINT_VECTOR":
                 fig_sim.add_trace(go.Scatter(x=sim_viz.index, y=sim_viz['Line_3'], mode='lines', name=l3_n, line=dict(color='#10b981', width=1.5)))
-                fig_sim.add_trace(go.Scatter(x=sim_viz.index, y=sim_viz['Line_4'], mode='lines', name=l4_n, line=dict(color='#8b5cf6', width=1.5)))
+                if p5_filter_active and 'Line_4' in sim_viz:
+                    fig_sim.add_trace(go.Scatter(x=sim_viz.index, y=sim_viz['Line_4'], mode='lines', name=l4_n, line=dict(color='#8b5cf6', width=1.5)))
                 
             sim_buy_x, sim_buy_y = [], []
             sim_sell_x, sim_sell_y = [], []
@@ -1375,6 +1394,98 @@ with tab_simulator:
             
             fig_sim.update_layout(title="Comportamento da Estratégia no Mercado Aleatório", template='plotly_white', height=500, margin=dict(l=10, r=10, t=40, b=10))
             st.plotly_chart(fig_sim, use_container_width=True)
+
+    # --- NOVO PANEL DE OTIMIZAÇÃO LOCAL SINTÉTICA ---
+    if "sim_df_val" in st.session_state and st.session_state.sim_df_val is not None:
+        st.markdown("---")
+        st.markdown("<h4>🔬 Otimização Automática Sintética</h4>", unsafe_allow_html=True)
+        st.markdown("Encontre a combinação perfeita de médias e de gestão de risco **especificamente para este gráfico gerado**!")
+        
+        if st.button("⚡ Otimizar Parâmetros neste Mercado Sintético", use_container_width=True):
+            sim_df = st.session_state.sim_df_val
+            with st.spinner("A correr 32 simulações rápidas em background..."):
+                import logging
+                main_logger = logging.getLogger("TradingBot")
+                old_level = main_logger.level
+                main_logger.setLevel(logging.WARNING)
+                
+                # Grelha compacta, ultra rápida
+                sw_grid = [9, 12]
+                lw_grid = [21, 26]
+                sl_grid = [1.5, 3.0]
+                tp_grid = [5.0, 10.0]
+                ts_grid = [True, False]
+                
+                results_sint = []
+                for sw in sw_grid:
+                    for lw in lw_grid:
+                        if sw >= lw: continue
+                        for sl in sl_grid:
+                            for tp in tp_grid:
+                                for ts in ts_grid:
+                                    local_cfg = config.copy()
+                                    local_cfg.update({
+                                        "STRATEGY_TYPE": strategy_type,
+                                        "SHORT_WINDOW": sw,
+                                        "LONG_WINDOW": lw,
+                                        "P2_WINDOW": sw,
+                                        "P3_WINDOW": lw,
+                                        "P4_WINDOW": 50,
+                                        "P5_WINDOW": 200,
+                                        "P5_SLOPE_FILTER_ACTIVE": False, # Desativar slope na otimização ágil para máximo proveito local
+                                        "STOP_LOSS_PERCENT": sl,
+                                        "TAKE_PROFIT_PERCENT": tp,
+                                        "TRAILING_STOP_ACTIVE": ts,
+                                        "INITIAL_CAPITAL": 1000.0
+                                    })
+                                    
+                                    bt_sint = Backtester(local_cfg, main_logger)
+                                    asyncio.run(bt_sint.run_backtest(sim_df))
+                                    metrics_sint = bt_sint.get_performance_metrics()
+                                    
+                                    results_sint.append({
+                                        "P2 (Rápida)": sw,
+                                        "P3 (Confirmadora)": lw,
+                                        "Stop Loss (%)": sl,
+                                        "Take Profit (%)": tp,
+                                        "Trailing Stop": ts,
+                                        "Retorno (%)": metrics_sint["total_return_pct"],
+                                        "Nº Trades": metrics_sint["num_trades"],
+                                        "Win Rate (%)": metrics_sint["win_rate"] * 100,
+                                        "Max Drawdown (%)": metrics_sint["max_drawdown_pct"]
+                                    })
+                
+                main_logger.setLevel(old_level)
+                df_sint = pd.DataFrame(results_sint)
+                df_sint = df_sint.sort_values(by=["Retorno (%)", "Max Drawdown (%)"], ascending=[False, True])
+                st.session_state.opt_sim_results = df_sint
+        
+        # Exibir tabela top 5
+        if "opt_sim_results" in st.session_state and st.session_state.opt_sim_results is not None:
+            st.markdown("<h5>🏆 Top 5 Configurações Encontradas</h5>", unsafe_allow_html=True)
+            top_df = st.session_state.opt_sim_results.head(5)
+            st.dataframe(
+                top_df.style.format({
+                    'Retorno (%)': '{:+.2f}%',
+                    'Win Rate (%)': '{:.1f}%',
+                    'Max Drawdown (%)': '{:.2f}%'
+                }),
+                use_container_width=True
+            )
+            
+            best_row = top_df.iloc[0]
+            if st.button("🚀 Aplicar Melhor Configuração Otimizada (Top 1) no Painel Principal", use_container_width=True):
+                st.session_state.p2_window_val = int(best_row["P2 (Rápida)"])
+                st.session_state.p3_window_val = int(best_row["P3 (Confirmadora)"])
+                st.session_state.short_window_val = int(best_row["P2 (Rápida)"])
+                st.session_state.long_window_val = int(best_row["P3 (Confirmadora)"])
+                st.session_state.stop_loss_pct_val = float(best_row["Stop Loss (%)"])
+                st.session_state.take_profit_pct_val = float(best_row["Take Profit (%)"])
+                st.session_state.trailing_stop_active_val = bool(best_row["Trailing Stop"])
+                st.session_state.p5_filter_active_val = False # Desativar o filtro P5 para libertar as trades locais
+                
+                st.success("✨ Configuração Top 1 aplicada com sucesso na barra lateral! Clique em 'Gerar e Testar' para ver o resultado visual!")
+                st.rerun()
 
     st.markdown('</div>', unsafe_allow_html=True)
 
