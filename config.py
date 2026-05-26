@@ -22,4 +22,6 @@ def load_config():
         "TAKE_PROFIT_PERCENT": 5.0, # 5% above entry
         "MAX_DAILY_LOSS_PERCENT": 5.0, # 5% of total capital allowed to lose per day
         "INITIAL_CAPITAL": 1000.0, # For simulation/paper trading
+        "EMERGENCY_EXIT_PRICE_CROSS": "NONE", # "NONE", "SHORT", "LONG", or "ANY"
+        "ALLOW_REENTRY": True, # Allow re-entry on trend recovery
     }

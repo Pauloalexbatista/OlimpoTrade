@@ -225,12 +225,109 @@ class MultiPointVectorStrategy(BaseStrategy):
 
         return {"action": signal, "signal": signal, "price": p1_curr, "message": message}
 
+class PauloGoldStrategy(BaseStrategy):
+    """
+    Estratégia Exclusiva PAULO_GOLD (Breakout Puro).
+    Entrada (BUY): Assim que cruza a 1ª linha quando vai a subir - compra.
+    Saída (SELL): Assim que cruza a 1ª linha quando vai a descer - vende.
+    """
+    def __init__(self, short_window=9, long_window=21, trend_filter=False, min_dist_pct=0.0, logger=None):
+        self.short_window = short_window
+        self.long_window = long_window
+        self.trend_filter = trend_filter
+        self.min_dist_pct = min_dist_pct
+        self.logger = logger
+        msg = f"Estratégia Exclusiva PAULO_GOLD inicializada (Curta={self.short_window}, Longa={self.long_window}, FiltroTendência={self.trend_filter}, DistMin={self.min_dist_pct}%)"
+        if self.logger:
+            self.logger.info(msg)
+        else:
+            print(msg)
+
+    def generate_signal(self, ohlcv_data: pd.DataFrame) -> dict:
+        if ohlcv_data.empty or len(ohlcv_data) < max(self.short_window, self.long_window):
+            return {"action": "HOLD", "signal": "HOLD", "price": None, "message": "Dados insuficientes para calcular médias móveis simples."}
+
+        df = ohlcv_data.copy()
+        df['Line_1'] = ta.trend.sma_indicator(df['close'], window=self.short_window)
+        df['Line_2'] = ta.trend.sma_indicator(df['close'], window=self.long_window)
+        df = df.dropna(subset=['Line_1', 'Line_2'])
+
+        if df.empty:
+            return {"action": "HOLD", "signal": "HOLD", "price": None, "message": "Dados insuficientes após cálculo de médias."}
+
+        last_row = df.iloc[-1]
+        previous_row = df.iloc[-2] if len(df) >= 2 else None
+
+        current_price = last_row['close']
+        current_l1 = last_row['Line_1']
+        current_l2 = last_row['Line_2']
+
+        signal = "HOLD"
+        message = "Aguardando rompimento..."
+
+        if previous_row is not None:
+            previous_price = previous_row['close']
+            previous_l1 = previous_row['Line_1']
+            previous_l2 = previous_row['Line_2']
+
+            # Gatilhos de Entrada (COMPRA): 
+            # 1. Cruzamento de alta de QUALQUER das duas linhas
+            cross_above_l1 = (previous_price <= previous_l1) and (current_price > current_l1)
+            cross_above_l2 = (previous_price <= previous_l2) and (current_price > current_l2)
+            cross_above = cross_above_l1 or cross_above_l2
+
+            # 2. Re-Entrada por Alinhamento (Preço > Azul > Laranja e a subir)
+            price_is_growing = (current_price > previous_price)
+            reentry_aligned = price_is_growing and (current_price > current_l1) and (current_l1 > current_l2)
+
+            # Gatilhos de Saída (VENDA): Cruzamento de baixa de QUALQUER das duas linhas
+            cross_below_l1 = (previous_price >= previous_l1) and (current_price < current_l1)
+            cross_below_l2 = (previous_price >= previous_l2) and (current_price < current_l2)
+            cross_below = cross_below_l1 or cross_below_l2
+
+            # Filtro de Tendência se ativado
+            trend_allows_buy = True
+            if self.trend_filter:
+                trend_allows_buy = (current_l1 > current_l2 * (1 + self.min_dist_pct / 100.0))
+
+            if (cross_above or reentry_aligned) and trend_allows_buy:
+                signal = "BUY"
+                if reentry_aligned:
+                    message = f"🚀 Re-Entrada por Alinhamento (PAULO_GOLD): Preço em alta ({current_price:.2f} > {current_l1:.2f} > {current_l2:.2f})."
+                else:
+                    line_name = "Média Curta (Line_1)" if cross_above_l1 else "Média Lenta (Line_2)"
+                    message = f"🚀 Sinal de COMPRA (PAULO_GOLD): Preço ({current_price:.2f}) cruzou acima da {line_name}."
+            elif cross_below:
+                signal = "SELL"
+                line_name = "Média Curta (Line_1)" if cross_below_l1 else "Média Lenta (Line_2)"
+                message = f"🚨 Sinal de VENDA (PAULO_GOLD): Preço ({current_price:.2f}) cruzou abaixo da {line_name}."
+        else:
+            # Entrada Imediata se Alinhado no início da simulação
+            trend_allows_buy = True
+            if self.trend_filter:
+                trend_allows_buy = (current_l1 > current_l2 * (1 + self.min_dist_pct / 100.0))
+            
+            if current_price > max(current_l1, current_l2) and trend_allows_buy:
+                signal = "BUY"
+                message = f"🚀 Entrada Imediata (PAULO_GOLD): Preço já nasceu alinhado em alta ({current_price:.2f} > {max(current_l1, current_l2):.2f})."
+
+        return {"action": signal, "signal": signal, "price": current_price, "message": message}
+
+
 class StrategyFactory:
     @staticmethod
     def get_strategy(config: dict, logger=None) -> BaseStrategy:
         strategy_type = config.get("STRATEGY_TYPE", "SMA_CROSSOVER")
         
-        if strategy_type == "SMA_CROSSOVER":
+        if strategy_type == "PAULO_GOLD":
+            return PauloGoldStrategy(
+                short_window=int(config.get("SHORT_WINDOW", 9)),
+                long_window=int(config.get("LONG_WINDOW", 21)),
+                trend_filter=config.get("PAULO_GOLD_TREND_FILTER", False),
+                min_dist_pct=float(config.get("PAULO_GOLD_MIN_DIST_PCT", 0.0)),
+                logger=logger
+            )
+        elif strategy_type == "SMA_CROSSOVER":
             return SMACrossoverStrategy(
                 short_window=int(config.get("SHORT_WINDOW", 9)),
                 long_window=int(config.get("LONG_WINDOW", 21)),

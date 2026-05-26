@@ -119,7 +119,7 @@ st.set_page_config(
 
 # 2. Inicialização de Session State para persistência e ligação dinâmica de inputs
 if "strategy_type_val" not in st.session_state:
-    st.session_state.strategy_type_val = "MULTIPOINT_VECTOR"
+    st.session_state.strategy_type_val = "PAULO_GOLD"
 if "p2_window_val" not in st.session_state:
     st.session_state.p2_window_val = 9
 if "p3_window_val" not in st.session_state:
@@ -144,17 +144,29 @@ if "operation_mode_val" not in st.session_state:
     st.session_state.operation_mode_val = "TREND_FOLLOWING" 
 
 if "short_window_val" not in st.session_state:
-    st.session_state.short_window_val = 12
+    st.session_state.short_window_val = 9
 if "long_window_val" not in st.session_state:
-    st.session_state.long_window_val = 26
+    st.session_state.long_window_val = 21
 if "stop_loss_pct_val" not in st.session_state:
     st.session_state.stop_loss_pct_val = 2.0
+if "sl_active_val" not in st.session_state:
+    st.session_state.sl_active_val = True
 if "take_profit_pct_val" not in st.session_state:
     st.session_state.take_profit_pct_val = 7.0
 if "tp_active_val" not in st.session_state:
-    st.session_state.tp_active_val = True
+    st.session_state.tp_active_val = False
 if "trailing_stop_active_val" not in st.session_state:
     st.session_state.trailing_stop_active_val = False
+if "emergency_exit_price_cross_val" not in st.session_state:
+    st.session_state.emergency_exit_price_cross_val = "ANY"
+if "allow_reentry_val" not in st.session_state:
+    st.session_state.allow_reentry_val = True
+if "paulo_gold_trend_filter_val" not in st.session_state:
+    st.session_state.paulo_gold_trend_filter_val = False
+if "paulo_gold_min_dist_pct_val" not in st.session_state:
+    st.session_state.paulo_gold_min_dist_pct_val = 0.0
+if "paulo_gold_min_dist_pct_val" not in st.session_state:
+    st.session_state.paulo_gold_min_dist_pct_val = 0.0
 
 if "backtest_results" not in st.session_state:
     st.session_state.backtest_results = None
@@ -369,9 +381,9 @@ with col_ctrl3:
 with col_ctrl4:
     strategy_type = st.selectbox(
         "Estratégia Ativa",
-        ["SMA_CROSSOVER", "EMA_CROSSOVER", "MULTIPOINT_VECTOR"],
-        index=2 if st.session_state.strategy_type_val == "MULTIPOINT_VECTOR" else (1 if st.session_state.strategy_type_val == "EMA_CROSSOVER" else 0),
-        format_func=lambda x: "Média Simples (SMA Crossover)" if x == "SMA_CROSSOVER" else ("Média Exponencial (EMA Crossover)" if x == "EMA_CROSSOVER" else "Vetor de 5 Pontos (MultiPoint)"),
+        ["SMA_CROSSOVER", "EMA_CROSSOVER", "MULTIPOINT_VECTOR", "PAULO_GOLD"],
+        index=3 if st.session_state.strategy_type_val == "PAULO_GOLD" else (2 if st.session_state.strategy_type_val == "MULTIPOINT_VECTOR" else (1 if st.session_state.strategy_type_val == "EMA_CROSSOVER" else 0)),
+        format_func=lambda x: "Média Simples (SMA Crossover)" if x == "SMA_CROSSOVER" else ("Média Exponencial (EMA Crossover)" if x == "EMA_CROSSOVER" else ("Vetor de 5 Pontos (MultiPoint)" if x == "MULTIPOINT_VECTOR" else "✨ Estratégia Exclusiva PAULO_GOLD")),
         help="Escolha o algoritmo quantitativo de decisão."
     )
 with col_ctrl5:
@@ -418,6 +430,26 @@ with st.expander("🛠️ Painel Global de Configuração do Robô (Clique para 
             multipoint_mode = "AGILE" # Modo dinâmico controlado por pernas
         else:
             st.info("Estratégias clássicas de cruzamento não possuem sub-modos dinâmicos de pernas.")
+            if strategy_type == "PAULO_GOLD":
+                paulo_gold_trend_filter = st.checkbox("Filtro de Tendência Macro (Curta > Lenta)", value=st.session_state.paulo_gold_trend_filter_val, help="Se ativado, o robó só compra se a média rápida estiver acima da lenta. Evita perdas em quedas!")
+                if paulo_gold_trend_filter:
+                    paulo_gold_min_dist_pct = st.slider(
+                        "Distância Mínima das Médias (%)",
+                        min_value=0.0, max_value=2.0,
+                        value=st.session_state.paulo_gold_min_dist_pct_val,
+                        step=0.05,
+                        help="O robó só compra se a média curta estiver pelo menos a esta % acima da lenta. Bloqueia ruídos e falsas entradas em mercados horizontais/planos!"
+                    )
+                else:
+                    paulo_gold_min_dist_pct = 0.0
+                allow_reentry = True
+            else:
+                paulo_gold_trend_filter = True
+                allow_reentry = st.checkbox(
+                "Permitir Re-Entrada em Tendência",
+                value=st.session_state.allow_reentry_val,
+                help="Se ativado, o robô volta a comprar a meio da subida se o preço recuperar acima da média rápida, mantendo a tendência de alta."
+            )
             operation_mode = "TREND_FOLLOWING"
             entry_mode = "4PONTOS"
             exit_mode = "P3"
@@ -425,7 +457,7 @@ with st.expander("🛠️ Painel Global de Configuração do Robô (Clique para 
             
     with col_cfg2:
         st.markdown("##### 📐 Pontos de Medição (Médias)")
-        if strategy_type in ["SMA_CROSSOVER", "EMA_CROSSOVER"]:
+        if strategy_type in ["SMA_CROSSOVER", "EMA_CROSSOVER", "PAULO_GOLD"]:
             short_window = st.number_input(
                 "Janela Curta (Rápida)",
                 min_value=2, max_value=100,
@@ -508,18 +540,34 @@ with st.expander("🛠️ Painel Global de Configuração do Robô (Clique para 
             step=0.1,
             help="A percentagem máxima da sua banca total que aceita perder caso a operação atinja o Stop Loss. Padrão: 1.0%."
         )
-        stop_loss_pct = st.slider(
-            "Stop Loss (%)",
-            0.5, 10.0,
-            value=st.session_state.stop_loss_pct_val,
-            step=0.1,
-            help="Limite de perda automática. Se o preço cair esta percentagem abaixo da compra, o robô vende."
+        sl_active = st.checkbox(
+            "Stop Loss Ativo (Limite de Perda)",
+            value=st.session_state.sl_active_val,
+            help="Se desativado, o robô só vende quando ocorrer o cruzamento das médias (estratégia pura)."
         )
+        if sl_active:
+            stop_loss_pct = st.slider(
+                "Stop Loss (%)",
+                0.5, 10.0,
+                value=st.session_state.stop_loss_pct_val,
+                step=0.1,
+                help="Limite de perda automática. Se o preço cair esta percentagem abaixo da compra, o robô vende."
+            )
+        else:
+            stop_loss_pct = 100.0
         trailing_stop_active = st.checkbox(
             "Acompanhar Lucros (Trailing Stop)",
             value=st.session_state.trailing_stop_active_val,
             help="Se ativado, o seu Stop Loss subirá automaticamente acompanhando o preço para proteger lucros!"
         )
+        emergency_exit_price_cross = st.selectbox(
+            "Saída de Emergência por Preço",
+            ["NONE", "SHORT", "LONG", "ANY"],
+            index=["NONE", "SHORT", "LONG", "ANY"].index(st.session_state.emergency_exit_price_cross_val),
+            format_func=lambda x: "Desativada" if x == "NONE" else ("Preço < Média Curta" if x == "SHORT" else ("Preço < Média Lenta" if x == "LONG" else "Preço < Qualquer uma")),
+            help="Vende a posição imediatamente assim que o preço de fecho atual cruzar abaixo da média selecionada (evita o atraso do cruzamento das médias)."
+        )
+        
         tp_active = st.checkbox(
             "Take Profit Ativo (Meta de Lucro)",
             value=st.session_state.tp_active_val,
@@ -577,9 +625,17 @@ st.session_state.entry_mode_val = entry_mode
 st.session_state.exit_mode_val = exit_mode
 st.session_state.operation_mode_val = operation_mode
 
-st.session_state.stop_loss_pct_val = stop_loss_pct
+st.session_state.sl_active_val = sl_active
+if sl_active:
+    st.session_state.stop_loss_pct_val = stop_loss_pct
 st.session_state.tp_active_val = tp_active
 st.session_state.trailing_stop_active_val = trailing_stop_active
+st.session_state.emergency_exit_price_cross_val = emergency_exit_price_cross
+st.session_state.allow_reentry_val = allow_reentry
+if 'paulo_gold_trend_filter' in locals():
+    st.session_state.paulo_gold_trend_filter_val = paulo_gold_trend_filter
+if 'paulo_gold_min_dist_pct' in locals():
+    st.session_state.paulo_gold_min_dist_pct_val = paulo_gold_min_dist_pct
 if tp_active:
     st.session_state.take_profit_pct_val = take_profit_pct
 
@@ -607,7 +663,11 @@ config.update({
     "STOP_LOSS_PERCENT": stop_loss_pct,
     "TAKE_PROFIT_PERCENT": take_profit_pct,
     "MAX_DAILY_LOSS_PERCENT": max_daily_loss_pct,
-    "TRAILING_STOP_ACTIVE": trailing_stop_active
+    "TRAILING_STOP_ACTIVE": trailing_stop_active,
+    "EMERGENCY_EXIT_PRICE_CROSS": emergency_exit_price_cross,
+    "ALLOW_REENTRY": allow_reentry,
+    "PAULO_GOLD_TREND_FILTER": paulo_gold_trend_filter if 'paulo_gold_trend_filter' in locals() else st.session_state.paulo_gold_trend_filter_val,
+    "PAULO_GOLD_MIN_DIST_PCT": paulo_gold_min_dist_pct if 'paulo_gold_min_dist_pct' in locals() else st.session_state.paulo_gold_min_dist_pct_val
 })
 
 # Inicializar logger
@@ -688,7 +748,14 @@ with tab_backtest:
 
         # Calcular as Médias no histórico de acordo com a estratégia ativa para exibição visual
         df_visualization = df_ohlcv.copy()
-        if strategy_type == "SMA_CROSSOVER":
+        if strategy_type == "PAULO_GOLD":
+            df_visualization['Line_1'] = ta.trend.sma_indicator(df_visualization['close'], window=short_window)
+            df_visualization['Line_2'] = ta.trend.sma_indicator(df_visualization['close'], window=long_window)
+            line1_name = f"MǸdia Curta ({short_window})"
+            line2_name = f"MǸdia Lenta ({long_window})"
+            line1_color = "#0ea5e9"
+            line2_color = "#f97316"
+        elif strategy_type == "SMA_CROSSOVER":
             df_visualization['Line_1'] = ta.trend.sma_indicator(df_visualization['close'], window=short_window)
             df_visualization['Line_2'] = ta.trend.sma_indicator(df_visualization['close'], window=long_window)
             line1_name = f"SMA Curta ({short_window})"
@@ -714,6 +781,13 @@ with tab_backtest:
             line4_name = f"P5 - Média Longa ({p5_window})"
             line1_color = "#0ea5e9"
             line2_color = "#f97316" 
+
+        # Calcular a primeira linha média que o preço encontra (a mais próxima)
+        if strategy_type in ["SMA_CROSSOVER", "EMA_CROSSOVER", "PAULO_GOLD"]:
+            df_visualization['First_Line'] = df_visualization.apply(
+                lambda row: max(row['Line_1'], row['Line_2']) if (pd.notna(row['Line_1']) and pd.notna(row['Line_2']) and row['close'] >= max(row['Line_1'], row['Line_2'])) else row['close'],
+                axis=1
+            )
 
         # --- EXIBIÇÃO DE MÉTRICAS (METRICS CARDS) ---
         st.markdown('<div class="glass-card">', unsafe_allow_html=True)
@@ -817,6 +891,15 @@ with tab_backtest:
         )
 
         fig_prices = go.Figure()
+        if strategy_type in ["SMA_CROSSOVER", "EMA_CROSSOVER", "PAULO_GOLD"]:
+            fig_prices.add_trace(go.Scatter(
+                x=df_visualization.index,
+                y=df_visualization['First_Line'],
+                mode='lines',
+                line=dict(color='rgba(0,0,0,0)', width=0),
+                showlegend=False,
+                hoverinfo='skip'
+            ))
 
         # Linha do Preço Real do Ativo - INTERATIVA (Unified Hover)
         fig_prices.add_trace(go.Scatter(
@@ -825,6 +908,8 @@ with tab_backtest:
             mode='lines',
             name=f'Preço {symbol}',
             line=dict(color='rgba(71, 85, 105, 0.25)', width=1.5),
+            fill='tonexty' if strategy_type in ["SMA_CROSSOVER", "EMA_CROSSOVER", "PAULO_GOLD"] else None,
+            fillcolor='rgba(14, 165, 233, 0.06)' if strategy_type in ["SMA_CROSSOVER", "EMA_CROSSOVER", "PAULO_GOLD"] else None,
             hovertemplate='Preço: %{y:.2f} EUR<extra></extra>'
         ))
 
@@ -1136,7 +1221,11 @@ with tab_simulator:
             st.metric("Max Drawdown", f"{sim_metrics['max_drawdown_pct']:.2f}%")
             
         sim_viz = sim_df.copy()
-        if strategy_type == "SMA_CROSSOVER":
+        if strategy_type == "PAULO_GOLD":
+            sim_viz['Line_1'] = ta.trend.sma_indicator(sim_viz['close'], window=short_window)
+            sim_viz['Line_2'] = ta.trend.sma_indicator(sim_viz['close'], window=long_window)
+            l1_n, l2_n = f"MǸdia {short_window}", f"MǸdia {long_window}"
+        elif strategy_type == "SMA_CROSSOVER":
             sim_viz['Line_1'] = ta.trend.sma_indicator(sim_viz['close'], window=short_window)
             sim_viz['Line_2'] = ta.trend.sma_indicator(sim_viz['close'], window=long_window)
             l1_n, l2_n = f"SMA {short_window}", f"SMA {long_window}"
@@ -1153,7 +1242,23 @@ with tab_simulator:
             l1_n, l2_n, l3_n = f"P2 ({p2_window})", f"P3 ({p3_window})", f"P4 ({p4_window})"
             l4_n = f"P5 ({p5_window})" if (p5_filter_active or entry_mode == "5PONTOS") else None
             
+        # Calcular a primeira linha média que o preço encontra (a mais próxima)
+        if strategy_type in ["SMA_CROSSOVER", "EMA_CROSSOVER", "PAULO_GOLD"]:
+            sim_viz['First_Line'] = sim_viz.apply(
+                lambda row: max(row['Line_1'], row['Line_2']) if (pd.notna(row['Line_1']) and pd.notna(row['Line_2']) and row['close'] >= max(row['Line_1'], row['Line_2'])) else row['close'],
+                axis=1
+            )
+
         fig_sim = go.Figure()
+        if strategy_type in ["SMA_CROSSOVER", "EMA_CROSSOVER", "PAULO_GOLD"]:
+            fig_sim.add_trace(go.Scatter(
+                x=sim_viz.index,
+                y=sim_viz['First_Line'],
+                mode='lines',
+                line=dict(color='rgba(0,0,0,0)', width=0),
+                showlegend=False,
+                hoverinfo='skip'
+            ))
         
         fig_sim.add_trace(go.Scatter(
             x=sim_viz.index, 
@@ -1161,6 +1266,8 @@ with tab_simulator:
             mode='lines', 
             name='Preço de Teste', 
             line=dict(color='rgba(100, 116, 139, 0.25)', width=1.5),
+            fill='tonexty' if strategy_type in ["SMA_CROSSOVER", "EMA_CROSSOVER", "PAULO_GOLD"] else None,
+            fillcolor='rgba(14, 165, 233, 0.06)' if strategy_type in ["SMA_CROSSOVER", "EMA_CROSSOVER", "PAULO_GOLD"] else None,
             hovertemplate='Preço: %{y:.2f} EUR<extra></extra>'
         ))
         
