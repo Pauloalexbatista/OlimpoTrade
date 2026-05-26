@@ -1,9 +1,9 @@
-# my_trading_bot/main.py
+﻿# my_trading_bot/main.py
 import asyncio
 from logger import setup_logging
 from config import load_config
 from data_collector import DataCollector
-from strategy import TradingStrategy
+from strategy import StrategyFactory
 from risk_manager import RiskManager
 from order_executor import OrderExecutor
 
@@ -15,7 +15,7 @@ async def main():
 
     # Initialize components
     data_collector = DataCollector(config, logger)
-    strategy = TradingStrategy(config, logger)
+    strategy = StrategyFactory.get_strategy(config, logger)
     risk_manager = RiskManager(config, logger)
     order_executor = OrderExecutor(config, logger)
 

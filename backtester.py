@@ -1,7 +1,7 @@
-import pandas as pd
+﻿import pandas as pd
 import numpy as np
 import asyncio
-from strategy import TradingStrategy
+from strategy import StrategyFactory
 from risk_manager import RiskManager
 from config import load_config
 from logger import setup_logging
@@ -10,7 +10,7 @@ class Backtester:
     def __init__(self, config, logger):
         self.config = config
         self.logger = logger
-        self.strategy = TradingStrategy(config, logger)
+        self.strategy = StrategyFactory.get_strategy(config, logger)
         self.risk_manager = RiskManager(config, logger)
         self.trades = []
         self.capital_history = []

@@ -118,6 +118,23 @@ st.set_page_config(
 )
 
 # 2. Inicialização de Session State para persistência e ligação dinâmica de inputs
+if "strategy_type_val" not in st.session_state:
+    st.session_state.strategy_type_val = "MULTIPOINT_VECTOR"
+if "p2_window_val" not in st.session_state:
+    st.session_state.p2_window_val = 9
+if "p3_window_val" not in st.session_state:
+    st.session_state.p3_window_val = 21
+if "p4_window_val" not in st.session_state:
+    st.session_state.p4_window_val = 50
+if "p5_window_val" not in st.session_state:
+    st.session_state.p5_window_val = 200
+if "multipoint_mode_val" not in st.session_state:
+    st.session_state.multipoint_mode_val = "AGILE"
+if "exhaustion_filter_val" not in st.session_state:
+    st.session_state.exhaustion_filter_val = True
+if "exhaustion_threshold_val" not in st.session_state:
+    st.session_state.exhaustion_threshold_val = 2.5
+
 if "short_window_val" not in st.session_state:
     st.session_state.short_window_val = 12
 if "long_window_val" not in st.session_state:
@@ -329,19 +346,89 @@ limit_candles = st.sidebar.slider(
     help="Quantidade de velas a obter do histórico. Dica: Para simular 1 ano instantaneamente, use timeframe '1d' e 365 candles."
 )
 
-st.sidebar.markdown("### 📈 Estratégia (Cruzamento SMA)")
-short_window = st.sidebar.number_input(
-    "Janela Curta (Rápida)",
-    min_value=2, max_value=100,
-    value=st.session_state.short_window_val,
-    help="Número de candles para calcular a média móvel curta. Padrões profissionais: 9 a 20."
+st.sidebar.markdown("### ⚙️ Configuração da Estratégia")
+
+strategy_type = st.sidebar.selectbox(
+    "Estratégia Ativa",
+    ["SMA_CROSSOVER", "EMA_CROSSOVER", "MULTIPOINT_VECTOR"],
+    index=2 if st.session_state.strategy_type_val == "MULTIPOINT_VECTOR" else (1 if st.session_state.strategy_type_val == "EMA_CROSSOVER" else 0),
+    format_func=lambda x: "Média Simples (SMA Crossover)" if x == "SMA_CROSSOVER" else ("Média Exponencial (EMA Crossover)" if x == "EMA_CROSSOVER" else "Vetor de 5 Pontos (MultiPoint)"),
+    help="Escolha o algoritmo quantitativo de decisão."
 )
-long_window = st.sidebar.number_input(
-    "Janela Longa (Lenta)",
-    min_value=5, max_value=200,
-    value=st.session_state.long_window_val,
-    help="Número de candles para calcular a média móvel lenta. Padrões profissionais: 21 a 50."
-)
+
+if strategy_type in ["SMA_CROSSOVER", "EMA_CROSSOVER"]:
+    short_window = st.sidebar.number_input(
+        "Janela Curta (Rápida)",
+        min_value=2, max_value=100,
+        value=st.session_state.short_window_val,
+        help="Número de candles para calcular a média móvel curta. Padrões profissionais: 9 a 20."
+    )
+    long_window = st.sidebar.number_input(
+        "Janela Longa (Lenta)",
+        min_value=5, max_value=200,
+        value=st.session_state.long_window_val,
+        help="Número de candles para calcular a média móvel lenta. Padrões profissionais: 21 a 50."
+    )
+    p2_window = 9
+    p3_window = 21
+    p4_window = 50
+    p5_window = 200
+    multipoint_mode = "AGILE"
+    exhaustion_filter = True
+    exhaustion_threshold = 2.5
+else:
+    short_window = 9
+    long_window = 21
+    
+    multipoint_mode = st.sidebar.selectbox(
+        "Modo do Vetor de Pontos",
+        ["AGILE", "CONSERVATIVE"],
+        index=0 if st.session_state.multipoint_mode_val == "AGILE" else 1,
+        format_func=lambda x: "Modo Ágil (4 Pontos)" if x == "AGILE" else "Modo Conservador (5 Pontos)",
+        help="Modo Ágil evita o lag da Média 200 usando-a apenas como filtro de inclinação. Modo Conservador exige alinhamento dos 5 pontos."
+    )
+    
+    p2_window = st.sidebar.number_input(
+        "Média Muito Rápida - P2",
+        min_value=2, max_value=50,
+        value=st.session_state.p2_window_val,
+        help="Representa o Ponto 2 (Média Rápida de curto-prazo, ex: 9)."
+    )
+    p3_window = st.sidebar.number_input(
+        "Média Curta/Confirmadora - P3",
+        min_value=5, max_value=100,
+        value=st.session_state.p3_window_val,
+        help="Representa o Ponto 3 (Média Curta confirmadora, ex: 21)."
+    )
+    p4_window = st.sidebar.number_input(
+        "Média Média - P4",
+        min_value=10, max_value=150,
+        value=st.session_state.p4_window_val,
+        help="Representa o Ponto 4 (Média de suporte dinâmico, ex: 50)."
+    )
+    p5_window = st.sidebar.number_input(
+        "Média Longa/Mestra - P5",
+        min_value=50, max_value=500,
+        value=st.session_state.p5_window_val,
+        help="Representa o Ponto 5 (Média Longa da tendência macro global, ex: 200)."
+    )
+    
+    exhaustion_filter = st.sidebar.checkbox(
+        "Ativar Filtro de Exaustão",
+        value=st.session_state.exhaustion_filter_val,
+        help="Se ativado, bloqueia novas compras caso o Preço Atual (P1) esteja demasiado longe da Média Rápida (P2)."
+    )
+    
+    if exhaustion_filter:
+        exhaustion_threshold = st.sidebar.slider(
+            "Limite de Exaustão (%)",
+            0.5, 10.0,
+            value=st.session_state.exhaustion_threshold_val,
+            step=0.1,
+            help="Distância máxima percentual entre o Preço (P1) e a Média Rápida (P2) para permitir a compra."
+        )
+    else:
+        exhaustion_threshold = 2.5
 
 st.sidebar.markdown("### 🛡️ Gestão de Risco")
 initial_capital = st.sidebar.number_input(
@@ -400,8 +487,17 @@ max_daily_loss_pct = st.sidebar.slider(
 )
 
 # Sincronizar o estado interno caso o utilizador tenha mexido manualmente nos widgets
+st.session_state.strategy_type_val = strategy_type
 st.session_state.short_window_val = short_window
 st.session_state.long_window_val = long_window
+st.session_state.p2_window_val = p2_window
+st.session_state.p3_window_val = p3_window
+st.session_state.p4_window_val = p4_window
+st.session_state.p5_window_val = p5_window
+st.session_state.multipoint_mode_val = multipoint_mode
+st.session_state.exhaustion_filter_val = exhaustion_filter
+st.session_state.exhaustion_threshold_val = exhaustion_threshold
+
 st.session_state.stop_loss_pct_val = stop_loss_pct
 st.session_state.tp_active_val = tp_active
 st.session_state.trailing_stop_active_val = trailing_stop_active
@@ -414,8 +510,16 @@ config.update({
     "INITIAL_CAPITAL": initial_capital,
     "SYMBOL": symbol,
     "TIMEFRAME": timeframe,
+    "STRATEGY_TYPE": strategy_type,
     "SHORT_WINDOW": short_window,
     "LONG_WINDOW": long_window,
+    "P2_WINDOW": p2_window,
+    "P3_WINDOW": p3_window,
+    "P4_WINDOW": p4_window,
+    "P5_WINDOW": p5_window,
+    "MULTIPOINT_MODE": multipoint_mode,
+    "EXHAUSTION_FILTER": exhaustion_filter,
+    "EXHAUSTION_THRESHOLD": exhaustion_threshold,
     "MAX_RISK_PER_TRADE_PERCENT": max_risk_pct,
     "STOP_LOSS_PERCENT": stop_loss_pct,
     "TAKE_PROFIT_PERCENT": take_profit_pct,
@@ -430,7 +534,7 @@ logger = setup_logging()
 run_button = st.sidebar.button("⚡ Executar Simulação")
 
 # 7. Abas Principais do Laboratório (Tabs)
-tab_backtest, tab_optimizer, tab_recipes, tab_scanner, tab_news = st.tabs(["📊 Simulação & Gráficos", "🔬 Otimizador de Parâmetros", "📚 Livro de Receitas", "🔍 Scanner de Mercado", "📰 Notícias & Sentimento"])
+tab_backtest, tab_optimizer, tab_recipes, tab_simulator, tab_scanner, tab_news = st.tabs(["📊 Simulação & Gráficos", "🔬 Otimizador de Parâmetros", "📚 Livro de Receitas", "🎮 Simulador de Mercado", "🔍 Scanner de Mercado", "📰 Notícias & Sentimento"])
 
 # Ação do Botão Principal do Backtester
 if run_button:
@@ -476,10 +580,34 @@ with tab_backtest:
         metrics = results["metrics"]
         df_ohlcv = results["df_ohlcv"]
 
-        # Calcular as SMAs no histórico para exibição visual
+        # Calcular as Médias no histórico de acordo com a estratégia ativa para exibição visual
         df_visualization = df_ohlcv.copy()
-        df_visualization['SMA_Short'] = ta.trend.sma_indicator(df_visualization['close'], window=short_window)
-        df_visualization['SMA_Long'] = ta.trend.sma_indicator(df_visualization['close'], window=long_window)
+        if strategy_type == "SMA_CROSSOVER":
+            df_visualization['Line_1'] = ta.trend.sma_indicator(df_visualization['close'], window=short_window)
+            df_visualization['Line_2'] = ta.trend.sma_indicator(df_visualization['close'], window=long_window)
+            line1_name = f"SMA Curta ({short_window})"
+            line2_name = f"SMA Lenta ({long_window})"
+            line1_color = "#0ea5e9"
+            line2_color = "#f97316"
+        elif strategy_type == "EMA_CROSSOVER":
+            df_visualization['Line_1'] = ta.trend.ema_indicator(df_visualization['close'], window=short_window)
+            df_visualization['Line_2'] = ta.trend.ema_indicator(df_visualization['close'], window=long_window)
+            line1_name = f"EMA Curta ({short_window})"
+            line2_name = f"EMA Lenta ({long_window})"
+            line1_color = "#3b82f6"
+            line2_color = "#ec4899"
+        else:
+            # MULTIPOINT_VECTOR
+            df_visualization['Line_1'] = ta.trend.sma_indicator(df_visualization['close'], window=p2_window)
+            df_visualization['Line_2'] = ta.trend.sma_indicator(df_visualization['close'], window=p3_window)
+            df_visualization['Line_3'] = ta.trend.sma_indicator(df_visualization['close'], window=p4_window)
+            df_visualization['Line_4'] = ta.trend.sma_indicator(df_visualization['close'], window=p5_window)
+            line1_name = f"P2 - Média Rápida ({p2_window})"
+            line2_name = f"P3 - Média Curta ({p3_window})"
+            line3_name = f"P4 - Média Média ({p4_window})"
+            line4_name = f"P5 - Média Longa ({p5_window})"
+            line1_color = "#0ea5e9"
+            line2_color = "#f97316" 
 
         # --- EXIBIÇÃO DE MÉTRICAS (METRICS CARDS) ---
         st.markdown('<div class="glass-card">', unsafe_allow_html=True)
@@ -594,25 +722,42 @@ with tab_backtest:
             hovertemplate='Preço: %{y:.2f} EUR<extra></extra>'
         ))
 
-        # Linha da SMA Curta (Rápida) - INTERATIVA (Unified Hover)
+        # Linhas das médias da estratégia correspondente
         fig_prices.add_trace(go.Scatter(
             x=df_visualization.index,
-            y=df_visualization['SMA_Short'],
+            y=df_visualization['Line_1'],
             mode='lines',
-            name=f'Média Curta ({short_window})',
-            line=dict(color='#0ea5e9', width=2),
-            hovertemplate='Média Curta: %{y:.2f} EUR<extra></extra>'
+            name=line1_name,
+            line=dict(color=line1_color if strategy_type != "MULTIPOINT_VECTOR" else "#0ea5e9", width=2),
+            hovertemplate=f'{line1_name}: %{y:.2f} EUR<extra></extra>'
         ))
 
-        # Linha da SMA Longa (Lenta) - INTERATIVA (Unified Hover)
         fig_prices.add_trace(go.Scatter(
             x=df_visualization.index,
-            y=df_visualization['SMA_Long'],
+            y=df_visualization['Line_2'],
             mode='lines',
-            name=f'Média Lenta ({long_window})',
-            line=dict(color='#f97316', width=2),
-            hovertemplate='Média Lenta: %{y:.2f} EUR<extra></extra>'
+            name=line2_name,
+            line=dict(color=line2_color if strategy_type != "MULTIPOINT_VECTOR" else "#f97316", width=2),
+            hovertemplate=f'{line2_name}: %{y:.2f} EUR<extra></extra>'
         ))
+        
+        if strategy_type == "MULTIPOINT_VECTOR":
+            fig_prices.add_trace(go.Scatter(
+                x=df_visualization.index,
+                y=df_visualization['Line_3'],
+                mode='lines',
+                name=line3_name,
+                line=dict(color='#10b981', width=1.5),
+                hovertemplate=f'{line3_name}: %{y:.2f} EUR<extra></extra>'
+            ))
+            fig_prices.add_trace(go.Scatter(
+                x=df_visualization.index,
+                y=df_visualization['Line_4'],
+                mode='lines',
+                name=line4_name,
+                line=dict(color='#8b5cf6', width=1.5),
+                hovertemplate=f'{line4_name}: %{y:.2f} EUR<extra></extra>'
+            ))
 
         # Filtrar e agrupar marcas de BUY e SELL/SL/TP com explicações pedagógicas completas
         buy_x, buy_y, buy_text = [], [], []
@@ -646,7 +791,7 @@ with tab_backtest:
             elif trade['reason'] == "TAKE_PROFIT":
                 justification = f"O preço subiu e atingiu o seu alvo de ganho ideal. Lucro embolsado com sucesso."
             elif trade['reason'] == "STRATEGY_SELL":
-                justification = f"A Média Rápida ({short_window}) cruzou abaixo da Lenta ({long_window}), indicando exaustão dos compradores e fim da tendência."
+                justification = f"Saída executada por: {trade.get('reason', 'Gatilho de saída da estratégia.')}"
             else:
                 justification = "Fim do período de testes. Posição fechada de forma virtual ao preço final de mercado para fins de cálculo."
 
@@ -825,6 +970,10 @@ with tab_optimizer:
                                     local_config.update({
                                         "SHORT_WINDOW": sw,
                                         "LONG_WINDOW": lw,
+                                        "P2_WINDOW": sw,
+                                        "P3_WINDOW": lw,
+                                        "P4_WINDOW": 50,
+                                        "P5_WINDOW": 200,
                                         "STOP_LOSS_PERCENT": sl,
                                         "TAKE_PROFIT_PERCENT": tp,
                                         "INITIAL_CAPITAL": 1000.0,
@@ -956,6 +1105,8 @@ with tab_optimizer:
             chosen_row = options_list[selected_option][1]
             st.session_state.short_window_val = int(chosen_row['SMA Rápida'])
             st.session_state.long_window_val = int(chosen_row['SMA Lenta'])
+            st.session_state.p2_window_val = int(chosen_row['SMA Rápida'])
+            st.session_state.p3_window_val = int(chosen_row['SMA Lenta'])
             st.session_state.stop_loss_pct_val = float(chosen_row['Stop Loss (%)'])
 
             # Tratar o toggle de desativar TP
@@ -1118,6 +1269,112 @@ with tab_recipes:
 
     else:
         st.info("Nenhuma receita guardada. Execute uma otimização e guarde as suas melhores configurações!")
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# --- CONTEÚDO DA ABA 3 (NOVA ABA 4): SIMULADOR DE MERCADO ---
+with tab_simulator:
+    st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+    st.markdown('<h3>🎮 Simulador de Mercado Interativo (Monte Carlo / Random Walk)</h3>', unsafe_allow_html=True)
+    st.markdown("""
+    Teste a sua estratégia de **Médias Móveis** ou **Vetor de 5 Pontos de Medição** num mercado sintético simulado!
+    Este simulador utiliza o modelo matemático de **Movimento Browniano Geométrico (Geometric Brownian Motion)**
+    para gerar um gráfico de preços com base na volatilidade e na tendência que escolher.
+    Ideal para ver o robô a "aprender" e a reagir ao vivo sem riscos.
+    """
+    )
+    
+    col_sim_1, col_sim_2, col_sim_3 = st.columns(3)
+    with col_sim_1:
+        sim_drift = st.slider("Tendência Geral (Drift %)", -5.0, 5.0, 0.5, step=0.1, help="Direção média do preço. Valores positivos forçam subida, negativos queda.")
+    with col_sim_2:
+        sim_vol = st.slider("Volatilidade (Instabilidade %)", 0.5, 10.0, 2.5, step=0.1, help="Nível de ruído e tamanho das oscilações. Cripto costuma ter entre 2% e 5%.")
+    with col_sim_3:
+        sim_steps = st.slider("Número de Velas (Passos)", 100, 500, 250, step=50, help="Quantidade de candles que o mercado sintético terá.")
+
+    if st.button("🎲 Gerar e Testar em Mercado Sintético", use_container_width=True):
+        st.markdown("---")
+        with st.spinner("A gerar dados de mercado aleatórios e a simular operações..."):
+            import numpy as np
+            dt = 1.0
+            mu = (sim_drift / 100.0) / sim_steps
+            sigma = (sim_vol / 100.0)
+            
+            prices = [100.0]
+            for _ in range(sim_steps - 1):
+                shock = np.random.normal(0, 1)
+                pct_change = mu * dt + sigma * np.sqrt(dt) * shock
+                next_price = prices[-1] * (1 + pct_change)
+                prices.append(max(0.1, next_price))
+            
+            dates = pd.date_range(start="2026-01-01", periods=sim_steps, freq="1h")
+            sim_df = pd.DataFrame({
+                'open': prices,
+                'high': [p * (1 + np.abs(np.random.normal(0, 0.002))) for p in prices],
+                'low': [p * (1 - np.abs(np.random.normal(0, 0.002))) for p in prices],
+                'close': prices,
+                'volume': [1000] * sim_steps
+            }, index=dates)
+            
+            sim_df['high'] = sim_df[['open', 'close', 'high']].max(axis=1)
+            sim_df['low'] = sim_df[['open', 'close', 'low']].min(axis=1)
+
+            sim_config = config.copy()
+            sim_config["INITIAL_CAPITAL"] = 1000.0
+            
+            sim_bt = Backtester(sim_config, logger)
+            sim_trades, sim_cap_history = asyncio.run(sim_bt.run_backtest(sim_df))
+            sim_metrics = sim_bt.get_performance_metrics()
+            
+            col_m1, col_m2, col_m3, col_m4 = st.columns(4)
+            with col_m1:
+                st.metric("Retorno Simulação", f"{sim_metrics['total_return_pct']:.2f}%")
+            with col_m2:
+                st.metric("Trades Executados", f"{sim_metrics['num_trades']}")
+            with col_m3:
+                st.metric("Win Rate", f"{sim_metrics['win_rate']*100:.1f}%")
+            with col_m4:
+                st.metric("Max Drawdown", f"{sim_metrics['max_drawdown_pct']:.2f}%")
+            
+            sim_viz = sim_df.copy()
+            if strategy_type == "SMA_CROSSOVER":
+                sim_viz['Line_1'] = ta.trend.sma_indicator(sim_viz['close'], window=short_window)
+                sim_viz['Line_2'] = ta.trend.sma_indicator(sim_viz['close'], window=long_window)
+                l1_n, l2_n = f"SMA {short_window}", f"SMA {long_window}"
+            elif strategy_type == "EMA_CROSSOVER":
+                sim_viz['Line_1'] = ta.trend.ema_indicator(sim_viz['close'], window=short_window)
+                sim_viz['Line_2'] = ta.trend.ema_indicator(sim_viz['close'], window=long_window)
+                l1_n, l2_n = f"EMA {short_window}", f"EMA {long_window}"
+            else:
+                sim_viz['Line_1'] = ta.trend.sma_indicator(sim_viz['close'], window=p2_window)
+                sim_viz['Line_2'] = ta.trend.sma_indicator(sim_viz['close'], window=p3_window)
+                sim_viz['Line_3'] = ta.trend.sma_indicator(sim_viz['close'], window=p4_window)
+                sim_viz['Line_4'] = ta.trend.sma_indicator(sim_viz['close'], window=p5_window)
+                l1_n, l2_n, l3_n, l4_n = f"P2 ({p2_window})", f"P3 ({p3_window})", f"P4 ({p4_window})", f"P5 ({p5_window})"
+            
+            fig_sim = go.Figure()
+            
+            fig_sim.add_trace(go.Scatter(x=sim_viz.index, y=sim_viz['close'], mode='lines', name='Preço Sintético', line=dict(color='rgba(100, 116, 139, 0.4)', width=1.5)))
+            fig_sim.add_trace(go.Scatter(x=sim_viz.index, y=sim_viz['Line_1'], mode='lines', name=l1_n, line=dict(color='#0ea5e9', width=2)))
+            fig_sim.add_trace(go.Scatter(x=sim_viz.index, y=sim_viz['Line_2'], mode='lines', name=l2_n, line=dict(color='#f97316', width=2)))
+            
+            if strategy_type == "MULTIPOINT_VECTOR":
+                fig_sim.add_trace(go.Scatter(x=sim_viz.index, y=sim_viz['Line_3'], mode='lines', name=l3_n, line=dict(color='#10b981', width=1.5)))
+                fig_sim.add_trace(go.Scatter(x=sim_viz.index, y=sim_viz['Line_4'], mode='lines', name=l4_n, line=dict(color='#8b5cf6', width=1.5)))
+                
+            sim_buy_x, sim_buy_y = [], []
+            sim_sell_x, sim_sell_y = [], []
+            for t in sim_trades:
+                sim_buy_x.append(t['entry_timestamp'])
+                sim_buy_y.append(t['entry_price'])
+                sim_sell_x.append(t['exit_timestamp'])
+                sim_sell_y.append(t['exit_price'])
+                
+            fig_sim.add_trace(go.Scatter(x=sim_buy_x, y=sim_buy_y, mode='markers', name='COMPRA', marker=dict(symbol='triangle-up', size=12, color='#059669', line=dict(width=1, color='white'))))
+            fig_sim.add_trace(go.Scatter(x=sim_sell_x, y=sim_sell_y, mode='markers', name='VENDA', marker=dict(symbol='triangle-down', size=12, color='#e11d48', line=dict(width=1, color='white'))))
+            
+            fig_sim.update_layout(title="Comportamento da Estratégia no Mercado Aleatório", template='plotly_white', height=500, margin=dict(l=10, r=10, t=40, b=10))
+            st.plotly_chart(fig_sim, use_container_width=True)
 
     st.markdown('</div>', unsafe_allow_html=True)
 
