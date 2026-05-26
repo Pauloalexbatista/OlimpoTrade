@@ -1488,22 +1488,17 @@ with tab_simulator:
                     best_ret = cell["ret"]
                     best_combo = cell
         
-        # Renderizar uma tabela HTML premium com estilo de cores (Verde para Lucro, Vermelho para Perda)
-        html_code = """
-        <table style="width:100%; border-collapse: collapse; text-align: center; font-family:'Outfit',sans-serif; background:rgba(255,255,255,0.7); border-radius:8px; overflow:hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
-            <thead>
-                <tr style="background:#0f172a; color:#ffffff;">
-                    <th style="padding:15px; border:1px solid #334155;">Gatilho de Entrada (Pernas)</th>
-                    <th style="padding:15px; border:1px solid #334155;">⚡ Saída Rápida (P2 / Média 9)</th>
-                    <th style="padding:15px; border:1px solid #334155;">⚖️ Saída Intermédia (P3 / Média 21)</th>
-                    <th style="padding:15px; border:1px solid #334155;">🐢 Saída Lenta (P4 / Média 50)</th>
-                </tr>
-            </thead>
-            <tbody>
-        """
+                # Renderizar uma tabela HTML premium com estilo de cores (Verde para Lucro, Vermelho para Perda)
+        html_code = '<table style="width:100%; border-collapse: collapse; text-align: center; font-family:\'Outfit\',sans-serif; background:rgba(255,255,255,0.7); border-radius:8px; overflow:hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">'
+        html_code += '<thead><tr style="background:#0f172a; color:#ffffff;">'
+        html_code += '<th style="padding:15px; border:1px solid #334155;">Gatilho de Entrada (Pernas)</th>'
+        html_code += '<th style="padding:15px; border:1px solid #334155;">⚡ Saída Rápida (P2 / Média 9)</th>'
+        html_code += '<th style="padding:15px; border:1px solid #334155;">⚖️ Saída Intermédia (P3 / Média 21)</th>'
+        html_code += '<th style="padding:15px; border:1px solid #334155;">🐢 Saída Lenta (P4 / Média 50)</th>'
+        html_code += '</tr></thead><tbody>'
         
         for row in matrix_list:
-            html_code += f'<tr style="border-bottom: 1px solid #cbd5e1;">'
+            html_code += '<tr style="border-bottom: 1px solid #cbd5e1;">'
             html_code += f'<td style="padding:15px; font-weight:bold; background:#f8fafc; border:1px solid #cbd5e1;">{row["Modo de Entrada"]}</td>'
             
             for ex in ["P2", "P3", "P4"]:
@@ -1516,16 +1511,9 @@ with tab_simulator:
                 bg_color = "rgba(5, 150, 105, 0.15)" if ret > 0 else ("rgba(225, 29, 72, 0.15)" if ret < 0 else "transparent")
                 text_color = "#059669" if ret > 0 else ("#e11d48" if ret < 0 else "#0f172a")
                 border_style = "3px solid #3b82f6" if cell == best_combo else "1px solid #cbd5e1"
-                best_tag = "<br><span style='font-size:0.8rem; font-weight:bold; background:#3b82f6; color:white; padding:2px 6px; border-radius:4px;'>🏆 Campeã</span>" if cell == best_combo else ""
+                best_tag = "<br><span style=\'font-size:0.8rem; font-weight:bold; background:#3b82f6; color:white; padding:2px 6px; border-radius:4px;\'>🏆 Campeã</span>" if cell == best_combo else ""
                 
-                html_code += f"""
-                <td style="padding:15px; background:{bg_color}; color:{text_color}; border:{border_style}; font-weight:bold;">
-                    {ret:+.2f}%<br>
-                    <span style="font-size:0.85rem; color:#64748b;">(Drawdown: {dd:.2f}%)</span><br>
-                    <span style="font-size:0.8rem; font-weight:normal; color:#475569;">{trades} Trades</span>
-                    {best_tag}
-                </td>
-                """
+                html_code += f'<td style="padding:15px; background:{bg_color}; color:{text_color}; border:{border_style}; font-weight:bold;">{ret:+.2f}%<br><span style="font-size:0.85rem; color:#64748b;">(Drawdown: {dd:.2f}%)</span><br><span style="font-size:0.8rem; font-weight:normal; color:#475569;">{trades} Trades</span>{best_tag}</td>'
             html_code += "</tr>"
             
         html_code += "</tbody></table>"
