@@ -120,7 +120,7 @@ class MultiPointVectorStrategy(BaseStrategy):
     """
     def __init__(self, p2_window=9, p3_window=21, p4_window=50, p5_window=200, 
                  mode="AGILE", exhaustion_filter=True, exhaustion_threshold=2.5, p5_filter_active=True, 
-                 entry_mode="4PONTOS", exit_mode="P3", logger=None):
+                 entry_mode="4PONTOS", exit_mode="P3", operation_mode="TREND_FOLLOWING", logger=None):
         self.p2_window = p2_window  # Muito Rápida (Média 9)
         self.p3_window = p3_window  # Curta (Média 21)
         self.p4_window = p4_window  # Média (Média 50)
@@ -131,6 +131,7 @@ class MultiPointVectorStrategy(BaseStrategy):
         self.p5_filter_active = p5_filter_active
         self.entry_mode = entry_mode.upper() if entry_mode else "4PONTOS"
         self.exit_mode = exit_mode.upper() if exit_mode else "P3"
+        self.operation_mode = operation_mode.upper() if operation_mode else "TREND_FOLLOWING"
         self.logger = logger
 
         msg = (f"Estratégia Vetor de 5 Pontos inicializada | Entrada={self.entry_mode} | Saída={self.exit_mode} | "
