@@ -314,55 +314,45 @@ col_status1, col_status2 = st.columns([1, 6])
 with col_status1:
     st.markdown('<span class="status-badge status-active">🖧 SIMULADOR ATIVO</span>', unsafe_allow_html=True)
 
-# 5. Painel de Ajuda Rápida no Topo da Sidebar
-with st.sidebar.expander("📚 Guia e Dicionário de Parâmetros"):
-    st.markdown("""
-    **Como testar 1 Ano Inteiro (Instantâneo):**
-    1. Defina o **Timeframe** para `1d` (velas diárias).
-    2. Defina a **Quantidade de Candles** para `365` (1 ano) ou `1000` (quase 3 anos).
-    *Isto descarrega instantaneamente dados reais de longo prazo da Binance!*
+st.markdown("---")
 
-    ---
+# 1. LINHA HORIZONTAL DE CONTROLES PRINCIPAIS (SEM BARRA LATERAL!)
+col_ctrl1, col_ctrl2, col_ctrl3, col_ctrl4 = st.columns(4)
 
-    **Conceitos Rápidos:**
-    * **Risco por Trade (%)**: Percentagem da sua banca que aceita perder se o trade correr mal (bater no Stop Loss). Recomenda-se **1%**.
-    * **Stop Loss (SL)**: Limite de perda automática. Vende se o ativo cair esta % abaixo do preço de compra.
-    * **Take Profit (TP)**: Alvo de lucro. Vende automaticamente quando o ativo subir esta % para embolsar o ganho.
-    * **Médias Móveis (SMA)**:
-      * **Curta (Rápida)**: Média de curto prazo. Reage rápido ao preço (ex: 9 a 20).
-      * **Longa (Lenta)**: Média de médio prazo. Reage devagar (ex: 21 a 50).
-    """)
+with col_ctrl1:
+    symbol = st.selectbox(
+        "Par de Trading",
+        ["BTC/USDT", "ETH/USDT", "SOL/USDT", "BNB/USDT"],
+        index=0,
+        help="Par de moedas a transacionar. Todos os cálculos de banca e lucro são exibidos na sua moeda local (EUR)."
+    )
+with col_ctrl2:
+    timeframe = st.selectbox(
+        "Timeframe",
+        ["15m", "1h", "4h", "1d"],
+        index=1,
+        help="Escala de tempo de cada candle (vela). Timeframes maiores (1h, 1d) filtram ruído e mostram tendências mais fortes."
+    )
+with col_ctrl3:
+    limit_candles = st.slider(
+        "Quantidade de Candles",
+        100, 1000, 500,
+        step=50,
+        help="Quantidade de velas a obter do histórico. Dica: Para simular 1 ano instantaneamente, use timeframe '1d' e 365 candles."
+    )
+with col_ctrl4:
+    strategy_type = st.selectbox(
+        "Estratégia Ativa",
+        ["SMA_CROSSOVER", "EMA_CROSSOVER", "MULTIPOINT_VECTOR"],
+        index=2 if st.session_state.strategy_type_val == "MULTIPOINT_VECTOR" else (1 if st.session_state.strategy_type_val == "EMA_CROSSOVER" else 0),
+        format_func=lambda x: "Média Simples (SMA Crossover)" if x == "SMA_CROSSOVER" else ("Média Exponencial (EMA Crossover)" if x == "EMA_CROSSOVER" else "Vetor de 5 Pontos (MultiPoint)"),
+        help="Escolha o algoritmo quantitativo de decisão."
+    )
 
-# 6. Configurações da Strategy e Risk Management no Menu Lateral (SUPER COMPACTO)
-st.sidebar.markdown("### 🛠️ Parâmetros do Mercado")
-symbol = st.sidebar.selectbox(
-    "Par de Trading",
-    ["BTC/USDT", "ETH/USDT", "SOL/USDT", "BNB/USDT"],
-    index=0,
-    help="Par de moedas a transacionar. Todos os cálculos de banca e lucro são exibidos na sua moeda local (EUR)."
-)
-timeframe = st.sidebar.selectbox(
-    "Timeframe",
-    ["15m", "1h", "4h", "1d"],
-    index=1,
-    help="Escala de tempo de cada candle (vela). Timeframes maiores (1h, 1d) filtram ruído e mostram tendências mais fortes."
-)
-limit_candles = st.sidebar.slider(
-    "Quantidade de Candles",
-    100, 1000, 500,
-    step=50,
-    help="Quantidade de velas a obter do histórico. Dica: Para simular 1 ano instantaneamente, use timeframe '1d' e 365 candles."
-)
-
-st.sidebar.markdown("### 📈 Configuração da Estratégia")
-
-strategy_type = st.sidebar.selectbox(
-    "Estratégia Ativa",
-    ["SMA_CROSSOVER", "EMA_CROSSOVER", "MULTIPOINT_VECTOR"],
-    index=2 if st.session_state.strategy_type_val == "MULTIPOINT_VECTOR" else (1 if st.session_state.strategy_type_val == "EMA_CROSSOVER" else 0),
-    format_func=lambda x: "Média Simples (SMA Crossover)" if x == "SMA_CROSSOVER" else ("Média Exponencial (EMA Crossover)" if x == "EMA_CROSSOVER" else "Vetor de 5 Pontos (MultiPoint)"),
-    help="Escolha o algoritmo quantitativo de decisão."
-)
+# Botão principal de simulação real integrado no topo da página
+col_btn1, col_btn2 = st.columns([3, 1])
+with col_btn2:
+    run_button = st.button("🚀 Executar Simulação Real", use_container_width=True, type="primary")
 
 # ----------------- NOVO PAINEL DE CONFIGURAÇÕES COLAPSÁVEL CENTRAL -----------------
 with st.expander("🛠️ Painel Global de Configuração do Robô (Clique para Configurar)", expanded=False):
@@ -527,6 +517,25 @@ with st.expander("🛠️ Painel Global de Configuração do Robô (Clique para 
             step=0.5,
             help="Se a sua conta perder esta percentagem total num único dia, o robô desliga-se automaticamente."
         )
+    
+    # Adicionar o Guia e Dicionário de Parâmetros de forma discreta dentro do Painel de Configurações
+    with st.expander("📚 Guia Prático & Dicionário de Parâmetros"):
+        st.markdown("""
+        **Como testar 1 Ano Inteiro (Instantâneo):**
+        1. Defina o **Timeframe** para `1d` (velas diárias).
+        2. Defina a **Quantidade de Candles** para `365` (1 ano) ou `1000` (quase 3 anos).
+        *Isto descarrega instantaneamente dados reais de longo prazo da Binance!*
+
+        ---
+
+        **Conceitos Rápidos:**
+        * **Risco por Trade (%)**: Percentagem da sua banca que aceita perder se o trade correr mal (bater no Stop Loss). Recomenda-se **1%**.
+        * **Stop Loss (SL)**: Limite de perda automática. Vende se o ativo cair esta % abaixo do preço de compra.
+        * **Take Profit (TP)**: Alvo de lucro. Vende automaticamente quando o ativo subir esta % para embolsar o ganho.
+        * **Médias Móveis (SMA)**:
+          * **Curta (Rápida)**: Média de curto prazo. Reage rápido ao preço (ex: 9 a 20).
+          * **Longa (Lenta)**: Média de médio prazo. Reage devagar (ex: 21 a 50).
+        """)
 
 # Sincronizar o estado interno caso o utilizador tenha mexido manualmente nos widgets
 st.session_state.strategy_type_val = strategy_type
@@ -580,11 +589,40 @@ config.update({
 # Inicializar logger
 logger = setup_logging()
 
-# Botão para Executar Backtesting Principal
-run_button = st.sidebar.button("🚀 Executar Simulação")
-
 # 7. Abas Principais do Laboratório (TABS SIMPLIFICADAS)
 tab_backtest, tab_simulator = st.tabs(["📈 Simulação & Gráficos Real", "🔮 Laboratório de Simulação & Otimização"])
+
+# Ação do Botão Principal do Backtester
+if run_button:
+    st.markdown("### ⏳ Recolhendo dados e processando simulação...")
+    progress_bar = st.progress(0)
+
+    # Obter dados da Binance
+    collector = DataCollector(exchange_id='binance', symbol=symbol, timeframe=timeframe)
+    progress_bar.progress(30)
+
+    df_ohlcv = collector.get_ohlcv(limit=limit_candles)
+    progress_bar.progress(60)
+
+    if df_ohlcv is not None and not df_ohlcv.empty:
+        # Criar backtester
+        backtester = Backtester(config, logger)
+
+        # Correr backtest
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        trades, capital_history = loop.run_until_complete(backtester.run_backtest(df_ohlcv))
+        metrics = backtester.get_performance_metrics()
+
+        progress_bar.progress(100)
+        progress_bar.empty()
+
+        # Guardar no session state para preservação após rerun
+        st.session_state.backtest_results = metrics
+        st.session_state.backtest_trades = trades
+        st.session_state.backtest_capital_history = capital_history
+        st.session_state.backtest_df = df_ohlcv
+        st.rerun()
 
 # Ação do Botão Principal do Backtester
 if run_button:
