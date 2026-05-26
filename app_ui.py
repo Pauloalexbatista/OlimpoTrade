@@ -758,6 +758,22 @@ with tab_backtest:
             hovertemplate='Preço: %{y:.2f} EUR<extra></extra>'
         ))
 
+        # Segmentos verde lagarta vibrante (#22c55e) ligando a Entrada à Saída de cada trade real
+        for idx_tr, trade in enumerate(trades):
+            trade_mask = (df_visualization.index >= trade['entry_timestamp']) & (df_visualization.index <= trade['exit_timestamp'])
+            trade_segment = df_visualization[trade_mask]
+            if not trade_segment.empty:
+                show_legend = (idx_tr == 0)
+                fig_prices.add_trace(go.Scatter(
+                    x=trade_segment.index,
+                    y=trade_segment['close'],
+                    mode='lines',
+                    name='Lagarta Ativa (Trade Open)',
+                    line=dict(color='#22c55e', width=3.5),
+                    showlegend=show_legend,
+                    hovertemplate='Preço Ativo: %{y:.2f} EUR<extra></extra>'
+                ))
+
         # Linhas das médias da estratégia correspondente
         fig_prices.add_trace(go.Scatter(
             x=df_visualization.index,
@@ -804,14 +820,38 @@ with tab_backtest:
             buy_x.append(trade['entry_timestamp'])
             buy_y.append(trade['entry_price'])
             invested_val = trade['entry_price'] * trade['quantity']
+            
+            # Obter os valores dos pontos no instante da compra
+            p1_val = trade['entry_price']
+            p2_val = p3_val = p4_val = p5_val = 0
+            try:
+                row_val = df_visualization.loc[trade['entry_timestamp']]
+                p2_val = row_val['Line_1'] if 'Line_1' in row_val and not pd.isna(row_val['Line_1']) else 0
+                p3_val = row_val['Line_2'] if 'Line_2' in row_val and not pd.isna(row_val['Line_2']) else 0
+                p4_val = row_val['Line_3'] if 'Line_3' in row_val and not pd.isna(row_val['Line_3']) else 0
+                p5_val = row_val['Line_4'] if 'Line_4' in row_val and not pd.isna(row_val['Line_4']) else 0
+            except Exception:
+                pass
+                
+            points_info = f"P1 (Preço): {p1_val:.2f} EUR<br>P2 (Média): {p2_val:.2f} EUR<br>P3 (Média): {p3_val:.2f} EUR<br>"
+            if strategy_type == "MULTIPOINT_VECTOR":
+                points_info = (
+                    f"P1 (Preço): {p1_val:.2f} EUR<br>"
+                    f"P2 (Média {short_window}): {p2_val:.2f} EUR<br>"
+                    f"P3 (Média {long_window}): {p3_val:.2f} EUR<br>"
+                    f"P4 (Média {p4_window if 'p4_window' in locals() else 50}): {p4_val:.2f} EUR<br>"
+                )
+                if p5_filter_active or entry_mode == "5PONTOS":
+                    points_info += f"P5 (Média {p5_window if 'p5_window' in locals() else 200}): {p5_val:.2f} EUR<br>"
+            
             buy_text.append(
-                f"🟢 <b>ENTRADA (BUY)</b><br>"
+                f"📥 <b>ENTRADA (BUY)</b><br>"
                 f"<b>Data</b>: {trade['entry_timestamp'].strftime('%Y-%m-%d %H:%M')}<br>"
                 f"<b>Preço Compra</b>: {trade['entry_price']:.2f} EUR<br>"
                 f"<b>Quantidade</b>: {trade['quantity']:.6f}<br>"
-                f"<b>Valor Investido (Aposta)</b>: {invested_val:.2f} EUR<br>"
-                f"<b>Justificação</b>: A Média Rápida ({short_window}) cruzou acima da Lenta ({long_window}), "
-                f"confirmando padrão de reversão e início de tendência de alta."
+                f"<b>Valor Investido</b>: {invested_val:.2f} EUR<br><br>"
+                f"<b>Estado dos Pontos de Medição:</b><br>{points_info}<br>"
+                f"<b>Justificação</b>: Gatilho da estratégia ativado! Confirmação de tendência."
             )
 
             # Saída (SELL / STOP LOSS / TAKE PROFIT / TRAILING STOP)
@@ -831,11 +871,35 @@ with tab_backtest:
             else:
                 justification = "Fim do período de testes. Posição fechada de forma virtual ao preço final de mercado para fins de cálculo."
 
+            # Obter os valores dos pontos no instante da venda
+            p1_exit = trade['exit_price']
+            p2_exit = p3_exit = p4_exit = p5_exit = 0
+            try:
+                row_exit = df_visualization.loc[trade['exit_timestamp']]
+                p2_exit = row_exit['Line_1'] if 'Line_1' in row_exit and not pd.isna(row_exit['Line_1']) else 0
+                p3_exit = row_exit['Line_2'] if 'Line_2' in row_exit and not pd.isna(row_exit['Line_2']) else 0
+                p4_exit = row_exit['Line_3'] if 'Line_3' in row_exit and not pd.isna(row_exit['Line_3']) else 0
+                p5_exit = row_exit['Line_4'] if 'Line_4' in row_exit and not pd.isna(row_exit['Line_4']) else 0
+            except Exception:
+                pass
+                
+            points_exit_info = f"P1 (Preço): {p1_exit:.2f} EUR<br>P2 (Média): {p2_exit:.2f} EUR<br>P3 (Média): {p3_exit:.2f} EUR<br>"
+            if strategy_type == "MULTIPOINT_VECTOR":
+                points_exit_info = (
+                    f"P1 (Preço): {p1_exit:.2f} EUR<br>"
+                    f"P2 (Média {short_window}): {p2_exit:.2f} EUR<br>"
+                    f"P3 (Média {long_window}): {p3_exit:.2f} EUR<br>"
+                    f"P4 (Média {p4_window if 'p4_window' in locals() else 50}): {p4_exit:.2f} EUR<br>"
+                )
+                if p5_filter_active or entry_mode == "5PONTOS":
+                    points_exit_info += f"P5 (Média {p5_window if 'p5_window' in locals() else 200}): {p5_exit:.2f} EUR<br>"
+
             sell_text.append(
-                f"🔴 <b>SAÍDA ({trade['reason']})</b><br>"
+                f"❌ <b>SAÍDA ({trade['reason']})</b><br>"
                 f"<b>Data</b>: {trade['exit_timestamp'].strftime('%Y-%m-%d %H:%M')}<br>"
-                f"<b>Preço Venda</b>: {trade['exit_price']:.2f} EUR<br>"
-                f"<b>Valor Ganho</b>: {pnl_sign}{trade['pnl']:.2f} EUR ({pnl_pct_sign}{trade['pnl_pct']:.2f}%)<br>"
+                f"<b>Preço Venda (P1)</b>: {trade['exit_price']:.2f} EUR<br>"
+                f"<b>Resultado</b>: {pnl_sign}{trade['pnl']:.2f} EUR ({pnl_pct_sign}{trade['pnl_pct']:.2f}%)<br><br>"
+                f"<b>Estado dos Pontos de Medição:</b><br>{points_exit_info}<br>"
                 f"<b>Justificação</b>: {justification}"
             )
 
@@ -1400,29 +1464,157 @@ with tab_simulator:
             
             fig_sim = go.Figure()
             
-            fig_sim.add_trace(go.Scatter(x=sim_viz.index, y=sim_viz['close'], mode='lines', name='Preço Sintético', line=dict(color='rgba(100, 116, 139, 0.4)', width=1.5)))
-            fig_sim.add_trace(go.Scatter(x=sim_viz.index, y=sim_viz['Line_1'], mode='lines', name=l1_n, line=dict(color='#0ea5e9', width=2)))
-            fig_sim.add_trace(go.Scatter(x=sim_viz.index, y=sim_viz['Line_2'], mode='lines', name=l2_n, line=dict(color='#f97316', width=2)))
+            # Linha de Preço Sintético de fundo (cinzenta suave)
+            fig_sim.add_trace(go.Scatter(
+                x=sim_viz.index, 
+                y=sim_viz['close'], 
+                mode='lines', 
+                name='Preço Sintético', 
+                line=dict(color='rgba(100, 116, 139, 0.25)', width=1.5),
+                hovertemplate='Preço: %{y:.2f} EUR<extra></extra>'
+            ))
+            
+            # Segmentos verde lagarta vibrante (#22c55e) ligando a Entrada à Saída de cada trade
+            for idx_s, t_s in enumerate(sim_trades):
+                trade_mask = (sim_viz.index >= t_s['entry_timestamp']) & (sim_viz.index <= t_s['exit_timestamp'])
+                trade_segment = sim_viz[trade_mask]
+                if not trade_segment.empty:
+                    show_legend_s = (idx_s == 0)
+                    fig_sim.add_trace(go.Scatter(
+                        x=trade_segment.index,
+                        y=trade_segment['close'],
+                        mode='lines',
+                        name='Lagarta Ativa (Trade Open)',
+                        line=dict(color='#22c55e', width=3.5),
+                        showlegend=show_legend_s,
+                        hovertemplate='Preço Ativo: %{y:.2f} EUR<extra></extra>'
+                    ))
+            
+            fig_sim.add_trace(go.Scatter(
+                x=sim_viz.index, 
+                y=sim_viz['Line_1'], 
+                mode='lines', 
+                name=l1_n, 
+                line=dict(color='#0ea5e9', width=2),
+                hovertemplate=f'{l1_n}: %{{y:.2f}} EUR<extra></extra>'
+            ))
+            fig_sim.add_trace(go.Scatter(
+                x=sim_viz.index, 
+                y=sim_viz['Line_2'], 
+                mode='lines', 
+                name=l2_n, 
+                line=dict(color='#f97316', width=2),
+                hovertemplate=f'{l2_n}: %{{y:.2f}} EUR<extra></extra>'
+            ))
             
             if strategy_type == "MULTIPOINT_VECTOR":
-                fig_sim.add_trace(go.Scatter(x=sim_viz.index, y=sim_viz['Line_3'], mode='lines', name=l3_n, line=dict(color='#10b981', width=1.5)))
+                fig_sim.add_trace(go.Scatter(
+                    x=sim_viz.index, 
+                    y=sim_viz['Line_3'], 
+                    mode='lines', 
+                    name=l3_n, 
+                    line=dict(color='#10b981', width=1.5),
+                    hovertemplate=f'{l3_n}: %{{y:.2f}} EUR<extra></extra>'
+                ))
                 if (p5_filter_active or entry_mode == "5PONTOS") and 'Line_4' in sim_viz:
-                    fig_sim.add_trace(go.Scatter(x=sim_viz.index, y=sim_viz['Line_4'], mode='lines', name=l4_n, line=dict(color='#8b5cf6', width=1.5)))
+                    fig_sim.add_trace(go.Scatter(
+                        x=sim_viz.index, 
+                        y=sim_viz['Line_4'], 
+                        mode='lines', 
+                        name=l4_n, 
+                        line=dict(color='#8b5cf6', width=1.5),
+                        hovertemplate=f'{l4_n}: %{{y:.2f}} EUR<extra></extra>'
+                    ))
                 
-            sim_buy_x, sim_buy_y = [], []
-            sim_sell_x, sim_sell_y = [], []
-            for t in sim_trades:
-                sim_buy_x.append(t['entry_timestamp'])
-                sim_buy_y.append(t['entry_price'])
-                sim_sell_x.append(t['exit_timestamp'])
-                sim_sell_y.append(t['exit_price'])
+            sim_buy_x, sim_buy_y, sim_buy_text = [], [], []
+            sim_sell_x, sim_sell_y, sim_sell_text = [], [], []
+            for t_s in sim_trades:
+                entry_t = t_s['entry_timestamp']
+                exit_t = t_s['exit_timestamp']
                 
-            fig_sim.add_trace(go.Scatter(x=sim_buy_x, y=sim_buy_y, mode='markers', name='COMPRA', marker=dict(symbol='triangle-up', size=12, color='#059669', line=dict(width=1, color='white'))))
-            fig_sim.add_trace(go.Scatter(x=sim_sell_x, y=sim_sell_y, mode='markers', name='VENDA', marker=dict(symbol='triangle-down', size=12, color='#e11d48', line=dict(width=1, color='white'))))
-            
-            fig_sim.update_layout(title="Comportamento da Estratégia no Mercado Aleatório", template='plotly_white', height=500, margin=dict(l=10, r=10, t=40, b=10))
-            st.plotly_chart(fig_sim, use_container_width=True)
+                sim_buy_x.append(entry_t)
+                sim_buy_y.append(t_s['entry_price'])
+                
+                # Obter os 5 pontos no momento da compra
+                try:
+                    entry_row = sim_viz.loc[entry_t]
+                    p1_val = t_s['entry_price']
+                    p2_val = entry_row['Line_1'] if 'Line_1' in entry_row and not pd.isna(entry_row['Line_1']) else 0
+                    p3_val = entry_row['Line_2'] if 'Line_2' in entry_row and not pd.isna(entry_row['Line_2']) else 0
+                    p4_val = entry_row['Line_3'] if 'Line_3' in entry_row and not pd.isna(entry_row['Line_3']) else 0
+                    p5_val = entry_row['Line_4'] if 'Line_4' in entry_row and 'Line_4' in sim_viz and not pd.isna(entry_row['Line_4']) else 0
+                    
+                    buy_info = (
+                        f"📥 <b>ENTRADA COMPRA (BUY)</b><br>"
+                        f"<b>Data</b>: {entry_t.strftime('%Y-%m-%d %H:%M') if hasattr(entry_t, 'strftime') else entry_t}<br>"
+                        f"<b>Preço Entrada (P1)</b>: {p1_val:.2f} EUR<br>"
+                        f"<b>P2 (Média {p2_window if 'p2_window' in locals() else 9})</b>: {p2_val:.2f} EUR<br>"
+                        f"<b>P3 (Média {p3_window if 'p3_window' in locals() else 21})</b>: {p3_val:.2f} EUR<br>"
+                        f"<b>P4 (Média {p4_window if 'p4_window' in locals() else 50})</b>: {p4_val:.2f} EUR<br>"
+                    )
+                    if p5_filter_active or entry_mode == "5PONTOS":
+                        buy_info += f"<b>P5 (Média {p5_window if 'p5_window' in locals() else 200})</b>: {p5_val:.2f} EUR<br>"
+                    
+                    buy_info += f"<i>Gatilho: Entrada {entry_mode} de Alinhamento!</i>"
+                    sim_buy_text.append(buy_info)
+                except Exception:
+                    sim_buy_text.append(f"COMPRA ao preço de {t_s['entry_price']:.2f}")
 
+                sim_sell_x.append(exit_t)
+                sim_sell_y.append(t_s['exit_price'])
+                
+                # Obter os 5 pontos no momento da venda
+                try:
+                    exit_row = sim_viz.loc[exit_t]
+                    p1_val = t_s['exit_price']
+                    p2_val = exit_row['Line_1'] if 'Line_1' in exit_row and not pd.isna(exit_row['Line_1']) else 0
+                    p3_val = exit_row['Line_2'] if 'Line_2' in exit_row and not pd.isna(exit_row['Line_2']) else 0
+                    p4_val = exit_row['Line_3'] if 'Line_3' in exit_row and not pd.isna(exit_row['Line_3']) else 0
+                    p5_val = exit_row['Line_4'] if 'Line_4' in exit_row and 'Line_4' in sim_viz and not pd.isna(exit_row['Line_4']) else 0
+                    
+                    sell_info = (
+                        f"📤 <b>SAÍDA VENDA ({t_s['reason']})</b><br>"
+                        f"<b>Data</b>: {exit_t.strftime('%Y-%m-%d %H:%M') if hasattr(exit_t, 'strftime') else exit_t}<br>"
+                        f"<b>Preço Saída (P1)</b>: {p1_val:.2f} EUR<br>"
+                        f"<b>P2 (Média {p2_window if 'p2_window' in locals() else 9})</b>: {p2_val:.2f} EUR<br>"
+                        f"<b>P3 (Média {p3_window if 'p3_window' in locals() else 21})</b>: {p3_val:.2f} EUR<br>"
+                        f"<b>P4 (Média {p4_window if 'p4_window' in locals() else 50})</b>: {p4_val:.2f} EUR<br>"
+                    )
+                    if p5_filter_active or entry_mode == "5PONTOS":
+                        sell_info += f"<b>P5 (Média {p5_window if 'p5_window' in locals() else 200})</b>: {p5_val:.2f} EUR<br>"
+                    
+                    sell_info += f"<i>Resultado: {t_s['pnl']:.2f} EUR ({t_s['pnl_pct']:.2f}%)</i>"
+                    sim_sell_text.append(sell_info)
+                except Exception:
+                    sim_sell_text.append(f"VENDA ao preço de {t_s['exit_price']:.2f} ({t_s['reason']})")
+                
+            fig_sim.add_trace(go.Scatter(
+                x=sim_buy_x, 
+                y=sim_buy_y, 
+                mode='markers', 
+                name='COMPRA', 
+                marker=dict(symbol='triangle-up', size=14, color='#10b981', line=dict(width=1.5, color='#047857')), 
+                text=sim_buy_text, 
+                hoverinfo='text'
+            ))
+            fig_sim.add_trace(go.Scatter(
+                x=sim_sell_x, 
+                y=sim_sell_y, 
+                mode='markers', 
+                name='VENDA', 
+                marker=dict(symbol='triangle-down', size=14, color='#ef4444', line=dict(width=1.5, color='#b91c1c')), 
+                text=sim_sell_text, 
+                hoverinfo='text'
+            ))
+            
+            fig_sim.update_layout(
+                title="Comportamento da Estratégia no Mercado Aleatório (Simulador)", 
+                hovermode='x unified', # Guia vertical unificada com todos os 5 pontos!
+                template='plotly_white', 
+                height=500, 
+                margin=dict(l=10, r=10, t=40, b=10)
+            )
+            st.plotly_chart(fig_sim, use_container_width=True)
             # 2. Correr a Matriz de 9 Lógicas em Background (Instantâneo)
             if strategy_type == "MULTIPOINT_VECTOR":
                 import logging
