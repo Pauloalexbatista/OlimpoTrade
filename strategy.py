@@ -119,7 +119,8 @@ class MultiPointVectorStrategy(BaseStrategy):
     Possui Modo Ágil (4 pontos) e Modo Conservador (5 pontos) com Filtro de Exaustão de Preço.
     """
     def __init__(self, p2_window=9, p3_window=21, p4_window=50, p5_window=200, 
-                 mode="AGILE", exhaustion_filter=True, exhaustion_threshold=2.5, p5_filter_active=True, logger=None):
+                 mode="AGILE", exhaustion_filter=True, exhaustion_threshold=2.5, p5_filter_active=True, 
+                 entry_mode="4PONTOS", exit_mode="P3", logger=None):
         self.p2_window = p2_window  # Muito Rápida (Média 9)
         self.p3_window = p3_window  # Curta (Média 21)
         self.p4_window = p4_window  # Média (Média 50)
@@ -128,9 +129,11 @@ class MultiPointVectorStrategy(BaseStrategy):
         self.exhaustion_filter = exhaustion_filter
         self.exhaustion_threshold = exhaustion_threshold
         self.p5_filter_active = p5_filter_active
+        self.entry_mode = entry_mode.upper() if entry_mode else "4PONTOS"
+        self.exit_mode = exit_mode.upper() if exit_mode else "P3"
         self.logger = logger
 
-        msg = (f"Estratégia Vetor de 5 Pontos inicializada | Modo={self.mode} | "
+        msg = (f"Estratégia Vetor de 5 Pontos inicializada | Entrada={self.entry_mode} | Saída={self.exit_mode} | "
                f"P2={self.p2_window}, P3={self.p3_window}, P4={self.p4_window}, P5={self.p5_window} | "
                f"Filtro Exaustão={self.exhaustion_filter} (Limiar={self.exhaustion_threshold}%) | Filtro P5={self.p5_filter_active}")
         if self.logger:
@@ -248,6 +251,8 @@ class StrategyFactory:
                 exhaustion_filter=config.get("EXHAUSTION_FILTER", True),
                 exhaustion_threshold=float(config.get("EXHAUSTION_THRESHOLD", 2.5)),
                 p5_filter_active=config.get("P5_SLOPE_FILTER_ACTIVE", True),
+                entry_mode=config.get("ENTRY_MODE", "4PONTOS"),
+                exit_mode=config.get("EXIT_MODE", "P3"),
                 logger=logger
             )
         else:

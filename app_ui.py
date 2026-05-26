@@ -136,6 +136,10 @@ if "exhaustion_threshold_val" not in st.session_state:
     st.session_state.exhaustion_threshold_val = 2.5
 if "p5_filter_active_val" not in st.session_state:
     st.session_state.p5_filter_active_val = True
+if "entry_mode_val" not in st.session_state:
+    st.session_state.entry_mode_val = "4PONTOS"
+if "exit_mode_val" not in st.session_state:
+    st.session_state.exit_mode_val = "P3" 
 
 if "short_window_val" not in st.session_state:
     st.session_state.short_window_val = 12
@@ -379,6 +383,8 @@ if strategy_type in ["SMA_CROSSOVER", "EMA_CROSSOVER"]:
     exhaustion_filter = True
     exhaustion_threshold = 2.5
     p5_filter_active = True
+    entry_mode = "4PONTOS"
+    exit_mode = "P3" 
 else:
     short_window = 9
     long_window = 21
@@ -389,6 +395,22 @@ else:
         index=0 if st.session_state.multipoint_mode_val == "AGILE" else 1,
         format_func=lambda x: "Modo Ágil (4 Pontos)" if x == "AGILE" else "Modo Conservador (5 Pontos)",
         help="Modo Ágil evita o lag da Média 200 usando-a apenas como filtro de inclinação. Modo Conservador exige alinhamento dos 5 pontos."
+    )
+    
+    entry_mode = st.sidebar.selectbox(
+        "Modo de Entrada (Gatilho)",
+        ["3PONTOS", "4PONTOS", "5PONTOS"],
+        index=0 if st.session_state.entry_mode_val == "3PONTOS" else (1 if st.session_state.entry_mode_val == "4PONTOS" else 2),
+        format_func=lambda x: "Super-Ágil (3 Pernas: P1 > P2 > P3)" if x == "3PONTOS" else ("Equilibrada (4 Pernas: P1 > P2 > P3 > P4)" if x == "4PONTOS" else "Conservadora (5 Pernas: P1 > P2 > P3 > P4 > P5)"),
+        help="Escolha quantas pernas da lagarta devem alinhar para disparar a COMPRA."
+    )
+    
+    exit_mode = st.sidebar.selectbox(
+        "Modo de Saída (Suporte)",
+        ["P2", "P3", "P4"],
+        index=0 if st.session_state.exit_mode_val == "P2" else (1 if st.session_state.exit_mode_val == "P3" else 2),
+        format_func=lambda x: "Saída Rápida (Preço < P2/Média 9)" if x == "P2" else ("Saída Intermédia (Preço < P3/Média 21)" if x == "P3" else "Saída Lenta (Preço < P4/Média 50)"),
+        help="Escolha que suporte a cabeça da lagarta deve quebrar para disparar a VENDA."
     )
     
     p2_window = st.sidebar.number_input(
@@ -506,6 +528,8 @@ st.session_state.multipoint_mode_val = multipoint_mode
 st.session_state.exhaustion_filter_val = exhaustion_filter
 st.session_state.exhaustion_threshold_val = exhaustion_threshold
 st.session_state.p5_filter_active_val = p5_filter_active
+st.session_state.entry_mode_val = entry_mode
+st.session_state.exit_mode_val = exit_mode
 
 st.session_state.stop_loss_pct_val = stop_loss_pct
 st.session_state.tp_active_val = tp_active
@@ -530,6 +554,8 @@ config.update({
     "EXHAUSTION_FILTER": exhaustion_filter,
     "EXHAUSTION_THRESHOLD": exhaustion_threshold,
     "P5_SLOPE_FILTER_ACTIVE": p5_filter_active,
+    "ENTRY_MODE": entry_mode,
+    "EXIT_MODE": exit_mode,
     "MAX_RISK_PER_TRADE_PERCENT": max_risk_pct,
     "STOP_LOSS_PERCENT": stop_loss_pct,
     "TAKE_PROFIT_PERCENT": take_profit_pct,
@@ -1328,10 +1354,12 @@ with tab_simulator:
             sim_df['high'] = sim_df[['open', 'close', 'high']].max(axis=1)
             sim_df['low'] = sim_df[['open', 'close', 'low']].min(axis=1)
 
-            # Salvar no session state para o otimizador local sintético
+            # Salvar no session state para o otimizador local sintético e matriz de lógicas
             st.session_state.sim_df_val = sim_df
-            st.session_state.opt_sim_results = None # Limpar otimização anterior
+            st.session_state.opt_sim_results = None 
+            st.session_state.logic_matrix_results = None
 
+            # 1. Correr o backtest principal para a configuração atual do utilizador
             sim_config = config.copy()
             sim_config["INITIAL_CAPITAL"] = 1000.0
             
@@ -1363,12 +1391,12 @@ with tab_simulator:
                 sim_viz['Line_2'] = ta.trend.sma_indicator(sim_viz['close'], window=p3_window)
                 sim_viz['Line_3'] = ta.trend.sma_indicator(sim_viz['close'], window=p4_window)
                 
-                # Apenas calcula e exibe Média 200 (Line_4) se o filtro P5 estiver ativo
-                if p5_filter_active:
+                # Apenas calcula e exibe Média 200 (Line_4) se o modo for 5 pontos ou filtro P5 estiver ativo
+                if p5_filter_active or entry_mode == "5PONTOS":
                     sim_viz['Line_4'] = ta.trend.sma_indicator(sim_viz['close'], window=p5_window)
                 
                 l1_n, l2_n, l3_n = f"P2 ({p2_window})", f"P3 ({p3_window})", f"P4 ({p4_window})"
-                l4_n = f"P5 ({p5_window})" if p5_filter_active else None
+                l4_n = f"P5 ({p5_window})" if (p5_filter_active or entry_mode == "5PONTOS") else None
             
             fig_sim = go.Figure()
             
@@ -1378,7 +1406,7 @@ with tab_simulator:
             
             if strategy_type == "MULTIPOINT_VECTOR":
                 fig_sim.add_trace(go.Scatter(x=sim_viz.index, y=sim_viz['Line_3'], mode='lines', name=l3_n, line=dict(color='#10b981', width=1.5)))
-                if p5_filter_active and 'Line_4' in sim_viz:
+                if (p5_filter_active or entry_mode == "5PONTOS") and 'Line_4' in sim_viz:
                     fig_sim.add_trace(go.Scatter(x=sim_viz.index, y=sim_viz['Line_4'], mode='lines', name=l4_n, line=dict(color='#8b5cf6', width=1.5)))
                 
             sim_buy_x, sim_buy_y = [], []
@@ -1395,10 +1423,132 @@ with tab_simulator:
             fig_sim.update_layout(title="Comportamento da Estratégia no Mercado Aleatório", template='plotly_white', height=500, margin=dict(l=10, r=10, t=40, b=10))
             st.plotly_chart(fig_sim, use_container_width=True)
 
-    # --- NOVO PANEL DE OTIMIZAÇÃO LOCAL SINTÉTICA ---
+            # 2. Correr a Matriz de 9 Lógicas em Background (Instantâneo)
+            if strategy_type == "MULTIPOINT_VECTOR":
+                import logging
+                main_logger = logging.getLogger("TradingBot")
+                old_level = main_logger.level
+                main_logger.setLevel(logging.WARNING)
+
+                entries = ["3PONTOS", "4PONTOS", "5PONTOS"]
+                exits = ["P2", "P3", "P4"]
+                
+                matrix_data = []
+                for ent in entries:
+                    row_dict = {"Modo de Entrada": "Super-Ágil (3P)" if ent == "3PONTOS" else ("Equilibrada (4P)" if ent == "4PONTOS" else "Conservadora (5P)")}
+                    for ex in exits:
+                        m_cfg = config.copy()
+                        m_cfg.update({
+                            "STRATEGY_TYPE": "MULTIPOINT_VECTOR",
+                            "ENTRY_MODE": ent,
+                            "EXIT_MODE": ex,
+                            "P2_WINDOW": p2_window,
+                            "P3_WINDOW": p3_window,
+                            "P4_WINDOW": p4_window,
+                            "P5_WINDOW": p5_window,
+                            "P5_SLOPE_FILTER_ACTIVE": False if ent == "3PONTOS" else p5_filter_active,
+                            "INITIAL_CAPITAL": 1000.0
+                        })
+                        bt_mat = Backtester(m_cfg, main_logger)
+                        asyncio.run(bt_mat.run_backtest(sim_df))
+                        met = bt_mat.get_performance_metrics()
+                        
+                        cell_label = f"Saída {ex}"
+                        row_dict[cell_label] = {
+                            "ret": met["total_return_pct"],
+                            "dd": met["max_drawdown_pct"],
+                            "trades": met["num_trades"],
+                            "entry": ent,
+                            "exit": ex
+                        }
+                    matrix_data.append(row_dict)
+                
+                main_logger.setLevel(old_level)
+                st.session_state.logic_matrix_results = matrix_data
+
+    # --- NOVO PAINEL: A MATRIZ DE LÓGICAS DA LAGARTA ---
+    if strategy_type == "MULTIPOINT_VECTOR" and "logic_matrix_results" in st.session_state and st.session_state.logic_matrix_results is not None:
+        st.markdown("---")
+        st.markdown("<h3>📊 A Matriz de Lógicas da Lagarta (Análise de 9 Lógicas)</h3>", unsafe_allow_html=True)
+        st.markdown("""
+        Esta tabela exibe o resultado financeiro de **todas as 9 combinações de Entrada e Saída** possíveis para a nossa lagarta 
+        **neste mesmo gráfico sintético**. 
+        Descubra instantaneamente qual a melhor forma biológica de se mover perante estas ondas!
+        """)
+        
+        matrix_list = st.session_state.logic_matrix_results
+        
+        # Encontrar a melhor combinação absoluta para destacar
+        best_ret = -999.0
+        best_combo = None
+        for row in matrix_list:
+            for ex in ["P2", "P3", "P4"]:
+                cell = row[f"Saída {ex}"]
+                if cell["ret"] > best_ret:
+                    best_ret = cell["ret"]
+                    best_combo = cell
+        
+        # Renderizar uma tabela HTML premium com estilo de cores (Verde para Lucro, Vermelho para Perda)
+        html_code = """
+        <table style="width:100%; border-collapse: collapse; text-align: center; font-family:'Outfit',sans-serif; background:rgba(255,255,255,0.7); border-radius:8px; overflow:hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+            <thead>
+                <tr style="background:#0f172a; color:#ffffff;">
+                    <th style="padding:15px; border:1px solid #334155;">Gatilho de Entrada (Pernas)</th>
+                    <th style="padding:15px; border:1px solid #334155;">⚡ Saída Rápida (P2 / Média 9)</th>
+                    <th style="padding:15px; border:1px solid #334155;">⚖️ Saída Intermédia (P3 / Média 21)</th>
+                    <th style="padding:15px; border:1px solid #334155;">🐢 Saída Lenta (P4 / Média 50)</th>
+                </tr>
+            </thead>
+            <tbody>
+        """
+        
+        for row in matrix_list:
+            html_code += f'<tr style="border-bottom: 1px solid #cbd5e1;">'
+            html_code += f'<td style="padding:15px; font-weight:bold; background:#f8fafc; border:1px solid #cbd5e1;">{row["Modo de Entrada"]}</td>'
+            
+            for ex in ["P2", "P3", "P4"]:
+                cell = row[f"Saída {ex}"]
+                ret = cell["ret"]
+                dd = cell["dd"]
+                trades = cell["trades"]
+                
+                # Cores dinâmicas baseadas no retorno
+                bg_color = "rgba(5, 150, 105, 0.15)" if ret > 0 else ("rgba(225, 29, 72, 0.15)" if ret < 0 else "transparent")
+                text_color = "#059669" if ret > 0 else ("#e11d48" if ret < 0 else "#0f172a")
+                border_style = "3px solid #3b82f6" if cell == best_combo else "1px solid #cbd5e1"
+                best_tag = "<br><span style='font-size:0.8rem; font-weight:bold; background:#3b82f6; color:white; padding:2px 6px; border-radius:4px;'>🏆 Campeã</span>" if cell == best_combo else ""
+                
+                html_code += f"""
+                <td style="padding:15px; background:{bg_color}; color:{text_color}; border:{border_style}; font-weight:bold;">
+                    {ret:+.2f}%<br>
+                    <span style="font-size:0.85rem; color:#64748b;">(Drawdown: {dd:.2f}%)</span><br>
+                    <span style="font-size:0.8rem; font-weight:normal; color:#475569;">{trades} Trades</span>
+                    {best_tag}
+                </td>
+                """
+            html_code += "</tr>"
+            
+        html_code += "</tbody></table>"
+        st.markdown(html_code, unsafe_allow_html=True)
+        
+        # Botão dinâmico em streamlit para carregar a vencedora imediatamente no painel principal
+        if best_combo is not None:
+            col_l1, col_l2 = st.columns([3, 1])
+            with col_l1:
+                st.info(f"💡 **Análise Quantitativa**: A melhor lógica para este bioma de mercado gerado foi **Entrada {best_combo['entry']}** + **Saída {best_combo['exit']}**, obtendo um retorno de **{best_combo['ret']:+.2f}%**.")
+            with col_l2:
+                if st.button("🚀 Aplicar Lógica Campeã", use_container_width=True):
+                    st.session_state.entry_mode_val = best_combo["entry"]
+                    st.session_state.exit_mode_val = best_combo["exit"]
+                    if best_combo["entry"] == "3PONTOS":
+                        st.session_state.p5_filter_active_val = False
+                    st.success("✨ Lógica carregada com sucesso na barra lateral! Re-execute para ver os novos sinais.")
+                    st.rerun()
+
+    # --- NOVO PAINEL DE OTIMIZAÇÃO LOCAL SINTÉTICA ---
     if "sim_df_val" in st.session_state and st.session_state.sim_df_val is not None:
         st.markdown("---")
-        st.markdown("<h4>🔬 Otimização Automática Sintética</h4>", unsafe_allow_html=True)
+        st.markdown("<h4>🔬 Otimização Automática de Parâmetros Sintética</h4>", unsafe_allow_html=True)
         st.markdown("Encontre a combinação perfeita de médias e de gestão de risco **especificamente para este gráfico gerado**!")
         
         if st.button("⚡ Otimizar Parâmetros neste Mercado Sintético", use_container_width=True):
@@ -1487,9 +1637,7 @@ with tab_simulator:
                 st.success("✨ Configuração Top 1 aplicada com sucesso na barra lateral! Clique em 'Gerar e Testar' para ver o resultado visual!")
                 st.rerun()
 
-    st.markdown('</div>', unsafe_allow_html=True)
-
-# --- CONTEÚDO DA ABA 4: SCANNER DE MERCADO ---
+    st.markdown('</div>', unsafe_allow_html=True)# --- CONTEÚDO DA ABA 4: SCANNER DE MERCADO ---
 with tab_scanner:
     st.markdown('<div class="glass-card">', unsafe_allow_html=True)
     st.markdown('<h3>🔍 Scanner de Mercado em Tempo Real</h3>', unsafe_allow_html=True)
