@@ -587,9 +587,9 @@ with st.expander("🛠️ Painel Global de Configuração do Robô (Clique para 
         st.markdown("##### 🛡️ Gestão de Risco & Banca")
         initial_capital = st.number_input(
             "Capital Inicial (EUR)",
-            min_value=100.0, max_value=100000.0,
-            value=1000.0,
-            step=100.0,
+            min_value=10.0, max_value=100000.0,
+            value=100.0,
+            step=10.0,
             help="Saldo simulado de Euros com que inicia a sua conta no primeiro dia."
         )
         max_risk_pct = st.slider(
@@ -1414,7 +1414,7 @@ with tab_simulator:
         st.session_state.sim_df_val = sim_df
         
         sim_config = config.copy()
-        sim_config["INITIAL_CAPITAL"] = 1000.0
+        sim_config["INITIAL_CAPITAL"] = 100.0
         
         sim_bt = Backtester(sim_config, logger)
         sim_trades, sim_cap_history = asyncio.run(sim_bt.run_backtest(sim_df))
@@ -1597,7 +1597,7 @@ with tab_simulator:
                         "P4_WINDOW": p4_window,
                         "P5_WINDOW": p5_window,
                         "P5_SLOPE_FILTER_ACTIVE": False if ent == "3PONTOS" else p5_filter_active,
-                        "INITIAL_CAPITAL": 1000.0
+                        "INITIAL_CAPITAL": 100.0
                     })
                     bt_mat = Backtester(m_cfg, main_logger)
                     asyncio.run(bt_mat.run_backtest(sim_df))
@@ -1712,7 +1712,7 @@ with tab_simulator:
                                         "STOP_LOSS_PERCENT": sl,
                                         "TAKE_PROFIT_PERCENT": tp,
                                         "TRAILING_STOP_ACTIVE": ts,
-                                        "INITIAL_CAPITAL": 1000.0
+                                        "INITIAL_CAPITAL": 100.0
                                     })
                                     
                                     bt_sint = Backtester(local_cfg, main_logger)
@@ -1904,8 +1904,8 @@ with tab_game:
                     "w_stop": np.random.uniform(-0.5, 0.5),
                     "threshold": np.random.uniform(0.1, 1.2),
                     "stop_loss_pct": np.random.uniform(0.5, 6.0),
-                    "bank": 1000.0,
-                    "net_bank": 1000.0,
+                    "bank": 100.0,
+                    "net_bank": 100.0,
                     "in_trade": False,
                     "entry_price": 0.0,
                     "trade_size": 0.0,
@@ -1926,7 +1926,7 @@ with tab_game:
             for gen in range(1, generations_count + 1):
                 # Resetar bancos e estados a cada nova geração de vida
                 for ind in population:
-                    ind["bank"] = 1000.0
+                    ind["bank"] = 100.0
                     ind["in_trade"] = False
                     ind["alive"] = True
                     ind["trades_count"] = 0
@@ -2030,7 +2030,7 @@ with tab_game:
                     if ind["trades_count"] < min_trades_required:
                         ind["bank"] = ind["bank"] * 0.15 # Perde 85% do saldo final
                         
-                    gross_profit = ind["bank"] - 1000.0
+                    gross_profit = ind["bank"] - 100.0
                     if gross_profit > 0:
                         tax_due = gross_profit * (tax_pct / 100.0)
                         ind["net_bank"] = ind["bank"] - tax_due
@@ -2044,7 +2044,7 @@ with tab_game:
                 # CORRER SIMULAÇÃO DE REFERÊNCIA FIXA (SEED 42) PARA A CURVA DE CONVERGÊNCIA REAL E ESTÁVEL
                 ref_prices, ref_prices_arr, ref_ma_f_arr, ref_ma_s_arr, ref_ma_200_arr, ref_std_arr, ref_rsi_arr = generate_terrain(42, min(2000, candles_count))
                 
-                ref_bank = 1000.0
+                ref_bank = 100.0
                 ref_in_trade = False
                 ref_entry_price = 0.0
                 ref_units = 0.0
@@ -2118,7 +2118,7 @@ with tab_game:
                     n_pnl = g_val - ref_trade_size - (en_f + ex_f)
                     ref_bank += n_pnl
                     
-                g_p_ref = ref_bank - 1000.0
+                g_p_ref = ref_bank - 100.0
                 if g_p_ref > 0:
                     net_ref_bank = ref_bank - g_p_ref * (tax_pct / 100.0)
                 else:
@@ -2143,8 +2143,8 @@ with tab_game:
                         "w_stop": p1["w_stop"] if random.random() < 0.5 else p2["w_stop"],
                         "threshold": p1["threshold"] if random.random() < 0.5 else p2["threshold"],
                         "stop_loss_pct": p1["stop_loss_pct"] if random.random() < 0.5 else p2["stop_loss_pct"],
-                        "bank": 1000.0,
-                        "net_bank": 1000.0,
+                        "bank": 100.0,
+                        "net_bank": 100.0,
                         "in_trade": False,
                         "entry_price": 0.0,
                         "trade_size": 0.0,
@@ -2214,7 +2214,7 @@ with tab_game:
                 "Sobrevivência (%)": round(survival_rate, 1),
                 "SL Aprendido (%)": round(champion["stop_loss_pct"], 2),
                 "Gatilho Aprendido": round(champion["threshold"], 2),
-                "Resultado": "Sucesso" if champion["net_bank"] > 1000 else ("Colapso" if champion["net_bank"] <= 0 else "Sobrevivente Neutral"),
+                "Resultado": "Sucesso" if champion["net_bank"] > 100 else ("Colapso" if champion["net_bank"] <= 0 else "Sobrevivente Neutral"),
                 "Modo": "Dinâmico" if dynamic_terrain else "Estático"
             })
             
@@ -2388,7 +2388,7 @@ with tab_game:
         entry_real = 0.0
         trade_size = 0.0
         units = 0.0
-        audit_bank = 1000.0
+        audit_bank = 100.0
         
         start_idx = 20
         completed_trades_post = []
@@ -2518,7 +2518,7 @@ with tab_game:
             in_trade = False
             
         # Fitness líquida do Exame Cego (Impostos)
-        gross_profit_exame = audit_bank - 1000.0
+        gross_profit_exame = audit_bank - 100.0
         if gross_profit_exame > 0:
             tax_due_exame = gross_profit_exame * (tax_pct / 100.0)
             audit_net_bank = audit_bank - tax_due_exame
@@ -2535,7 +2535,7 @@ with tab_game:
         m_start = st.session_state.game_prices[0]
         m_end = st.session_state.game_prices[-1]
         market_return_pct = ((m_end - m_start) / m_start) * 100.0
-        caterpillar_return_pct = ((audit_net_bank - 1000.0) / 1000.0) * 100.0
+        caterpillar_return_pct = ((audit_net_bank - 100.0) / 100.0) * 100.0
         alpha_pct = caterpillar_return_pct - market_return_pct
         
         # A. Painel Explicativo Didático Premium
@@ -2553,14 +2553,14 @@ with tab_game:
         st.markdown(f"<span style='font-size:0.95rem; font-weight:700; color:#38bdf8;'>📊 Desempenho Financeiro no Exame Cego ({len(st.session_state.game_prices)} Velas Completas)</span>", unsafe_allow_html=True)
         col_m1, col_m2, col_m3, col_m4 = st.columns(4)
         
-        # Calcular banca final equivalente do mercado Buy & Hold baseado em 1000 EUR
-        market_final_capital = 1000.0 * (m_end / m_start)
+        # Calcular banca final equivalente do mercado Buy & Hold baseado em 100 EUR
+        market_final_capital = 100.0 * (m_end / m_start)
         
         with col_m1:
             st.metric(
                 label="Banca Final Líquida (Exame)",
                 value=f"{audit_net_bank:,.2f} EUR",
-                delta=f"{audit_net_bank - 1000.0:+.2f} EUR ({caterpillar_return_pct:+.2f}%)"
+                delta=f"{audit_net_bank - 100.0:+.2f} EUR ({caterpillar_return_pct:+.2f}%)"
             )
             
         with col_m2:
