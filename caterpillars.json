@@ -1,0 +1,20 @@
+{
+  "Lagarta Especialista Mercados BULL": {
+    "w_trend": -0.33192911983807605,
+    "w_slope": -0.20224197855098103,
+    "w_vol": 0.9646441692005256,
+    "w_floor": -0.4986870934627061,
+    "w_rsi": 1.0,
+    "w_stop": -0.12980599296334716,
+    "threshold": 0.6030544896126796,
+    "stop_loss_pct": 3.3319178107423575,
+    "bank": 50521172.063339405,
+    "net_bank": 36375523.88560437,
+    "in_trade": false,
+    "entry_price": 161.00601283821794,
+    "trade_size": 48132221.73798678,
+    "units": 298946.7342834643,
+    "alive": true,
+    "trades_count": 2434
+  }
+}

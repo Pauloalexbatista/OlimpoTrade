@@ -16,6 +16,10 @@ class Backtester:
         self.capital_history = []
         self.current_capital = config["INITIAL_CAPITAL"]
         self.open_position = None
+        # Custos operacionais reais
+        self.fee_pct = config.get("FEE_PERCENT", 0.0)
+        self.tax_pct = config.get("TAX_PERCENT", 0.0)
+        self.slippage_pct = config.get("SLIPPAGE_PCT", 0.0)
 
     async def run_backtest(self, historical_data):
         self.logger.info("Starting backtest...")
@@ -96,19 +100,28 @@ class Backtester:
         return self.trades, self.capital_history
 
     def _open_position(self, order_details, entry_price, timestamp):
+        # 1. Aplicar Deslizamento (Slippage) para a COMPRA (preço piora slippage_pct)
+        slippage_factor = 1 + (self.slippage_pct / 100.0)
+        real_entry_price = entry_price * slippage_factor
+
+        # 2. Calcular o custo bruto e a comissão de entrada
+        raw_cost = real_entry_price * order_details["quantity"]
+        entry_fee = raw_cost * (self.fee_pct / 100.0)
+
         self.open_position = {
             "entry_timestamp": timestamp,
             "action": order_details["action"],
             "symbol": order_details["symbol"],
-            "entry_price": entry_price,
+            "entry_price": real_entry_price,
             "quantity": order_details["quantity"],
             "stop_loss": order_details["stop_loss"],
             "take_profit": order_details["take_profit"],
             "status": "OPEN",
-            "highest_price": entry_price
+            "highest_price": real_entry_price,
+            "entry_fee": entry_fee
         }
-        self.current_capital -= (entry_price * order_details["quantity"])
-        self.logger.info(f"[{timestamp}] Opened position: {self.open_position}")
+        self.current_capital -= (raw_cost + entry_fee)
+        self.logger.info(f"[{timestamp}] Opened position with Slippage ({self.slippage_pct}%) & Commission Fee ({entry_fee:.4f} EUR): {self.open_position}")
 
     def _close_position(self, exit_price, reason, timestamp):
         if not self.open_position:
@@ -141,9 +154,23 @@ class Backtester:
 
     def get_performance_metrics(self):
         initial_capital = self.config["INITIAL_CAPITAL"]
-        final_capital = self.current_capital
+        
+        # Calcular Lucro Líquido antes de Impostos
+        gross_final_capital = self.current_capital
+        gross_pnl = gross_final_capital - initial_capital
+        
+        # Calcular e deduzir Imposto de Mais-Valias (se houver lucro)
+        tax_applied = 0.0
+        if gross_pnl > 0 and self.tax_pct > 0:
+            tax_applied = gross_pnl * (self.tax_pct / 100.0)
+            
+        final_capital = gross_final_capital - tax_applied
         total_pnl = final_capital - initial_capital
         total_return_pct = (total_pnl / initial_capital) * 100
+        
+        # Ajustar o último ponto do histórico de capital para refletir o saldo após imposto
+        if self.capital_history:
+            self.capital_history[-1] = final_capital
 
         num_trades = len(self.trades)
         num_wins = sum(1 for t in self.trades if t["pnl"] > 0)
@@ -176,6 +203,8 @@ class Backtester:
         metrics = {
             "initial_capital": initial_capital,
             "final_capital": final_capital,
+            "gross_pnl": gross_pnl,
+            "tax_applied": tax_applied,
             "total_pnl": total_pnl,
             "total_return_pct": total_return_pct,
             "num_trades": num_trades,
