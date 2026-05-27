@@ -1380,14 +1380,24 @@ with tab_simulator:
 
     sim_df = None
     if market_source == "SINTETICO":
-        st.markdown("##### ⚙️ Variáveis para Geração do Mercado Sintético")
-        col_s1, col_s2, col_s3 = st.columns(3)
+        st.markdown("##### ⚙️ Configuração do Bioma de Teste Sintético")
+        col_s1, col_s2 = st.columns(2)
         with col_s1:
-            drift = st.slider("Tendência Geral (Drift %)", -5.0, 5.0, 0.0, step=0.1, help="Direção geral: positivo para tendência de alta, negativo para baixa.")
+            market_type_sim = st.selectbox(
+                "Tipo de Mercado Simulado",
+                ["Tendência de Alta Forte (Bull Market)", "Tendência de Baixa Forte (Bear Market)", "Mercado Lateral / Range (Consolidação)", "Hiper-Volátil Caótico (Chaos Market)"]
+            )
         with col_s2:
-            volatility = st.slider("Volatilidade (Instabilidade %)", 0.5, 10.0, 2.5, step=0.1, help="Instabilidade: valores maiores geram ziguezagues mais violentos.")
-        with col_s3:
             sim_steps = st.slider("Número de Velas (Passos)", 50, 500, 250, step=10, help="Quantidade de velas do gráfico sintético.")
+            
+        if "Alta" in market_type_sim or "Bull" in market_type_sim:
+            drift = 0.5; volatility = 2.0
+        elif "Baixa" in market_type_sim or "Bear" in market_type_sim:
+            drift = -0.5; volatility = 2.0
+        elif "Lateral" in market_type_sim:
+            drift = 0.0; volatility = 1.0
+        else:
+            drift = 0.0; volatility = 6.0
             
         st.button("🔄 Gerar e Testar em Mercado Sintético Novo")
         
