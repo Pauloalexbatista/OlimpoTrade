@@ -1558,45 +1558,55 @@ with tab_simulator:
 # --- CONTEÚDO DA ABA 3: LABORATÓRIO HEARTBEAT (ANÁLISE MANUAL) ---
 with tab_manual:
     st.markdown('<div class="glass-card">', unsafe_allow_html=True)
-    st.markdown('<h3>💓 Simulador de Decisão Heartbeat (Análise Vela a Vela)</h3>', unsafe_allow_html=True)
+    st.markdown('<h3>💓 Laboratório Heartbeat: Simulação Interativa (Estilo Excel)</h3>', unsafe_allow_html=True)
     st.markdown(
-        "Este simulador foi desenhado para o ensinar a **pensar e decidir como um robô quantitativo**. "
-        "Em vez de ver o gráfico inteiro de antemão, a simulação avança **uma vela de cada vez (um batimento)**. "
-        "A cada passo, o simulador decompõe a matemática da **Lagarta (P1 a P5)**, mostra-lhe o que o robô faria "
-        "e permite-lhe tomar a sua decisão manual de **Comprar**, **Vender** ou **Aguardar**."
+        "Nesta página, você analisa o comportamento do mercado **ponto a ponto (vela a vela)** exatamente como numa planilha Excel. "
+        "A cabeça da Lagarta corre todos os pontos do gráfico. Você decide se ela come (**entrar/manter**) ou para de comer (**sair**) "
+        "para engordar apenas com lucros saudáveis! As médias móveis no ecrã ajudam-no a ver o alinhamento da tendência."
     )
 
-    # 1. INICIALIZAÇÃO DE SESSÃO DO SIMULADOR CRONOLÓGICO
-    if "hb_current_idx" not in st.session_state:
-        st.session_state.hb_current_idx = 40  # Começa na vela 40 para termos histórico suficiente para as médias
-    if "hb_trade_active" not in st.session_state:
-        st.session_state.hb_trade_active = False
-    if "hb_entry_price" not in st.session_state:
-        st.session_state.hb_entry_price = 0.0
-    if "hb_entry_idx" not in st.session_state:
-        st.session_state.hb_entry_idx = 0
-    if "hb_trades_history" not in st.session_state:
-        st.session_state.hb_trades_history = []
-    if "hb_banca" not in st.session_state:
-        st.session_state.hb_banca = 1000.0
+    # 1. INICIALIZAÇÃO DE SESSÃO DO MODELO EXCEL
+    if "hb_decisions_dict" not in st.session_state:
+        st.session_state.hb_decisions_dict = {}
+    if "hb_selected_limit" not in st.session_state:
+        st.session_state.hb_selected_limit = 20
 
-    # 2. SELEÇÃO DE FONTE DE DADOS
-    st.markdown("##### 📥 Passo 1: Selecionar a Fonte de Dados")
-    col_src1, col_src2 = st.columns([2, 1])
-    with col_src1:
+    # Processar qualquer alteração feita no st.data_editor antes do redesenho da tabela
+    if "hb_excel_sheet_editor" in st.session_state and st.session_state.hb_excel_sheet_editor is not None:
+        edits = st.session_state.hb_excel_sheet_editor.get("edited_rows", {})
+        for idx_str, changes in edits.items():
+            idx = int(idx_str)
+            ponto_name = f"P{idx+1}"
+            if "Decisão" in changes:
+                st.session_state.hb_decisions_dict[ponto_name] = changes["Decisão"]
+
+    # 2. SELEÇÃO DE DADOS & TAMANHO DA PLANILHA
+    st.markdown("##### 📥 Passo 1: Configurar a Planilha")
+    col_cfg1, col_cfg2, col_cfg3 = st.columns([1.5, 1.5, 1.0])
+    
+    with col_cfg1:
         data_source_mode = st.radio(
-            "Origem dos Dados:",
-            ["🌊 Ondas Senoidais Sintéticas (Ótimo para Estudo)", "🚀 Padrão de Rompimento de Alta (Breakout)", "📊 Último Backtest Executado"],
+            "Origem dos Dados da Planilha:",
+            ["🌊 Ondas de Treino (Cíclico)", "🚀 Rompimento Parabólico (Breakout)", "📊 Dados Reais do Último Backtest"],
             index=0,
             horizontal=True,
-            key="hb_source_select"
+            key="hb_excel_source"
         )
-    with col_src2:
-        xray_mode = st.checkbox(
-            "👁️ Modo Raio-X (Ver Futuro a Cinzento)",
-            value=False,
-            help="Se ativado, exibe o futuro do gráfico em tracejado cinzento muito claro. Se desligado, o futuro fica 100% oculto, como no trading real!"
+    with col_cfg2:
+        limit_man = st.slider(
+            "Tamanho da Planilha (Número de Velas):",
+            10, 40,
+            value=st.session_state.hb_selected_limit,
+            key="hb_excel_limit"
         )
+        st.session_state.hb_selected_limit = limit_man
+    with col_cfg3:
+        st.markdown("<div style='height:28px;'></div>", unsafe_allow_html=True)
+        if st.button("⏮️ Limpar Decisões / Resetar Planilha", use_container_width=True):
+            st.session_state.hb_decisions_dict = {}
+            st.session_state.hb_excel_sheet_editor = None
+            st.success("Planilha reiniciada com sucesso!")
+            st.rerun()
 
     # Obter dados correspondentes à escolha
     df_man = None
@@ -1606,292 +1616,267 @@ with tab_manual:
         elif 'sim_df_val' in st.session_state and st.session_state.sim_df_val is not None:
             df_man = st.session_state.sim_df_val.copy()
         else:
-            st.warning("⚠️ Nenhum backtest executado na primeira aba. Usando ondas sintéticas como alternativa temporária.")
+            st.warning("⚠️ Nenhum backtest executado na primeira aba. Usando ondas de treino temporárias.")
 
     if df_man is None or df_man.empty:
-        steps = 100
-        t = np.linspace(0, 15, steps)
+        # Gerar uma série compacta de exemplo
+        steps = limit_man
+        t = np.linspace(0, 8, steps)
         if "Rompimento" in data_source_mode:
             close_prices = np.zeros(steps)
-            close_prices[:50] = 100.0 + 3.0 * np.sin(t[:50] * 3.0)
-            close_prices[50:] = 100.0 + (t[50:] - t[50])**2.2 * 4.0
+            half = int(steps / 2)
+            close_prices[:half] = 100.0 + 3.0 * np.sin(t[:half] * 3.0)
+            close_prices[half:] = 100.0 + (t[half:] - t[half])**2.1 * 5.0
         else:
-            close_prices = 100.0 + 15.0 * np.sin(t) + 0.5 * np.arange(steps)
+            close_prices = 100.0 + 12.0 * np.sin(t) + 0.5 * np.arange(steps)
             
         df_man = pd.DataFrame(
             {"close": close_prices},
             index=pd.date_range(start="2026-05-27 00:00", periods=steps, freq="15min")
         )
 
-    # Garantir limites saudáveis no índice atual
+    # Limitar o tamanho exato da planilha para facilitar scroll e uso visual (igual ao slider selecionado)
+    df_man = df_man.iloc[:limit_man].copy()
     max_idx = len(df_man) - 1
-    if st.session_state.hb_current_idx > max_idx:
-        st.session_state.hb_current_idx = max_idx
 
-    # 3. CONFIGURAR PARÂMETROS DAS MÉDIAS MÓVEIS
-    with st.expander("⚙️ Ajustar Períodos das Médias da Lagarta (P2, P3, P4, P5)"):
-        col_w1, col_w2, col_w3, col_w4 = st.columns(4)
-        with col_w1:
-            p2_win = st.number_input("P2 - Média Muito Rápida", min_value=2, max_value=50, value=9, key="hb_p2")
-        with col_w2:
-            p3_win = st.number_input("P3 - Média Curta Base", min_value=5, max_value=100, value=21, key="hb_p3")
-        with col_w3:
-            p4_win = st.number_input("P4 - Média Média", min_value=10, max_value=150, value=50, key="hb_p4")
-        with col_w4:
-            p5_win = st.number_input("P5 - Média Longa (Chão)", min_value=50, max_value=500, value=200, key="hb_p5")
+    # Médias de apoio rápidas adaptadas para o tamanho compacto da tabela
+    # Se o tamanho for pequeno, usamos médias de 3 e 7 para alinhamento rápido, se for maior usamos 9 e 21
+    fast_p = 3 if limit_man < 20 else 5
+    slow_p = 7 if limit_man < 20 else 15
+    floor_p = 20
+    
+    df_man['P2_MA'] = ta.trend.sma_indicator(df_man['close'], window=fast_p)
+    df_man['P3_MA'] = ta.trend.sma_indicator(df_man['close'], window=slow_p)
+    df_man['P4_MA'] = ta.trend.sma_indicator(df_man['close'], window=floor_p)
 
-    # Calcular as médias em todo o DataFrame de forma silenciosa para podermos plotar/revelar
-    df_man['P2_MA'] = ta.trend.sma_indicator(df_man['close'], window=p2_win)
-    df_man['P3_MA'] = ta.trend.sma_indicator(df_man['close'], window=p3_win)
-    df_man['P4_MA'] = ta.trend.sma_indicator(df_man['close'], window=p4_win)
-    df_man['P5_MA'] = ta.trend.sma_indicator(df_man['close'], window=p5_win)
+    # 3. CONSTRUIR VETOR DE ESTADO E INFORMAÇÕES AUXILIARES DA PLANILHA
+    row_names = [f"P{i+1}" for i in range(len(df_man))]
+    variations = []
+    help_column = []
+    decisions = []
 
-    st.markdown("---")
-
-    # 4. PAINEL DE COMANDOS CRONOLÓGICOS (Aritmética de Batimento)
-    curr_idx = st.session_state.hb_current_idx
-    curr_row = df_man.iloc[curr_idx]
-    prev_row = df_man.iloc[curr_idx - 1] if curr_idx > 0 else curr_row
-    
-    p1_val = curr_row['close']
-    p1_prev = prev_row['close']
-    
-    p2_val = curr_row['P2_MA']
-    p2_prev = prev_row['P2_MA']
-    
-    p3_val = curr_row['P3_MA']
-    p3_prev = prev_row['P3_MA']
-    
-    p4_val = curr_row['P4_MA']
-    p5_val = curr_row['P5_MA']
-
-    # Lógica de controle e avanço
-    col_cmd1, col_cmd2, col_cmd3 = st.columns([1.5, 2.0, 1.5])
-    
-    with col_cmd1:
-        st.markdown(f"##### 💓 Batimento Atual: **Vela #{curr_idx} de #{max_idx}**")
-        st.markdown(f"📅 Hora: **{df_man.index[curr_idx].strftime('%Y-%m-%d %H:%M') if hasattr(df_man.index[curr_idx], 'strftime') else df_man.index[curr_idx]}**")
+    for i in range(len(df_man)):
+        ponto_name = f"P{i+1}"
+        p1 = df_man['close'].iloc[i]
         
-        # Botões de Compra/Venda manuais
-        if not st.session_state.hb_trade_active:
-            if st.button("🟢 COMPRAR / ENTRAR", use_container_width=True, type="primary"):
-                st.session_state.hb_trade_active = True
-                st.session_state.hb_entry_price = p1_val
-                st.session_state.hb_entry_idx = curr_idx
-                st.success(f"Entrou comprado a {p1_val:.2f} EUR (Vela #{curr_idx})!")
-                st.rerun()
+        # Did it go up or down?
+        if i == 0:
+            variations.append("")
         else:
-            if st.button("🔴 VENDER / SAIR", use_container_width=True, type="primary"):
-                # Fechar trade
-                entry_price = st.session_state.hb_entry_price
-                entry_idx = st.session_state.hb_entry_idx
-                ret_pct = (p1_val - entry_price) / entry_price * 100
-                ret_eur = st.session_state.hb_banca * (ret_pct / 100)
-                
-                # Atualizar banca
-                st.session_state.hb_banca += ret_eur
-                
-                # Salvar no histórico
-                st.session_state.hb_trades_history.append({
-                    "Vela Entrada": f"#{entry_idx}",
-                    "Vela Saída": f"#{curr_idx}",
-                    "Preço Entrada": f"{entry_price:.2f} EUR",
-                    "Preço Saída": f"{p1_val:.2f} EUR",
-                    "Batimentos em Jogo": f"{curr_idx - entry_idx} bat.",
-                    "Retorno (%)": f"{ret_pct:+.2f}%",
-                    "PnL Gerado": f"{ret_eur:+.2f} EUR"
-                })
-                
-                st.session_state.hb_trade_active = False
-                st.session_state.hb_entry_price = 0.0
-                st.success(f"Venda efetuada a {p1_val:.2f} EUR! Retorno de {ret_pct:+.2f}%.")
-                st.rerun()
-
-    with col_cmd2:
-        st.markdown("<div style='height:24px;'></div>", unsafe_allow_html=True)
-        # Avançar no tempo
-        col_step1, col_step2 = st.columns(2)
-        with col_step1:
-            step_size = st.number_input("Passo de Velas", min_value=1, max_value=20, value=1)
-        with col_step2:
-            st.markdown("<div style='height:28px;'></div>", unsafe_allow_html=True)
-            if st.button("💓 Avançar Batimento", use_container_width=True):
-                if st.session_state.hb_current_idx < max_idx:
-                    st.session_state.hb_current_idx += step_size
-                    st.rerun()
-                else:
-                    st.info("Chegou ao fim do gráfico de teste!")
-
-    with col_cmd3:
-        st.markdown("##### 💰 Estado da Sua Banca")
-        st.metric("Banca do Simulador", f"{st.session_state.hb_banca:.2f} EUR")
-        
-        # Botão para resetar tudo
-        if st.button("⏮️ Reiniciar Simulação"):
-            st.session_state.hb_current_idx = 40
-            st.session_state.hb_trade_active = False
-            st.session_state.hb_entry_price = 0.0
-            st.session_state.hb_entry_idx = 0
-            st.session_state.hb_trades_history = []
-            st.session_state.hb_banca = 1000.0
-            st.rerun()
-
-    st.markdown("---")
-
-    # 5. GRÁFICO INTERATIVO COM REVELAÇÃO PROGRESSIVA
-    fig_man = go.Figure()
-    
-    # Dividir os dados em REVELADOS e FUTUROS
-    revealed_df = df_man.iloc[:curr_idx + 1]
-    future_df = df_man.iloc[curr_idx:]
-    
-    # A. Preço Revelado (Presente/Passado)
-    fig_man.add_trace(go.Scatter(
-        x=revealed_df.index, 
-        y=revealed_df['close'], 
-        mode='lines+markers', 
-        name='Preço Atual (P1)', 
-        line=dict(color='#0f172a', width=2.5),
-        marker=dict(size=4)
-    ))
-    
-    # B. Se estiver ativo em trade, realça o segmento em jogo
-    if st.session_state.hb_trade_active:
-        active_seg = df_man.iloc[st.session_state.hb_entry_idx:curr_idx + 1]
-        active_ret = (p1_val - st.session_state.hb_entry_price) / st.session_state.hb_entry_price * 100
-        active_color = '#22c55e' if active_ret >= 0 else '#ef4444'
-        fig_man.add_trace(go.Scatter(
-            x=active_seg.index,
-            y=active_seg['close'],
-            mode='lines',
-            name='Lagarta Ativa (Sua Operação)',
-            line=dict(color=active_color, width=5)
-        ))
-        
-        # Marcador de Compra
-        entry_time = df_man.index[st.session_state.hb_entry_idx]
-        fig_man.add_trace(go.Scatter(
-            x=[entry_time], y=[st.session_state.hb_entry_price],
-            mode='markers',
-            name='Sua Entrada',
-            marker=dict(symbol='triangle-up', size=16, color='#22c55e', line=dict(width=2, color='#15803d'))
-        ))
-
-    # C. Se o Modo Raio-X estiver ativo, mostra o futuro a cinzento
-    if xray_mode and not future_df.empty:
-        fig_man.add_trace(go.Scatter(
-            x=future_df.index, 
-            y=future_df['close'], 
-            mode='lines', 
-            name='Futuro (Raio-X)', 
-            line=dict(color='rgba(148, 163, 184, 0.25)', width=1.5, dash='dot')
-        ))
-
-    # D. Médias Móveis Reveladas (Apenas até ao índice atual!)
-    fig_man.add_trace(go.Scatter(x=revealed_df.index, y=revealed_df['P2_MA'], mode='lines', name=f'P2 - Média Muito Rápida ({p2_win})', line=dict(color='#0ea5e9', width=2)))
-    fig_man.add_trace(go.Scatter(x=revealed_df.index, y=revealed_df['P3_MA'], mode='lines', name=f'P3 - Média Curta Base ({p3_win})', line=dict(color='#f97316', width=2)))
-    
-    if not revealed_df['P4_MA'].isna().all():
-        fig_man.add_trace(go.Scatter(x=revealed_df.index, y=revealed_df['P4_MA'], mode='lines', name=f'P4 - Média Média ({p4_win})', line=dict(color='#a855f7', width=1.5, dash='dash')))
-    if not revealed_df['P5_MA'].isna().all():
-        fig_man.add_trace(go.Scatter(x=revealed_df.index, y=revealed_df['P5_MA'], mode='lines', name=f'P5 - Chão 200 ({p5_win})', line=dict(color='#6366f1', width=1.5, dash='dot')))
-
-    # E. Grelha vertical para os batimentos
-    fig_man.update_layout(
-        title="💓 Batimento Cardíaco do Mercado (Compasso a Compasso)",
-        hovermode='x unified',
-        template='plotly_white',
-        height=480,
-        margin=dict(l=10, r=10, t=50, b=10),
-        xaxis=dict(showgrid=True, gridcolor='rgba(0,0,0,0.07)', title="Batimentos (Velas)"),
-        yaxis=dict(showgrid=True, gridcolor='rgba(0,0,0,0.05)', title="Valor (EUR)")
-    )
-    
-    # Adicionar as linhas verticais em todos os pontos revelados para dar ritmo
-    step_grid = 1 if len(revealed_df) < 50 else 2
-    for i in range(0, len(revealed_df), step_grid):
-        fig_man.add_vline(x=revealed_df.index[i], line_width=0.8, line_dash="dash", line_color="rgba(0, 0, 0, 0.08)")
-
-    st.plotly_chart(fig_man, use_container_width=True)
-
-    # 6. MÓDULO PEDAGÓGICO: ANALISAR COMO UM PROGRAMA (O VETOR DE ESTADO)
-    st.markdown("#### 🧠 Passo 2: Analisar Como Um Programa (Vetor de Estado da Lagarta)")
-    st.markdown(
-        "Para escrever um programa automático, você não pode usar intuições. Tem de responder a **perguntas binárias (Sim ou Não)**. "
-        "Eis o diagnóstico analítico dos pontos exatos deste batimento cardíaco:"
-    )
-    
-    col_an1, col_an2 = st.columns(2)
-    
-    with col_an1:
-        st.markdown("**📊 Comportamento dos Pontos (Física da Lagarta):**")
-        
-        # 1. Direção do preço
-        p1_growing = p1_val >= p1_prev
-        p1_growth_pct = ((p1_val - p1_prev) / p1_prev * 100) if p1_prev > 0 else 0
-        p1_badge = f"🟢 Crescente ({p1_growth_pct:+.2f}%)" if p1_growing else f"🔴 Decrescente ({p1_growth_pct:+.2f}%)"
-        
-        # 2. Direção da Média Rápida (P2)
-        p2_growing = p2_val >= p2_prev if pd.notna(p2_val) and pd.notna(p2_prev) else False
-        p2_badge = "🟢 Subindo (Aceleração)" if p2_growing else "🔴 Caindo (Desaceleração)"
-        
-        # 3. Cruzamento Rápido (P1 > P2)
-        p1_above_p2 = p1_val > p2_val if pd.notna(p2_val) else False
-        p1_p2_badge = "🟢 SIM (A cabeça ultrapassou a linha rápida)" if p1_above_p2 else "🔴 NÃO (Preso abaixo da linha rápida)"
-        
-        # 4. Alinhamento de Alta Clássico (P1 > P2 > P3)
-        aligned_trend = (p1_val > p2_val) and (p2_val > p3_val) if pd.notna(p2_val) and pd.notna(p3_val) else False
-        align_badge = "🟢 ALINHADOS (Lagarta esticada em Alta)" if aligned_trend else "🔴 DESALINHADOS (Corpo em curvas)"
-
-        st.markdown(f'''* **1. O Preço (P1) está a subir?**  
-  ↳ {p1_badge}
-* **2. A Média Rápida (P2) tem inclinação positiva?**  
-  ↳ {p2_badge}
-* **3. O Preço (P1) está acima da Média Rápida (P2)?**  
-  ↳ {p1_p2_badge}
-* **4. As Médias estão na ordem correta de Alta (P1 > P2 > P3)?**  
-  ↳ {align_badge}''')
-
-    with col_an2:
-        st.markdown("**🤖 O Que o Robô Faria Aqui? (Decisão Algorítmica):**")
-        
-        # Simular decisão mecânica do robô
-        if aligned_trend:
-            recommendation = "🟢 GATILHO DE COMPRA / MANTER"
-            explanation = "As médias estão perfeitamente alinhadas em alta. A Lagarta está a comer e a crescer ao longo do preço. O programa compraria aqui sem hesitar!"
-        elif p1_val < p3_val if pd.notna(p3_val) else False:
-            recommendation = "🔴 GATILHO DE VENDA / AGUARDAR FORA"
-            explanation = "O preço (P1) caiu abaixo da média confirmadora (P3). A Lagarta quebrou o seu suporte dinâmico principal. O programa venderia para cortar perdas/assegurar lucros!"
-        else:
-            recommendation = "🟡 ESPERAR / HOLD"
-            explanation = "O preço está acima de P3 mas abaixo de P2, ou as linhas estão a cruzar-se de forma instável. O programa aguardaria fora de jogo para evitar ruído lateral."
+            diff = p1 - df_man['close'].iloc[i-1]
+            variations.append("subiu" if diff >= 0 else "desceu")
             
-        st.markdown(f'''
-        <div style="background-color: rgba(255, 255, 255, 0.6); border: 1px solid rgba(0,0,0,0.08); padding: 16px; border-radius: 8px;">
-            <h5 style="margin-top:0; color: #1e293b;">Recomendação Mecânica:</h5>
-            <span style="font-size: 1.15rem; font-weight: 700; color: {"#10b981" if "COMPRA" in recommendation else ("#ef4444" if "VENDA" in recommendation else "#f59e0b")};">{recommendation}</span>
-            <p style="font-size: 0.88rem; color: #475569; margin-top: 8px;">{explanation}</p>
-        </div>
-        ''', unsafe_allow_html=True)
-        
-        # Mostrar floating PnL atual se ativo
-        if st.session_state.hb_trade_active:
-            fl_pnl_pct = (p1_val - st.session_state.hb_entry_price) / st.session_state.hb_entry_price * 100
-            fl_pnl_eur = st.session_state.hb_banca * (fl_pnl_pct / 100)
-            fl_color = "#10b981" if fl_pnl_pct >= 0 else "#ef4444"
-            st.markdown(f'''
-            <div style="margin-top:12px; padding: 10px; border-radius: 6px; background-color: rgba(15, 23, 42, 0.05); text-align: center;">
-                <span style="font-size:0.8rem; color:#64748b; font-weight:600;">RETORNO DO SEU TRADE ATIVO:</span><br>
-                <span style="font-size:1.3rem; font-weight:800; color:{fl_color};">{fl_pnl_pct:+.2f}% ({fl_pnl_eur:+.2f} EUR)</span>
-            </div>
-            ''', unsafe_allow_html=True)
+        # Help of moving averages
+        p2 = df_man['P2_MA'].iloc[i]
+        p3 = df_man['P3_MA'].iloc[i]
+        if pd.notna(p2) and pd.notna(p3):
+            # Valor > fast > slow
+            if p1 > p2 and p2 > p3:
+                help_column.append("🟢 Valor > Rápida > Lenta (Alta)")
+            elif p1 < p3:
+                help_column.append("🔴 Quebra de Suporte (Baixa)")
+            else:
+                help_column.append("🟡 Indecisão / Lateral")
+        else:
+            help_column.append("🟡 Aguardando Médias")
+            
+        # Get decision from session state
+        decisions.append(st.session_state.hb_decisions_dict.get(ponto_name, "esperar"))
 
-    # 7. HISTÓRICO DE PERFORMANCE DO UTILIZADOR
+    # Criar o DataFrame com o formato exato da planilha Excel
+    excel_df = pd.DataFrame({
+        "Ponto/Vela": row_names,
+        "Acção": ["Analisar o valor"] * len(df_man),
+        "Valor": df_man['close'].values,
+        "Resultado": variations,
+        "Ajuda das Médias": help_column,
+        "Decisão": decisions,
+        "Entrar": [None] * len(df_man),
+        "Sair": [None] * len(df_man),
+        "Resultado (PnL)": [None] * len(df_man)
+    })
+
+    # Lógica de cálculo em cadeia dinâmica (VBA Fórmulas Excel)
+    in_trade = False
+    entry_price = None
+    entry_idx = None
+    completed_trades = []
+    
+    for idx in range(len(excel_df)):
+        dec = st.session_state.hb_decisions_dict.get(f"P{idx+1}", "esperar")
+        val = excel_df.at[idx, "Valor"]
+        
+        if dec == "entrar":
+            if not in_trade:
+                in_trade = True
+                entry_price = val
+                entry_idx = idx
+                excel_df.at[idx, "Entrar"] = entry_price
+            else:
+                # Se já estava em trade, mantém a entrada original
+                excel_df.at[idx, "Entrar"] = entry_price
+        elif dec == "sair":
+            if in_trade:
+                excel_df.at[idx, "Sair"] = val
+                pnl_val = val - entry_price
+                excel_df.at[idx, "Resultado (PnL)"] = pnl_val
+                
+                completed_trades.append({
+                    "entry_idx": entry_idx,
+                    "exit_idx": idx,
+                    "entry_price": entry_price,
+                    "exit_price": val,
+                    "pnl": pnl_val
+                })
+                in_trade = False
+                entry_price = None
+                entry_idx = None
+        elif dec == "manter":
+            if in_trade:
+                # Apenas sinaliza que o trade continua ativo internamente
+                pass
+
     st.markdown("---")
-    st.markdown("##### 📊 Histórico de Operações Manuais Desta Sessão")
-    if st.session_state.hb_trades_history:
-        st.dataframe(pd.DataFrame(st.session_state.hb_trades_history), use_container_width=True)
-    else:
-        st.info("Ainda não realizou nenhuma operação manual nesta simulação. Utilize os botões de Comprar e Vender acima!")
+
+    # 4. LAYOUT DUPLO: PLANILHA À ESQUERDA, GRÁFICO À DIREITA
+    col_sheet, col_chart = st.columns([1.7, 1.0])
+    
+    with col_sheet:
+        st.markdown("##### 📊 Planilha de Análise Ponto a Ponto (Estilo Excel)")
+        st.markdown(
+            "Altere a coluna **Decisão** abaixo para cada ponto (`esperar`, `entrar`, `manter` ou `sair`). "
+            "Veja as colunas de **Entrar**, **Sair** e **Resultado** calcularem-se automaticamente!"
+        )
+        
+        # Renderizar o st.data_editor
+        edited_excel = st.data_editor(
+            excel_df,
+            num_rows="fixed",
+            use_container_width=True,
+            column_config={
+                "Ponto/Vela": st.column_config.TextColumn("Velas", disabled=True),
+                "Acção": st.column_config.TextColumn("Acção", disabled=True),
+                "Valor": st.column_config.NumberColumn("Valor (EUR)", format="%.2f EUR", disabled=True),
+                "Resultado": st.column_config.TextColumn("Resultado", disabled=True),
+                "Ajuda das Médias": st.column_config.TextColumn("Ajuda das Médias", disabled=True),
+                "Decisão": st.column_config.SelectboxColumn(
+                    "Decisão",
+                    options=["esperar", "entrar", "manter", "sair"],
+                    required=True
+                ),
+                "Entrar": st.column_config.NumberColumn("Entrar", format="%.2f EUR", disabled=True),
+                "Sair": st.column_config.NumberColumn("Sair", format="%.2f EUR", disabled=True),
+                "Resultado (PnL)": st.column_config.NumberColumn("Resultado (EUR)", format="%+.2f EUR", disabled=True)
+            },
+            key="hb_excel_sheet_editor"
+        )
+        
+    with col_chart:
+        st.markdown("##### 💓 Representação Visual da Lagarta")
+        st.markdown("O gráfico reflete as suas decisões e pinta os trechos operados em tempo real!")
+        
+        fig_man = go.Figure()
+        
+        # Preço Geral em cinzento de fundo
+        fig_man.add_trace(go.Scatter(
+            x=row_names,
+            y=df_man['close'].values,
+            mode='lines+markers',
+            name='Preço (P1)',
+            line=dict(color='rgba(148, 163, 184, 0.4)', width=2),
+            marker=dict(size=5, color='#475569')
+        ))
+        
+        # Pintar cada trade completado na planilha
+        for trade in completed_trades:
+            t_start = trade["entry_idx"]
+            t_end = trade["exit_idx"]
+            t_color = '#22c55e' if trade["pnl"] >= 0 else '#ef4444'
+            
+            # Segmento operado
+            fig_man.add_trace(go.Scatter(
+                x=row_names[t_start:t_end+1],
+                y=df_man['close'].values[t_start:t_end+1],
+                mode='lines+markers',
+                name='Lagarta Ativa',
+                line=dict(color=t_color, width=4.5),
+                marker=dict(size=6, color=t_color)
+            ))
+            
+            # Marcador de Entrada (Triângulo Verde)
+            fig_man.add_trace(go.Scatter(
+                x=[row_names[t_start]], y=[trade["entry_price"]],
+                mode='markers',
+                name='Entrada',
+                marker=dict(symbol='triangle-up', size=14, color='#22c55e', line=dict(width=1.5, color='#15803d')),
+                showlegend=False
+            ))
+            
+            # Marcador de Saída (Triângulo Vermelho)
+            fig_man.add_trace(go.Scatter(
+                x=[row_names[t_end]], y=[trade["exit_price"]],
+                mode='markers',
+                name='Saída',
+                marker=dict(symbol='triangle-down', size=14, color='#ef4444', line=dict(width=1.5, color='#b91c1c')),
+                showlegend=False
+            ))
+
+        # Se houver um trade aberto no final (sem saída)
+        if in_trade and entry_idx is not None:
+            fig_man.add_trace(go.Scatter(
+                x=row_names[entry_idx:],
+                y=df_man['close'].values[entry_idx:],
+                mode='lines+markers',
+                name='Lagarta Ativa (Aberto)',
+                line=dict(color='#eab308', width=4),
+                marker=dict(size=6, color='#eab308')
+            ))
+            fig_man.add_trace(go.Scatter(
+                x=[row_names[entry_idx]], y=[entry_price],
+                mode='markers',
+                name='Entrada',
+                marker=dict(symbol='triangle-up', size=14, color='#eab308', line=dict(width=1.5, color='#a16207')),
+                showlegend=False
+            ))
+
+        # Médias móveis
+        fig_man.add_trace(go.Scatter(x=row_names, y=df_man['P2_MA'].values, mode='lines', name=f'Média Rápida ({fast_p})', line=dict(color='#0ea5e9', width=1.8)))
+        fig_man.add_trace(go.Scatter(x=row_names, y=df_man['P3_MA'].values, mode='lines', name=f'Média Lenta ({slow_p})', line=dict(color='#f97316', width=1.8)))
+        if not df_man['P4_MA'].isna().all():
+            fig_man.add_trace(go.Scatter(x=row_names, y=df_man['P4_MA'].values, mode='lines', name=f'Chão 20 SMA ({floor_p})', line=dict(color='#6366f1', width=1.5, dash='dash')))
+
+        # Configurações do layout estilo ECG com linhas verticais
+        fig_man.update_layout(
+            hovermode='x unified',
+            template='plotly_white',
+            height=460,
+            margin=dict(l=10, r=10, t=10, b=10),
+            xaxis=dict(showgrid=True, gridcolor='rgba(0,0,0,0.06)', title="Pontos de Tempo"),
+            yaxis=dict(showgrid=True, gridcolor='rgba(0,0,0,0.04)', title="Valor (EUR)")
+        )
+        
+        # Linhas verticais para marcar o batimento de cada ponto
+        for r_name in row_names:
+            fig_man.add_vline(x=r_name, line_width=0.8, line_dash="dash", line_color="rgba(0, 0, 0, 0.12)")
+
+        st.plotly_chart(fig_man, use_container_width=True)
+
+    # 5. METRICAS GERAIS DE PERFORMANCE EXCEL
+    st.markdown("---")
+    st.markdown("##### 🏆 Resultados da Sessão de Análise Ponto a Ponto")
+    total_pnl = sum([t["pnl"] for t in completed_trades])
+    total_trades = len(completed_trades)
+    winning_trades = sum([1 for t in completed_trades if t["pnl"] >= 0])
+    win_rate = (winning_trades / total_trades * 100) if total_trades > 0 else 0
+    
+    col_m1, col_m2, col_m3, col_m4 = st.columns(4)
+    with col_m1:
+        st.metric("Total de Trades Fechados", f"{total_trades} trades")
+    with col_m2:
+        st.metric("Resultado Acumulado (EUR)", f"{total_pnl:+.2f} EUR")
+    with col_m3:
+        st.metric("Win Rate (%)", f"{win_rate:.1f}%")
+    with col_m4:
+        st.metric("Banca Atualizada", f"{(1000.0 + total_pnl):.2f} EUR")
 
     st.markdown('</div>', unsafe_allow_html=True)
