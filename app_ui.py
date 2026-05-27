@@ -1568,12 +1568,15 @@ with tab_manual:
     # 1. INICIALIZAÇÃO DE SESSÃO DO MODELO EXCEL
     if "hb_decisions_dict" not in st.session_state:
         st.session_state.hb_decisions_dict = {}
+    if "hb_reset_counter" not in st.session_state:
+        st.session_state.hb_reset_counter = 0
     if "hb_selected_limit" not in st.session_state:
         st.session_state.hb_selected_limit = 20
 
-    # Processar qualquer alteração feita no st.data_editor antes do redesenho da tabela
-    if "hb_excel_sheet_editor" in st.session_state and st.session_state.hb_excel_sheet_editor is not None:
-        edits = st.session_state.hb_excel_sheet_editor.get("edited_rows", {})
+    # Processar qualquer alteração feita no st.data_editor antes do redesenho da tabela usando chave dinâmica
+    hb_editor_key = f"hb_excel_sheet_editor_{st.session_state.get('hb_reset_counter', 0)}"
+    if hb_editor_key in st.session_state and st.session_state[hb_editor_key] is not None:
+        edits = st.session_state[hb_editor_key].get("edited_rows", {})
         for idx_str, changes in edits.items():
             idx = int(idx_str)
             ponto_name = f"P{idx+1}"
@@ -1604,7 +1607,7 @@ with tab_manual:
         st.markdown("<div style='height:28px;'></div>", unsafe_allow_html=True)
         if st.button("⏮️ Limpar Decisões / Resetar Planilha", use_container_width=True):
             st.session_state.hb_decisions_dict = {}
-            st.session_state.hb_excel_sheet_editor = None
+            st.session_state.hb_reset_counter = st.session_state.get('hb_reset_counter', 0) + 1
             st.success("Planilha reiniciada com sucesso!")
             st.rerun()
 
@@ -1768,7 +1771,7 @@ with tab_manual:
                 "Sair": st.column_config.NumberColumn("Sair", format="%.2f EUR", disabled=True),
                 "Resultado (PnL)": st.column_config.NumberColumn("Resultado (EUR)", format="%+.2f EUR", disabled=True)
             },
-            key="hb_excel_sheet_editor"
+            key=f"hb_excel_sheet_editor_{st.session_state.get('hb_reset_counter', 0)}"
         )
         
     with col_chart:
