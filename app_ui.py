@@ -762,7 +762,7 @@ config.update({
 logger = setup_logging()
 
 # 7. Abas Principais do Laboratório (TABS SIMPLIFICADAS)
-tab_backtest, tab_simulator, tab_game = st.tabs(["📊 Simulação & Gráficos Real", "🔬 Laboratório de Simulação & Otimização", "🎓 Universidade de Lagartas IA"])
+tab_backtest, tab_simulator, tab_game, tab_math_lab = st.tabs(["📊 Simulaçao & Gráficos Real", "🔬 Laboratório de Simulaçao & Otimizaçao", "🎓 Universidade de Lagartas IA", "▵ Laboratório Matemático & Regimes"])
 
 # Ação do Botão Principal do Backtester
 if run_button:
@@ -2804,3 +2804,8 @@ with tab_game:
                 )
 
     st.markdown('</div>', unsafe_allow_html=True)
+
+
+with tab_math_lab:
+    import tab_math_lab
+    tab_math_lab.render()
