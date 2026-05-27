@@ -433,8 +433,8 @@ with col_ctrl4:
             _active_caterpillar_dna = st.session_state.game_trained_caterpillars[_caterpillar_name]
             st.session_state.stop_loss_pct_val = float(round(_active_caterpillar_dna["stop_loss_pct"], 1))
             st.session_state.sl_active_val = True
-        strategy_type = "MULTIPOINT_VECTOR"
-        st.session_state.strategy_type_val = "MULTIPOINT_VECTOR"
+        # Mantém a strategy_type com o nome original da lagarta para que a StrategyFactory a apanhe
+        st.session_state.strategy_type_val = strategy_type
 with col_ctrl5:
     st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
     run_button = st.button("🚀 Executar Simulação Real", use_container_width=True, type="primary")
@@ -958,7 +958,19 @@ with tab_backtest:
 
         # Calcular as Médias no histórico de acordo com a estratégia ativa para exibição visual
         df_visualization = df_ohlcv.copy()
-        if strategy_type == "PAULO_GOLD":
+        if strategy_type.startswith("🎓"):
+            # Para a lagarta, mostramos as médias dos seus sensores IA
+            import ta
+            df_visualization['Line_1'] = ta.trend.sma_indicator(df_visualization['close'], window=5)
+            df_visualization['Line_2'] = ta.trend.sma_indicator(df_visualization['close'], window=12)
+            df_visualization['Line_3'] = ta.trend.sma_indicator(df_visualization['close'], window=20)
+            line1_name = "MA Rápida (5)"
+            line2_name = "MA Lenta (12)"
+            line3_name = "MA Chão (200)"
+            line1_color = "#10b981"
+            line2_color = "#3b82f6"
+            line3_color = "#f59e0b"
+        elif strategy_type == "PAULO_GOLD":
             df_visualization['Line_1'] = ta.trend.sma_indicator(df_visualization['close'], window=short_window)
             df_visualization['Line_2'] = ta.trend.sma_indicator(df_visualization['close'], window=long_window)
             line1_name = f"MǸdia Curta ({short_window})"
@@ -1497,8 +1509,11 @@ with tab_simulator:
                 ))
                 
         fig_sim.add_trace(go.Scatter(x=sim_viz.index, y=sim_viz['Line_1'], mode='lines', name=l1_n, line=dict(color='#0ea5e9', width=2), hovertemplate=f'{l1_n}: %{{y:.2f}} EUR<extra></extra>'))
-        fig_sim.add_trace(go.Scatter(x=sim_viz.index, y=sim_viz['Line_2'], mode='lines', name=l2_n, line=dict(color='#f97316', width=2), hovertemplate=f'{l2_n}: %{{y:.2f}} EUR<extra></extra>'))
+        fig_sim.add_trace(go.Scatter(x=sim_viz.index, y=sim_viz['Line_2'], mode='lines', name=l2_n, line=dict(color=locals().get('line2_color', '#f97316'), width=2), hovertemplate=f'{l2_n}: %{{y:.2f}} EUR<extra></extra>'))
         
+        if strategy_type.startswith("🎓"):
+            fig_sim.add_trace(go.Scatter(x=sim_viz.index, y=sim_viz['Line_3'], mode='lines', name=locals().get('line3_name', 'Line_3'), line=dict(color=locals().get('line3_color', '#f59e0b'), width=1.5), hovertemplate=f'{locals().get("line3_name", "Line_3")}: %{{y:.2f}} EUR<extra></extra>'))
+            
         if strategy_type == "MULTIPOINT_VECTOR":
             fig_sim.add_trace(go.Scatter(x=sim_viz.index, y=sim_viz['Line_3'], mode='lines', name=l3_n, line=dict(color='#10b981', width=1.5), hovertemplate=f'{l3_n}: %{{y:.2f}} EUR<extra></extra>'))
             if (p5_filter_active or entry_mode == "5PONTOS") and 'Line_4' in sim_viz:
@@ -2702,20 +2717,12 @@ with tab_game:
             st.json(dna_summary)
             
             # Botão de Sinergia Real
-            if st.button("🔌 Aplicar DNA Especialista Campeão no Robô Real", use_container_width=True, type="primary"):
-                st.session_state.strategy_type_val = "MULTIPOINT_VECTOR"
+            if st.button("🔌 Ativar esta Especialista no Robô Principal", use_container_width=True, type="primary"):
+                # Ativa diretamente a estratégia da Lagarta pelo seu nome
+                st.session_state.strategy_type_val = f"🎓 {st.session_state.game_specialist_name}"
                 st.session_state.stop_loss_pct_val = float(round(champ["stop_loss_pct"], 1))
                 st.session_state.sl_active_val = True
-                
-                # Mapear Window
-                if champ["w_trend"] > 0:
-                    st.session_state.p2_window_val = 9
-                    st.session_state.p3_window_val = 21
-                else:
-                    st.session_state.p2_window_val = 15
-                    st.session_state.p3_window_val = 30
-                    
-                st.success(f"🔌 DNA Especialista Copiado com Sucesso para o Robô Principal! Verifique a aba 1.")
+                st.success(f"🔌 Cérebro IA da '{st.session_state.game_specialist_name}' Injetado no Robô Principal! Verifique a aba 1.")
                 st.rerun()
 
         # D. Tabela Detalhada de Trades do Exame Cego (O Dossiê de Provas)
