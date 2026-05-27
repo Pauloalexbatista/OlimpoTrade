@@ -4,6 +4,7 @@ import pandas as pd
 import time
 import os
 from datetime import datetime
+from market_database import MarketDatabase
 
 class DataCollector:
     def __init__(self, exchange_id='binance', symbol='BTC/USDT', timeframe='1h'):
@@ -11,6 +12,7 @@ class DataCollector:
         self.symbol = symbol
         self.timeframe = timeframe
         self.exchange = getattr(ccxt, exchange_id)()
+        self.db = MarketDatabase()
         
         # Public API access doesn't require keys
         # If private data (e.g., balance, open orders) were needed, keys would be loaded
@@ -21,15 +23,23 @@ class DataCollector:
         Obtém dados OHLCV (candlesticks) para o símbolo e timeframe especificados.
         """
         try:
-            # Fetch OHLCV data
-            ohlcv = self.exchange.fetch_ohlcv(self.symbol, self.timeframe, limit=limit)
+            # 1. Tentar ler os últimos dados gravados na DB para ver qual foi o último timestamp
+            last_ts = self.db.get_last_timestamp(self.symbol, self.timeframe)
             
-            # Convert to Pandas DataFrame
-            df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
-            df['datetime'] = pd.to_datetime(df['timestamp'], unit='ms')
-            df.set_index('datetime', inplace=True)
+            # Fetch apenas dos dados novos (ou atualizar a última vela aberta)
+            if last_ts is not None:
+                ohlcv = self.exchange.fetch_ohlcv(self.symbol, self.timeframe, since=last_ts, limit=1000)
+            else:
+                ohlcv = self.exchange.fetch_ohlcv(self.symbol, self.timeframe, limit=limit)
             
-            print(f"Dados OHLCV obtidos para {self.symbol} ({self.timeframe}): {len(df)} candles.")
+            # 2. Convert to DataFrame and save to DB
+            df_new = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+            self.db.upsert_data(self.symbol, self.timeframe, df_new)
+            
+            # 3. Read the complete required block directly from local DB
+            df = self.db.get_data(self.symbol, self.timeframe, limit=limit)
+            
+            print(f"Dados sincronizados e lidos da BD para {self.symbol} ({self.timeframe}): {len(df)} candles.")
             return df
         except ccxt.NetworkError as e:
             print(f"Erro de rede ao obter OHLCV: {e}")

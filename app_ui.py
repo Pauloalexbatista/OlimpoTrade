@@ -2626,13 +2626,24 @@ with tab_game:
             fig_post = go.Figure()
             
             # Preço cinzento geral
-            fig_post.add_trace(go.Scatter(
+            # Gerar OHLC pseudo-realista se for terreno sintético (se não houver open, criamos)
+            if 'open_post' not in locals():
+                import numpy as np
+                open_post = prices_subset - np.random.normal(0, 0.5, len(prices_subset))
+                high_post = np.maximum(open_post, prices_subset) + np.abs(np.random.normal(0, 0.5, len(prices_subset)))
+                low_post = np.minimum(open_post, prices_subset) - np.abs(np.random.normal(0, 0.5, len(prices_subset)))
+            
+            fig_post.add_trace(go.Candlestick(
                 x=xs_post,
-                y=prices_subset,
-                mode='lines',
-                name='Preço de Mercado',
-                line=dict(color='rgba(148, 163, 184, 0.4)', width=2)
+                open=open_post,
+                high=high_post,
+                low=low_post,
+                close=prices_subset,
+                name='Velas',
+                increasing_line_color='#22c55e',
+                decreasing_line_color='#ef4444'
             ))
+            fig_post.update_layout(xaxis_rangeslider_visible=False)
             
             # Pintar apenas os trades decididos pelo cérebro campeão que intersectam a janela visível
             start_visible_idx = len(st.session_state.game_prices) - show_window
