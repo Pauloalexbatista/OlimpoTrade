@@ -16,5 +16,23 @@
     "units": 298946.7342834643,
     "alive": true,
     "trades_count": 2434
+  },
+  "Lagarta Especialista Hiper-Volátil": {
+    "w_trend": -0.1590620131601745,
+    "w_slope": -0.3929330790331174,
+    "w_vol": -0.4466056804569227,
+    "w_floor": 0.6763815867510456,
+    "w_rsi": 1.0,
+    "w_stop": -0.30765928526858893,
+    "threshold": 0.574610245798687,
+    "stop_loss_pct": 9.765972830902514,
+    "bank": 2.791550335698952e+43,
+    "net_bank": 2.0099162417032452e+43,
+    "in_trade": false,
+    "entry_price": 107.17809953831181,
+    "trade_size": 2.659548744873915e+43,
+    "units": 2.481429281103491e+41,
+    "alive": true,
+    "trades_count": 2436
   }
 }

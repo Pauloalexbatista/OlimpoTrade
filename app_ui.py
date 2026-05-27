@@ -1,5 +1,6 @@
 # my_trading_bot/app_ui.py
 import json
+import datetime
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -826,12 +827,134 @@ if run_button:
         st.session_state.backtest_capital_history = capital_history
         st.session_state.backtest_df = df_ohlcv
         st.rerun()
+
+# ─── CLASSIFICADOR DE TIPO DE MERCADO (usando precos reais da Binance) ──────────
+def classify_market_type(prices_list):
+    """
+    Analisa uma lista de precos de fecho e classifica o tipo de mercado.
+    Usa as N velas disponiveis (todas as que foram carregadas da Binance).
+    Retorna dict com: type, type_pt, emoji, confidence, slope_pct, volatility_pct, range_pct
+    """
+    import numpy as np
+    if len(prices_list) < 10:
+        return {"type": "DESCONHECIDO", "type_pt": "Desconhecido", "emoji": "❓", "confidence": 0,
+                "slope_pct": 0, "volatility_pct": 0, "range_pct": 0}
+
+    prices_arr = np.array(prices_list, dtype=float)
+
+    # 1. Tendencia linear: inclinacao percentual total
+    p_start = float(np.mean(prices_arr[:max(1, len(prices_arr)//10)]))  # media dos primeiros 10%
+    p_end   = float(np.mean(prices_arr[-max(1, len(prices_arr)//10):]))  # media dos ultimos 10%
+    slope_pct = ((p_end - p_start) / p_start) * 100.0
+
+    # 2. Volatilidade: desvio padrao dos retornos diarios
+    returns = np.diff(prices_arr) / prices_arr[:-1]
+    volatility_pct = float(np.std(returns)) * 100.0
+
+    # 3. Range: amplitude total relativa
+    range_pct = float((np.max(prices_arr) - np.min(prices_arr)) / np.min(prices_arr)) * 100.0
+
+    # 4. Classificacao por regras
+    if volatility_pct > 4.0:
+        mtype = "CAOTICO"
+        mtype_pt = "Caótico / Hiper-Volátil"
+        emoji = "💥"
+        confidence = min(99, int(volatility_pct / 4.0 * 70))
+    elif slope_pct > 5.0:
+        mtype = "BULL"
+        mtype_pt = "Tendência de Alta (Bull)"
+        emoji = "🐂"
+        confidence = min(99, int(min(slope_pct, 30) / 30 * 100))
+    elif slope_pct < -5.0:
+        mtype = "BEAR"
+        mtype_pt = "Tendência de Baixa (Bear)"
+        emoji = "🐻"
+        confidence = min(99, int(min(abs(slope_pct), 30) / 30 * 100))
+    else:
+        mtype = "LATERAL"
+        mtype_pt = "Mercado Lateral / Range"
+        emoji = "↔️"
+        confidence = min(99, int((1 - abs(slope_pct) / 5.0) * 100))
+
+    return {
+        "type": mtype,
+        "type_pt": mtype_pt,
+        "emoji": emoji,
+        "confidence": confidence,
+        "slope_pct": round(slope_pct, 2),
+        "volatility_pct": round(volatility_pct, 3),
+        "range_pct": round(range_pct, 2),
+        "n_candles": len(prices_list)
+    }
+# ─────────────────────────────────────────────────────────────────────────────
+
 with tab_backtest:
     if st.session_state.backtest_results is not None:
         metrics = st.session_state.backtest_results
         trades = st.session_state.backtest_trades
         capital_history = st.session_state.backtest_capital_history
         df_ohlcv = st.session_state.backtest_df
+
+        # ─── BANNER: DETEÇÃO AUTOMÁTICA DO TIPO DE MERCADO ──────────────────────────
+        _real_prices = df_ohlcv["close"].tolist()
+        _mkt = classify_market_type(_real_prices)
+
+        # Encontrar lagartas recomendadas para este tipo de mercado
+        _habitat_map = {
+            "BULL":    ["Alta", "Bull"],
+            "BEAR":    ["Baixa", "Bear"],
+            "LATERAL": ["Lateral", "Range"],
+            "CAOTICO": ["Caótico", "Chaos"]
+        }
+        _matching_caterpillars = []
+        for _cn, _cdna in st.session_state.game_trained_caterpillars.items():
+            _habitat = _cdna.get("market_habitat", "")
+            _keywords = _habitat_map.get(_mkt["type"], [])
+            if any(kw in _habitat for kw in _keywords):
+                _matching_caterpillars.append(_cn)
+
+        # Cores por tipo de mercado
+        _mkt_colors = {
+            "BULL":    ("#16a34a", "#dcfce7"),  # verde
+            "BEAR":    ("#dc2626", "#fee2e2"),  # vermelho
+            "LATERAL": ("#2563eb", "#dbeafe"),  # azul
+            "CAOTICO": ("#9333ea", "#f3e8ff"),  # roxo
+        }
+        _c_border, _c_bg = _mkt_colors.get(_mkt["type"], ("#6b7280", "#f9fafb"))
+
+        st.markdown(f"""
+        <div style="border-left: 5px solid {_c_border}; background: {_c_bg}; padding: 12px 18px;
+                    border-radius: 8px; margin-bottom: 16px;">
+            <div style="font-size: 1.1rem; font-weight: 700; color: {_c_border};">
+                {_mkt['emoji']} Mercado Detetado: {_mkt['type_pt']}
+                <span style="font-size:0.85rem; font-weight:400; margin-left:12px;">
+                    Confiança: {_mkt['confidence']}% · {_mkt['n_candles']} velas analisadas
+                </span>
+            </div>
+            <div style="font-size: 0.85rem; margin-top: 4px; color: #374151;">
+                📈 Inclinação: <b>{_mkt['slope_pct']:+.2f}%</b> &nbsp;|&nbsp;
+                📊 Volatilidade: <b>{_mkt['volatility_pct']:.3f}%/vela</b> &nbsp;|&nbsp;
+                📏 Amplitude: <b>{_mkt['range_pct']:.1f}%</b>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # Mostrar lagartas recomendadas (se existirem)
+        if _matching_caterpillars:
+            _rec_col1, _rec_col2 = st.columns([3, 1])
+            with _rec_col1:
+                _names_str = ", ".join([f"🎓 {n}" for n in _matching_caterpillars])
+                st.info(f"**Especialistas disponíveis para este mercado:** {_names_str}")
+            with _rec_col2:
+                if len(_matching_caterpillars) == 1 and st.button(
+                    f"⚡ Ativar '{_matching_caterpillars[0]}'",
+                    key="auto_activate_caterpillar",
+                    type="primary",
+                    use_container_width=True
+                ):
+                    st.session_state.strategy_type_val = f"🎓 {_matching_caterpillars[0]}"
+                    st.rerun()
+        # ─────────────────────────────────────────────────────────────────────────────
 
         # Calcular as Médias no histórico de acordo com a estratégia ativa para exibição visual
         df_visualization = df_ohlcv.copy()
@@ -1663,9 +1786,11 @@ with tab_game:
             "Tipo de Mercado para Treino",
             [
                 "Tendência de Alta Forte (Bull Market)",
+                "Tendência de Baixa Forte (Bear Market)",
                 "Mercado Lateral / Range (Consolidação)",
                 "Hiper-Volátil Caótico (Chaos Market)"
-            ]
+            ],
+            help="Escolhe o habitat da tua lagarta. Uma especialista BULL aprende a ganhar em altas. Uma BEAR aprende a ganhar em quedas. Lateral aprende a trabalhar em ranges. Caótico é sobrevivência extrema."
         )
         
         dynamic_terrain = st.checkbox(
@@ -1729,11 +1854,17 @@ with tab_game:
             def generate_terrain(seed_val, size_val):
                 t_local = np.linspace(0, 15, size_val)
                 np.random.seed(seed_val)
-                if "Tendência" in market_type:
+                if "Alta" in market_type or "Bull" in market_type:
+                    # BULL: tendencia de subida clara com oscilacoes suaves
                     prices = 100.0 + t_local * 4.5 + 12.0 * np.sin(t_local * 1.5) + np.random.normal(0, 0.8, size_val)
+                elif "Baixa" in market_type or "Bear" in market_type:
+                    # BEAR: tendencia de descida clara — espelho do BULL
+                    prices = 100.0 + t_local * (-4.5) + 12.0 * np.sin(t_local * 1.5) + np.random.normal(0, 0.8, size_val)
                 elif "Lateral" in market_type:
+                    # LATERAL: oscila horizontalmente em torno de 100
                     prices = 100.0 + 15.0 * np.sin(t_local * 2.5) + np.random.normal(0, 0.5, size_val)
                 else:
+                    # CAOTICO: oscilacoes violentas, tendencia indefinida (sobrevivencia extrema)
                     prices = 100.0 + 8.0 * np.sin(t_local * 0.8) + 20.0 * np.sin(t_local * 5.5) + np.random.normal(0, 3.5, size_val)
                 prices = np.clip(prices, 5.0, 100000.0).tolist()
                 
@@ -2051,6 +2182,13 @@ with tab_game:
             # Salvar no registo persistente da Universidade de Lagartas para o Hermes (Mercado de Trabalho)
             if "game_trained_caterpillars" not in st.session_state:
                 st.session_state.game_trained_caterpillars = {}
+            # Enriquecer o DNA com metadados de habitat e treino
+            champion["market_habitat"] = market_type  # Tipo de mercado em que foi treinada
+            champion["trained_at"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+            champion["training_candles"] = candles_count
+            champion["training_sessions"] = len([h for h in st.session_state.game_training_history
+                                                  if h.get("Lagarta") == st.session_state.game_specialist_name]) + 1
+
             st.session_state.game_trained_caterpillars[st.session_state.game_specialist_name] = champion
 
             # Gravar em disco para persistencia entre sessoes e acesso por outros programas
@@ -2169,9 +2307,16 @@ with tab_game:
                     st.metric("Stop Loss (%)", f"{_dna.get('stop_loss_pct', 0):.2f}%", help="Perda maxima tolerada antes de sair")
                     st.metric("Banca Final (EUR)", f"EUR {_dna.get('net_bank', 0):.2f}", help="Capital final no ultimo treino")
                     st.markdown("---")
-                    st.markdown("**📄 Localizacao em Disco**")
+                    st.markdown("**🌍 Habitat & Metadados**")
+                    _habitat_raw = _dna.get("market_habitat", "Desconhecido")
+                    _habitat_emoji = "🐂" if "Alta" in _habitat_raw or "Bull" in _habitat_raw else (
+                                     "🐻" if "Baixa" in _habitat_raw or "Bear" in _habitat_raw else (
+                                     "↔️" if "Lateral" in _habitat_raw else "💥"))
+                    st.markdown(f"**Habitat:** {_habitat_emoji} `{_habitat_raw.split('(')[0].strip()}`")
+                    st.markdown(f"**Treinada em:** `{_dna.get('trained_at', 'N/A')}`")
+                    st.markdown(f"**Velas de treino:** `{_dna.get('training_candles', 'N/A')}`")
+                    st.markdown(f"**Sessoes de treino:** `{_dna.get('training_sessions', 'N/A')}`")
                     st.code("caterpillars.json", language="text")
-                    st.caption("Ficheiro partilhado com Hermes e outros modulos")
 
                 with _col_d3:
                     st.markdown("**📊 Regra de Entrada (Visualizacao)**")
