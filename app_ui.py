@@ -1492,16 +1492,25 @@ with tab_simulator:
                 hoverinfo='skip'
             ))
         
-        fig_sim.add_trace(go.Scatter(
-            x=sim_viz.index, 
-            y=sim_viz['close'], 
-            mode='lines', 
-            name='Preço de Teste', 
-            line=dict(color='rgba(100, 116, 139, 0.25)', width=1.5),
-            fill='tonexty' if strategy_type in ["SMA_CROSSOVER", "EMA_CROSSOVER", "PAULO_GOLD"] else None,
-            fillcolor='rgba(14, 165, 233, 0.06)' if strategy_type in ["SMA_CROSSOVER", "EMA_CROSSOVER", "PAULO_GOLD"] else None,
-            hovertemplate='Preço: %{y:.2f} EUR<extra></extra>'
+        # Gerar OHLC pseudo-realista se faltar open, high, low
+        if 'open' not in sim_viz.columns:
+            import numpy as np
+            np.random.seed(42)
+            sim_viz['open'] = sim_viz['close'] - np.random.normal(0, 0.2, len(sim_viz))
+            sim_viz['high'] = np.maximum(sim_viz['open'], sim_viz['close']) + np.abs(np.random.normal(0, 0.2, len(sim_viz)))
+            sim_viz['low'] = np.minimum(sim_viz['open'], sim_viz['close']) - np.abs(np.random.normal(0, 0.2, len(sim_viz)))
+
+        fig_sim.add_trace(go.Candlestick(
+            x=sim_viz.index,
+            open=sim_viz['open'],
+            high=sim_viz['high'],
+            low=sim_viz['low'],
+            close=sim_viz['close'],
+            name='Velas',
+            increasing_line_color='#22c55e',
+            decreasing_line_color='#ef4444'
         ))
+        fig_sim.update_layout(xaxis_rangeslider_visible=False)
         
         for idx_s, t_s in enumerate(sim_trades):
             trade_mask = (sim_viz.index >= t_s['entry_timestamp']) & (sim_viz.index <= t_s['exit_timestamp'])
