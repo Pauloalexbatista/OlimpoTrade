@@ -156,7 +156,8 @@ def find_structural_points(df):
 def get_pattern_stats(points_list, df, regime_filter=None):
     records = []
     for pt in points_list:
-        idx = pt.get("idx_fundo") if "idx_fundo" in pt else pt.get("idx_topo")
+        is_fundo = "gain_pct" in pt
+        idx = pt.get("idx_fundo") if is_fundo else pt.get("idx_topo")
         if idx is None or idx >= len(df):
             continue
         row = df.iloc[idx]
@@ -165,13 +166,16 @@ def get_pattern_stats(points_list, df, regime_filter=None):
         if regime_filter and regime_filter != "Todos" and regime != regime_filter:
             continue
             
+        gain_pct = pt.get("gain_pct")
+        loss_pct = pt.get("loss_pct")
+        
         records.append({
             "Batimento Inicial": idx,
             "Preço Inicial": f"{row['price']:.2f}",
-            "Batimento Final": pt.get("idx_topo") if "idx_fundo" in pt else pt.get("idx_fundo"),
-            "Preço Final": f"{pt.get('price_topo'):.2f}" if "idx_fundo" in pt else f"{pt.get('price_fundo'):.2f}",
-            "Variação %": f"{pt.get('gain_pct'):+.2f}%" if "idx_fundo" in pt else f"-{pt.get('loss_pct'):.2f}%",
-            "var_raw": pt.get('gain_pct') if 'idx_fundo' in pt else -pt.get('loss_pct'),
+            "Batimento Final": pt.get("idx_topo") if is_fundo else pt.get("idx_fundo"),
+            "Preço Final": f"{pt.get('price_topo'):.2f}" if is_fundo else f"{pt.get('price_fundo'):.2f}",
+            "Variação %": f"{gain_pct:+.2f}%" if is_fundo else f"-{loss_pct:.2f}%",
+            "var_raw": gain_pct if is_fundo else -loss_pct,
             "Velocidade": row["velocity"],
             "Aceleração": row["acceleration"],
             "Stretching": row["stretching"],
