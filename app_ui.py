@@ -437,7 +437,7 @@ with col_ctrl4:
         st.session_state.strategy_type_val = strategy_type
 with col_ctrl5:
     st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
-    run_button = st.button("🚀 Executar Simulação Real", use_container_width=True, type="primary")
+    run_button = st.button("🚀 Executar Simulação Real", width='stretch', type="primary")
 
 # ----------------- NOVO PAINEL DE CONFIGURAÇÕES COLAPSÁVEL CENTRAL -----------------
 if '_active_caterpillar_dna' not in dir():
@@ -762,7 +762,7 @@ config.update({
 logger = setup_logging()
 
 # 7. Abas Principais do Laboratório (TABS SIMPLIFICADAS)
-tab_backtest, tab_simulator, tab_game, tab_math_lab = st.tabs(["📊 Simulaçao & Gráficos Real", "🔬 Laboratório de Simulaçao & Otimizaçao", "🎓 Universidade de Lagartas IA", "▵ Laboratório Matemático & Regimes"])
+tab_backtest, tab_simulator, tab_game, tab_math_lab, tab_trader_game = st.tabs(["📊 Simulaçao & Gráficos Real", "🔬 Laboratório de Simulaçao & Otimizaçao", "🎓 Universidade de Lagartas IA", "▵ Laboratório Matemático & Regimes", "🎮 Jogo do Trader Quantitativo"])
 
 # Ação do Botão Principal do Backtester
 if run_button:
@@ -950,7 +950,7 @@ with tab_backtest:
                     f"⚡ Ativar '{_matching_caterpillars[0]}'",
                     key="auto_activate_caterpillar",
                     type="primary",
-                    use_container_width=True
+                    width='stretch'
                 ):
                     st.session_state.strategy_type_val = f"🎓 {_matching_caterpillars[0]}"
                     st.rerun()
@@ -1345,7 +1345,7 @@ with tab_backtest:
             st.dataframe(
                 trades_df_display.style.map(color_pnl, subset=['PnL (EUR)', 'Retorno (%)'])
                 .format({'Preço Entrada': '{:.2f}', 'Preço Saída': '{:.2f}', 'Quantidade': '{:.6f}', 'Valor Investido (EUR)': '{:.2f}', 'PnL (EUR)': '{:+.2f}', 'Retorno (%)': '{:+.2f}%', 'Saldo da Banca (EUR)': '{:.2f}'}),
-                use_container_width=True
+                width='stretch'
             )
         else:
             st.info("Nenhuma operação foi efetuada durante esta simulação. Tente ajustar os parâmetros das médias móveis ou selecione um número maior de candles.")
@@ -2290,7 +2290,7 @@ with tab_game:
             df_hist = pd.DataFrame(st.session_state.game_training_history)
             st.dataframe(
                 df_hist,
-                use_container_width=True,
+                width='stretch',
                 column_config={
                     "Nº Treino": st.column_config.NumberColumn("Nº", width=35),
                     "Lagarta": st.column_config.TextColumn("Nome Lagarta"),
@@ -2747,7 +2747,7 @@ with tab_game:
             st.json(dna_summary)
             
             # Botão de Sinergia Real
-            if st.button("🔌 Ativar esta Especialista no Robô Principal", use_container_width=True, type="primary"):
+            if st.button("🔌 Ativar esta Especialista no Robô Principal", width='stretch', type="primary"):
                 # Ativa diretamente a estratégia da Lagarta pelo seu nome
                 st.session_state.strategy_type_val = f"🎓 {st.session_state.game_specialist_name}"
                 st.session_state.stop_loss_pct_val = float(round(champ["stop_loss_pct"], 1))
@@ -2784,7 +2784,7 @@ with tab_game:
                 df_trades_audit = pd.DataFrame(trades_df_data)
                 st.dataframe(
                     df_trades_audit,
-                    use_container_width=True,
+                    width='stretch',
                     column_config={
                         "Operação": st.column_config.TextColumn("Operação", width=60),
                         "Capital Investido": st.column_config.TextColumn("Capital Investido", width=105),
@@ -2809,3 +2809,942 @@ with tab_game:
 with tab_math_lab:
     import tab_math_lab
     tab_math_lab.render()
+# =========================================================================
+# SEPARADOR 5: JOGO DO TRADER QUANTITATIVO (ARENA BLIND TRADER)
+# =========================================================================
+with tab_trader_game:
+
+
+    # =========================================================================
+    # SEPARADOR 5: JOGO DO TRADER QUANTITATIVO (ARENA BLIND TRADER)
+    # =========================================================================
+    with tab_trader_game:
+        import os, json, time
+        import numpy as np
+        import pandas as pd
+        import plotly.graph_objects as go
+        from plotly.subplots import make_subplots
+
+        highscores_file = "trader_highscores.json"
+
+        # --- ESTADO DO JOGO ---
+        if "tg_active" not in st.session_state: st.session_state.tg_active = False
+        if "tg_step" not in st.session_state: st.session_state.tg_step = 144
+        if "tg_capital" not in st.session_state: st.session_state.tg_capital = 100.0
+        if "tg_position" not in st.session_state: st.session_state.tg_position = "NONE"
+        if "tg_entry_price" not in st.session_state: st.session_state.tg_entry_price = 0.0
+        if "tg_entry_step" not in st.session_state: st.session_state.tg_entry_step = 0
+        if "tg_trades" not in st.session_state: st.session_state.tg_trades = []
+        if "tg_data" not in st.session_state: st.session_state.tg_data = None
+        if "tg_trader_name" not in st.session_state: st.session_state.tg_trader_name = "Trader Anon"
+        if "tg_running" not in st.session_state: st.session_state.tg_running = False
+        if "tg_game_finished" not in st.session_state: st.session_state.tg_game_finished = False
+        if "tg_strategy_type" not in st.session_state: st.session_state.tg_strategy_type = "Default"
+
+        # Carregar ultimo jogo persistido caso o estado ativo seja None e existam dados salvos
+        if "tg_data" not in st.session_state or st.session_state.tg_data is None:
+            if os.path.exists("last_game_data.csv") and os.path.exists("last_game_state.json"):
+                try:
+                    st.session_state.tg_data = pd.read_csv("last_game_data.csv", index_col=0, parse_dates=True)
+                    with open("last_game_state.json", "r", encoding="utf-8") as f:
+                        meta = json.load(f)
+                    st.session_state.tg_capital = meta.get("capital", 100.0)
+                    st.session_state.tg_trades = meta.get("trades", [])
+                    st.session_state.tg_trader_name = meta.get("trader_name", "Trader Anon")
+                    st.session_state.tg_p2 = meta.get("p2", 5)
+                    st.session_state.tg_p3 = meta.get("p3", 13)
+                    st.session_state.tg_p4 = meta.get("p4", 21)
+                    st.session_state.tg_p5 = meta.get("p5", 55)
+                    st.session_state.tg_p6 = meta.get("p6", 144)
+                    st.session_state.tg_game_finished = True
+                    st.session_state.tg_active = False
+                except Exception:
+                    st.session_state.tg_data = None
+            else:
+                st.session_state.tg_data = None
+
+        # Periodos das medias
+        if "tg_p2" not in st.session_state: st.session_state.tg_p2 = 5
+        if "tg_p3" not in st.session_state: st.session_state.tg_p3 = 13
+        if "tg_p4" not in st.session_state: st.session_state.tg_p4 = 21
+        if "tg_p5" not in st.session_state: st.session_state.tg_p5 = 55
+        if "tg_p6" not in st.session_state: st.session_state.tg_p6 = 144
+
+        # Visibilidade persistente entre batimentos
+
+        # Gestao de risco
+        if "tg_sl_active" not in st.session_state: st.session_state.tg_sl_active = True
+        if "tg_sl_pct" not in st.session_state: st.session_state.tg_sl_pct = 2.0
+        if "tg_tp_active" not in st.session_state: st.session_state.tg_tp_active = False
+        if "tg_tp_pct" not in st.session_state: st.session_state.tg_tp_pct = 4.0
+        if "tg_ts_active" not in st.session_state: st.session_state.tg_ts_active = False
+        if "tg_ts_pct" not in st.session_state: st.session_state.tg_ts_pct = 1.5
+        if "tg_highest_price" not in st.session_state: st.session_state.tg_highest_price = 0.0
+        if "tg_lowest_price" not in st.session_state: st.session_state.tg_lowest_price = 999999.0
+
+        # Visibilidade das linhas — persiste entre batimentos via session_state
+        if "tg_vis_price" not in st.session_state: st.session_state.tg_vis_price = True
+        if "tg_vis_canal" not in st.session_state: st.session_state.tg_vis_canal = True
+        if "tg_vis_vector" not in st.session_state: st.session_state.tg_vis_vector = True
+        if "tg_vis_sma5" not in st.session_state: st.session_state.tg_vis_sma5 = True
+        if "tg_vis_sma13" not in st.session_state: st.session_state.tg_vis_sma13 = True
+        if "tg_vis_sma21" not in st.session_state: st.session_state.tg_vis_sma21 = True
+        if "tg_vis_sma55" not in st.session_state: st.session_state.tg_vis_sma55 = True
+        if "tg_vis_sma144" not in st.session_state: st.session_state.tg_vis_sma144 = True
+
+        # Bot co-piloto / autonomo
+        if "tg_bot_mode" not in st.session_state: st.session_state.tg_bot_mode = "Manual"
+        if "tg_bot_compress_thresh" not in st.session_state: st.session_state.tg_bot_compress_thresh = 2.0
+        if "tg_bot_vel_thresh" not in st.session_state: st.session_state.tg_bot_vel_thresh = 0.03
+
+        def _build_chart(sub_df, df_full, title_str, show_full_range=False):
+            """Constroi o grafico Plotly. Reutilizavel para modo jogo e modo revisao."""
+            fig = make_subplots(rows=2, cols=1, shared_xaxes=True, row_heights=[0.82, 0.18], vertical_spacing=0.03)
+
+            upper_band = sub_df['avg_sma'] + 1.0 * sub_df['sma_std']
+            lower_band = sub_df['avg_sma'] - 1.0 * sub_df['sma_std']
+            fig.add_trace(go.Scatter(
+                x=sub_df.index.tolist() + sub_df.index.tolist()[::-1],
+                y=upper_band.tolist() + lower_band.tolist()[::-1],
+                fill='toself', fillcolor='rgba(148,163,184,0.12)',
+                line=dict(color='rgba(255,255,255,0)'), hoverinfo="skip",
+                name='Canal Desvio Padrao', visible=True
+            ), row=1, col=1)
+            fig.add_trace(go.Scatter(
+                x=sub_df.index, y=sub_df['avg_sma'], name='Media do Vetor',
+                line=dict(color='#94a3b8', width=1.5, dash='dash'), visible=True
+            ), row=1, col=1)
+            fig.add_trace(go.Scatter(x=sub_df.index, y=sub_df['sma_5'], name=f'SMA {st.session_state.tg_p2} (Rapida)', line=dict(color='#00E676', width=2), visible=True), row=1, col=1)
+            fig.add_trace(go.Scatter(x=sub_df.index, y=sub_df['sma_13'], name=f'SMA {st.session_state.tg_p3}', line=dict(color='#00B0FF', width=2), visible=True), row=1, col=1)
+            fig.add_trace(go.Scatter(x=sub_df.index, y=sub_df['sma_21'], name=f'SMA {st.session_state.tg_p4}', line=dict(color='#FF9100', width=2), visible=True), row=1, col=1)
+            fig.add_trace(go.Scatter(x=sub_df.index, y=sub_df['sma_55'], name=f'SMA {st.session_state.tg_p5}', line=dict(color='#D500F9', width=2), visible=True), row=1, col=1)
+            fig.add_trace(go.Scatter(x=sub_df.index, y=sub_df['sma_144'], name=f'SMA {st.session_state.tg_p6} (Lenta)', line=dict(color='#FF1744', width=2), visible=True), row=1, col=1)
+            fig.add_trace(go.Scatter(
+                x=sub_df.index, y=sub_df['close'], name='Preco Real',
+                line=dict(color='#1e293b', width=3), visible=True
+            ), row=1, col=1)
+
+            # Marcadores de trades sobre a janela visivel
+            game_buy_x, game_buy_y, game_sell_x, game_sell_y = [], [], [], []
+            for tr in st.session_state.tg_trades:
+                if "entry_step" in tr and "exit_step" in tr:
+                    entry_time = df_full.index[tr['entry_step']]
+                    exit_time = df_full.index[tr['exit_step']]
+                    if tr['type'] == "LONG":
+                        if entry_time in sub_df.index: game_buy_x.append(entry_time); game_buy_y.append(tr['entry_price'])
+                        if exit_time in sub_df.index: game_sell_x.append(exit_time); game_sell_y.append(tr['exit_price'])
+                    else:
+                        if entry_time in sub_df.index: game_sell_x.append(entry_time); game_sell_y.append(tr['entry_price'])
+                        if exit_time in sub_df.index: game_buy_x.append(exit_time); game_buy_y.append(tr['exit_price'])
+            if game_buy_x:
+                fig.add_trace(go.Scatter(x=game_buy_x, y=game_buy_y, mode='markers', name='Compra / Fecho Short', marker=dict(symbol='triangle-up', size=14, color='#10b981')), row=1, col=1)
+            if game_sell_x:
+                fig.add_trace(go.Scatter(x=game_sell_x, y=game_sell_y, mode='markers', name='Venda / Fecho Long', marker=dict(symbol='triangle-down', size=14, color='#ef4444')), row=1, col=1)
+
+            vel_dir = sub_df['velocity'].apply(lambda x: 1.0 if x > 0 else (-1.0 if x < 0 else 0.0)).tolist()
+            acc_dir = sub_df['acceleration'].apply(lambda x: 1.0 if x > 0 else (-1.0 if x < 0 else 0.0)).tolist()
+            fig.add_trace(go.Heatmap(
+                x=sub_df.index, y=['Forca (Acel.)', 'Direcao (Vel.)'], z=[acc_dir, vel_dir],
+                colorscale=[[0.0,'#e74c3c'],[0.5,'#cbd5e1'],[1.0,'#2ecc71']],
+                showscale=False, hovertemplate='%{x}<br>%{y}: %{z}<extra></extra>'
+            ), row=2, col=1)
+
+            chart_height = 520 if show_full_range else 500
+            fig.update_layout(
+                title=title_str,
+                hovermode='x unified', template='plotly_white', height=chart_height,
+                margin=dict(l=10, r=10, t=40, b=160),
+                uirevision='game_chart',
+                legend=dict(
+                    orientation="h", yanchor="top", y=-0.35,
+                    xanchor="center", x=0.5,
+                    font=dict(size=11),
+                    bgcolor="rgba(255,255,255,0.85)",
+                    bordercolor="rgba(0,0,0,0.1)", borderwidth=1
+                )
+            )
+            fig.update_xaxes(showgrid=True, gridcolor='#e2e8f0', row=1, col=1)
+            fig.update_yaxes(showgrid=True, gridcolor='#e2e8f0', row=1, col=1)
+            return fig
+
+        def generate_game_market():
+            np.random.seed(int(time.time() * 100) % 100000)
+            steps = 260
+            drift = np.random.choice([0.08, -0.04, 0.0, 0.12])
+            volatility = np.random.uniform(1.3, 3.2)
+            dt = 0.1
+            prices = [100.0]
+            for _ in range(steps - 1):
+                change = prices[-1] * (drift / 100.0 * dt + volatility / 100.0 * np.sqrt(dt) * np.random.normal())
+                prices.append(max(10.0, prices[-1] + change))
+            dates = pd.date_range(start="2026-01-01", periods=steps, freq="1h")
+            df = pd.DataFrame({
+                'close': prices,
+                'open': [p - np.random.normal(0, 0.1) for p in prices],
+                'high': [p + abs(np.random.normal(0, 0.15)) for p in prices],
+                'low': [p - abs(np.random.normal(0, 0.15)) for p in prices],
+                'volume': [1000] * steps
+            }, index=dates)
+            df['sma_5'] = df['close'].rolling(window=st.session_state.tg_p2).mean()
+            df['sma_13'] = df['close'].rolling(window=st.session_state.tg_p3).mean()
+            df['sma_21'] = df['close'].rolling(window=st.session_state.tg_p4).mean()
+            df['sma_55'] = df['close'].rolling(window=st.session_state.tg_p5).mean()
+            df['sma_144'] = df['close'].rolling(window=st.session_state.tg_p6).mean()
+            smas = ['sma_5','sma_13','sma_21','sma_55','sma_144']
+            df['avg_sma'] = df[smas].mean(axis=1)
+            df['sma_std'] = df[smas].std(axis=1)
+            df['stretching'] = df[smas].sub(df['avg_sma'], axis=0).abs().mean(axis=1).div(df['avg_sma']).mul(100)
+            df['velocity'] = df['sma_5'].diff(periods=2)
+            df['acceleration'] = df['velocity'].diff(periods=2)
+            df['volatility'] = df['close'].rolling(window=20, min_periods=1).std()
+            
+            def classify_regime_row(row):
+                p = row['close']
+                s2 = row['sma_5']
+                s3 = row['sma_13']
+                s4 = row['sma_21']
+                s5 = row['sma_55']
+                s6 = row['sma_144']
+                v = row['velocity']
+                vol = row['volatility']
+                stretch = row['stretching']
+                if pd.isna(s6) or pd.isna(v) or pd.isna(vol) or pd.isna(stretch):
+                    return "LATERAL"
+                is_bull_trend = (s2 > s3) and (s3 > s4) and (s4 > s5) and (v > 0)
+                is_bear_trend = (s2 < s3) and (s3 < s4) and (s4 < s5) and (v < 0)
+                if stretch < 0.6:
+                    return "LATERAL"
+                elif is_bull_trend:
+                    return "BULL"
+                elif is_bear_trend:
+                    return "BEAR"
+                elif vol > p * 0.012:
+                    return "CAOTICO"
+                else:
+                    return "LATERAL"
+            
+            df['regime'] = df.apply(classify_regime_row, axis=1)
+            df['disp_pct'] = (df['sma_5'] - df['sma_144']) / df['sma_144'] * 100
+            smas_col = ['sma_5','sma_13','sma_21','sma_55','sma_144']
+            df['mola_pct'] = df[smas_col].std(axis=1) / df[smas_col].mean(axis=1) * 100
+            df['infil_bull'] = (df['sma_5'] > df['sma_13']) & (df['sma_13'] > df['sma_21']) & (df['sma_55'] < df['sma_144'])
+            df['infil_bear'] = (df['sma_5'] < df['sma_13']) & (df['sma_13'] < df['sma_21']) & (df['sma_55'] > df['sma_144'])
+            df['reteste_val'] = ((df['close'] - df['sma_55']).abs() / df['sma_55'] * 100 < 0.8) | ((df['close'] - df['sma_144']).abs() / df['sma_144'] * 100 < 0.8)
+            df.bfill(inplace=True)
+            return df
+
+        def recalculate_indicators():
+            if st.session_state.tg_data is not None:
+                df = st.session_state.tg_data
+                df['sma_5'] = df['close'].rolling(window=st.session_state.tg_p2).mean()
+                df['sma_13'] = df['close'].rolling(window=st.session_state.tg_p3).mean()
+                df['sma_21'] = df['close'].rolling(window=st.session_state.tg_p4).mean()
+                df['sma_55'] = df['close'].rolling(window=st.session_state.tg_p5).mean()
+                df['sma_144'] = df['close'].rolling(window=st.session_state.tg_p6).mean()
+                smas = ['sma_5','sma_13','sma_21','sma_55','sma_144']
+                df['avg_sma'] = df[smas].mean(axis=1)
+                df['sma_std'] = df[smas].std(axis=1)
+                df['stretching'] = df[smas].sub(df['avg_sma'], axis=0).abs().mean(axis=1).div(df['avg_sma']).mul(100)
+                df['velocity'] = df['sma_5'].diff(periods=2)
+                df['acceleration'] = df['velocity'].diff(periods=2)
+                df['volatility'] = df['close'].rolling(window=20, min_periods=1).std()
+                
+                def classify_regime_row(row):
+                    p = row['close']
+                    s2 = row['sma_5']
+                    s3 = row['sma_13']
+                    s4 = row['sma_21']
+                    s5 = row['sma_55']
+                    s6 = row['sma_144']
+                    v = row['velocity']
+                    vol = row['volatility']
+                    stretch = row['stretching']
+                    if pd.isna(s6) or pd.isna(v) or pd.isna(vol) or pd.isna(stretch):
+                        return "LATERAL"
+                    is_bull_trend = (s2 > s3) and (s3 > s4) and (s4 > s5) and (v > 0)
+                    is_bear_trend = (s2 < s3) and (s3 < s4) and (s4 < s5) and (v < 0)
+                    if stretch < 0.6:
+                        return "LATERAL"
+                    elif is_bull_trend:
+                        return "BULL"
+                    elif is_bear_trend:
+                        return "BEAR"
+                    elif vol > p * 0.012:
+                        return "CAOTICO"
+                    else:
+                        return "LATERAL"
+                
+                df['regime'] = df.apply(classify_regime_row, axis=1)
+                df['disp_pct'] = (df['sma_5'] - df['sma_144']) / df['sma_144'] * 100
+                smas_col = ['sma_5','sma_13','sma_21','sma_55','sma_144']
+                df['mola_pct'] = df[smas_col].std(axis=1) / df[smas_col].mean(axis=1) * 100
+                df['infil_bull'] = (df['sma_5'] > df['sma_13']) & (df['sma_13'] > df['sma_21']) & (df['sma_55'] < df['sma_144'])
+                df['infil_bear'] = (df['sma_5'] < df['sma_13']) & (df['sma_13'] < df['sma_21']) & (df['sma_55'] > df['sma_144'])
+                df['reteste_val'] = ((df['close'] - df['sma_55']).abs() / df['sma_55'] * 100 < 0.8) | ((df['close'] - df['sma_144']).abs() / df['sma_144'] * 100 < 0.8)
+                df.bfill(inplace=True)
+                st.session_state.tg_data = df
+
+        def compute_bot_signal(df, step):
+            """Calcula sinal do bot: LONG / SHORT / HOLD com confianca 0-100%."""
+            if step < 10:
+                return "HOLD", 0.0, {}
+                
+            # Verificar se a estratégia ativa é o Cérebro de Consenso DNA
+            if st.session_state.get("tg_strategy_type", "Default") == "Cérebro de Consenso (Lab)" and os.path.exists("bot_consensus_dna.json"):
+                try:
+                    with open("bot_consensus_dna.json", "r", encoding="utf-8") as f:
+                        dna = json.load(f)
+                    reg = df['regime'].iloc[step]
+                    reg_rules = dna["regimes"].get(reg, {})
+                    
+                    if reg_rules and reg_rules.get("active", False):
+                        stretch = df['stretching'].iloc[step]
+                        mola_pct = df['mola_pct'].iloc[step]
+                        disp_pct = df['disp_pct'].iloc[step]
+                        acc = df['acceleration'].iloc[step]
+                        
+                        # --- CONDIÇÕES DE COMPRA (LONG) ---
+                        opp_rules = reg_rules.get("buy_rules", {})
+                        cond_long = {}
+                        if opp_rules.get("stretching", {}).get("stable", False):
+                            min_l = opp_rules["stretching"].get("min_limit")
+                            max_l = opp_rules["stretching"].get("max_limit")
+                            if min_l is not None and max_l is not None:
+                                cond_long["Stretching Fundo"] = (min_l <= stretch <= max_l)
+                        if opp_rules.get("mola", {}).get("stable", False):
+                            max_l = opp_rules["mola"].get("max_limit")
+                            if max_l is not None:
+                                cond_long["Coesão Mola"] = (mola_pct <= max_l)
+                        if opp_rules.get("disp", {}).get("stable", False):
+                            max_l = opp_rules["disp"].get("max_limit")
+                            if max_l is not None:
+                                cond_long["Dispersão Mola"] = (disp_pct <= max_l)
+                        if opp_rules.get("acceleration", {}).get("stable", False):
+                            mean_acc = opp_rules["acceleration"].get("mean", 0.0)
+                            cond_long["Aceleração Reversão"] = (acc > 0) if mean_acc > 0 else (acc < 0)
+                        if opp_rules.get("infil", {}).get("active", False):
+                            cond_long["Infiltração Bull"] = bool(df['infil_bull'].iloc[step])
+                        if opp_rules.get("reteste", {}).get("active", False):
+                            cond_long["Reteste Fibo"] = bool(df['reteste_val'].iloc[step])
+                        cond_long["Cruzamento Rápido (5 > 13)"] = bool(df['sma_5'].iloc[step] > df['sma_13'].iloc[step])
+                        
+                        # --- CONDIÇÕES DE VENDA (SHORT) ---
+                        thr_rules = reg_rules.get("sell_rules", {})
+                        cond_short = {}
+                        if thr_rules.get("stretching", {}).get("stable", False):
+                            min_l = thr_rules["stretching"].get("min_limit")
+                            max_l = thr_rules["stretching"].get("max_limit")
+                            if min_l is not None and max_l is not None:
+                                cond_short["Stretching Topo"] = (min_l <= stretch <= max_l)
+                        if thr_rules.get("mola", {}).get("stable", False):
+                            mean_m = thr_rules["mola"].get("mean", 0.0)
+                            cond_short["Coesão Mola"] = (mola_pct >= mean_m)
+                        if thr_rules.get("disp", {}).get("stable", False):
+                            limit_d = thr_rules["disp"].get("limit")
+                            if limit_d is not None:
+                                cond_short["Parede Sobrestiramento"] = (disp_pct >= limit_d) if limit_d >= 0 else (disp_pct >= limit_d)
+                        if thr_rules.get("acceleration", {}).get("stable", False):
+                            mean_acc = thr_rules["acceleration"].get("mean", 0.0)
+                            cond_short["Aceleração Reversão"] = (acc > 0) if mean_acc > 0 else (acc < 0)
+                        cond_short["Cruzamento Rápido (5 < 13)"] = bool(df['sma_5'].iloc[step] < df['sma_13'].iloc[step])
+                        
+                        long_score = sum(cond_long.values()) / len(cond_long) if cond_long else 0.0
+                        short_score = sum(cond_short.values()) / len(cond_short) if cond_short else 0.0
+                        
+                        if long_score > short_score and long_score >= 0.60:
+                            return "LONG", round(long_score * 100), cond_long
+                        elif short_score > long_score and short_score >= 0.60:
+                            return "SHORT", round(short_score * 100), cond_short
+                        else:
+                            return "HOLD", round(max(long_score, short_score) * 100), cond_long if long_score >= short_score else cond_short
+                except Exception:
+                    pass
+                    
+            # Fallback para regras padrão do jogo
+            vel = df['velocity'].iloc[step]
+            acc = df['acceleration'].iloc[step]
+            stretch = df['stretching'].iloc[step]
+            compress_thresh = st.session_state.tg_bot_compress_thresh
+            vel_thresh = st.session_state.tg_bot_vel_thresh
+
+            # Condicoes individuais
+            vel_pos = vel > vel_thresh
+            vel_neg = vel < -vel_thresh
+            acc_pos = acc > 0
+            acc_neg = acc < 0
+            compressed = stretch < compress_thresh
+            overextended = stretch > compress_thresh * 3.5
+
+            cond_long  = {"Velocity +": vel_pos, "Acceleration +": acc_pos, "Compressao": compressed}
+            cond_short = {"Velocity -": vel_neg, "Acceleration -": acc_neg, "Compressao": compressed}
+
+            long_score  = sum(cond_long.values())  / len(cond_long)
+            short_score = sum(cond_short.values()) / len(cond_short)
+
+            # Penalizar sobreextensao
+            if overextended:
+                long_score  *= 0.4
+                short_score *= 0.4
+
+            if long_score > short_score and long_score >= 0.60:
+                confidence = round(long_score * 100)
+                return "LONG", confidence, cond_long
+            elif short_score > long_score and short_score >= 0.60:
+                confidence = round(short_score * 100)
+                return "SHORT", confidence, cond_short
+            else:
+                confidence = round(max(long_score, short_score) * 100)
+                return "HOLD", confidence, cond_long if long_score >= short_score else cond_short
+
+        def start_new_game():
+            st.session_state.tg_data = generate_game_market()
+            st.session_state.tg_step = 144
+            st.session_state.tg_capital = 100.0
+            st.session_state.tg_position = "NONE"
+            st.session_state.tg_entry_price = 0.0
+            st.session_state.tg_entry_step = 0
+            st.session_state.tg_trades = []
+            st.session_state.tg_active = True
+            st.session_state.tg_game_finished = False
+            st.session_state.tg_running = False
+            st.session_state.tg_highest_price = 0.0
+            st.session_state.tg_lowest_price = 999999.0
+
+        def load_highscores():
+            if os.path.exists(highscores_file):
+                try:
+                    with open(highscores_file, "r", encoding="utf-8") as f:
+                        return json.load(f)
+                except Exception:
+                    return []
+            return []
+
+        def save_highscore(name, final_capital, trades_count):
+            scores = load_highscores()
+            config_desc = (f"Medias:[{st.session_state.tg_p2},{st.session_state.tg_p3},{st.session_state.tg_p4},{st.session_state.tg_p5},{st.session_state.tg_p6}] "
+                           f"SL={st.session_state.tg_sl_pct if st.session_state.tg_sl_active else 'OFF'}% "
+                           f"TP={st.session_state.tg_tp_pct if st.session_state.tg_tp_active else 'OFF'}% "
+                           f"TS={st.session_state.tg_ts_pct if st.session_state.tg_ts_active else 'OFF'}%")
+            scores.append({
+                "name": name, "capital": float(final_capital),
+                "return": float(final_capital - 100.0), "trades": int(trades_count),
+                "config": config_desc, "date": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M")
+            })
+            scores = sorted(scores, key=lambda x: x["capital"], reverse=True)[:5]
+            try:
+                with open(highscores_file, "w", encoding="utf-8") as f:
+                    json.dump(scores, f, indent=2, ensure_ascii=False)
+            except Exception:
+                pass
+
+        def save_last_game_persistent(df):
+            try:
+                df.to_csv("last_game_data.csv", index=True)
+                game_meta = {
+                    "capital": st.session_state.tg_capital,
+                    "trades": st.session_state.tg_trades,
+                    "trader_name": st.session_state.tg_trader_name,
+                    "p2": st.session_state.tg_p2,
+                    "p3": st.session_state.tg_p3,
+                    "p4": st.session_state.tg_p4,
+                    "p5": st.session_state.tg_p5,
+                    "p6": st.session_state.tg_p6,
+                }
+                with open("last_game_state.json", "w", encoding="utf-8") as f:
+                    json.dump(game_meta, f, indent=2, ensure_ascii=False)
+            except Exception:
+                pass
+
+        # CSS dos botoes casino
+        st.markdown("""
+        <style>
+        div[data-testid="column"]:has(div.game-control-anchor) {
+            background: rgba(255,255,255,0.45) !important;
+            backdrop-filter: blur(16px) !important;
+            border-radius: 16px !important;
+            border: 1px solid rgba(255,255,255,0.2) !important;
+            padding: 16px !important;
+            box-shadow: 0 8px 32px 0 rgba(31,38,135,0.08) !important;
+            border-left: 5px solid #7c3aed !important;
+        }
+        @keyframes pulse-green {
+            0% { box-shadow: 0 0 15px rgba(34,197,94,0.6), inset 0 0 5px rgba(255,255,255,0.4); }
+            100% { box-shadow: 0 0 35px rgba(34,197,94,1.0), inset 0 0 10px rgba(255,255,255,0.8); }
+        }
+        @keyframes pulse-red {
+            0% { box-shadow: 0 0 15px rgba(239,68,68,0.6), inset 0 0 5px rgba(255,255,255,0.4); }
+            100% { box-shadow: 0 0 35px rgba(239,68,68,1.0), inset 0 0 10px rgba(255,255,255,0.8); }
+        }
+        .review-banner {
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            border-radius: 14px;
+            padding: 18px 24px;
+            margin-bottom: 14px;
+            border: 1px solid rgba(99,102,241,0.4);
+            box-shadow: 0 0 40px rgba(99,102,241,0.15);
+        }
+        .review-stat {
+            text-align: center;
+            padding: 8px 12px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 10px;
+            border: 1px solid rgba(255,255,255,0.08);
+        }
+        </style>
+        """, unsafe_allow_html=True)
+
+        # --- COCKPIT DE CONFIGURACOES ---
+        with st.expander("Configuracao: Periodos das Medias & Risco", expanded=not st.session_state.tg_active and not st.session_state.tg_game_finished):
+            col_c1, col_c2, col_c3 = st.columns([0.8, 1.8, 1.0])
+            with col_c1:
+                st.markdown("##### Jogador")
+                name_input = st.text_input("Nome:", value=st.session_state.tg_trader_name, key="tg_name_wdg")
+                if name_input: st.session_state.tg_trader_name = name_input
+                st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
+                if st.button("Iniciar / Novo Jogo", type="primary", use_container_width=True):
+                    start_new_game()
+                    st.rerun()
+            with col_c2:
+                st.markdown("##### Periodos das Medias Moveis")
+                s1,s2,s3,s4,s5 = st.columns(5)
+                with s1: new_p2 = st.number_input("Rapida", min_value=2, max_value=20, value=st.session_state.tg_p2, step=1, key="tg_in_p2")
+                with s2: new_p3 = st.number_input("Confirm.", min_value=5, max_value=40, value=st.session_state.tg_p3, step=1, key="tg_in_p3")
+                with s3: new_p4 = st.number_input("Media", min_value=10, max_value=80, value=st.session_state.tg_p4, step=1, key="tg_in_p4")
+                with s4: new_p5 = st.number_input("Longa", min_value=20, max_value=150, value=st.session_state.tg_p5, step=1, key="tg_in_p5")
+                with s5: new_p6 = st.number_input("Mestra", min_value=50, max_value=300, value=st.session_state.tg_p6, step=1, key="tg_in_p6")
+                if (new_p2!=st.session_state.tg_p2 or new_p3!=st.session_state.tg_p3 or
+                    new_p4!=st.session_state.tg_p4 or new_p5!=st.session_state.tg_p5 or new_p6!=st.session_state.tg_p6):
+                    st.session_state.tg_p2,st.session_state.tg_p3 = new_p2,new_p3
+                    st.session_state.tg_p4,st.session_state.tg_p5 = new_p4,new_p5
+                    st.session_state.tg_p6 = new_p6
+                    recalculate_indicators()
+                    st.toast("Medias recalculadas!")
+                    st.rerun()
+            with col_c3:
+                st.markdown("##### Estratégia do Robô")
+                strat_choice = st.selectbox(
+                    "Modelo de Decisão:", ["Default (Fórmula do Jogo)", "Cérebro de Consenso (Lab)"],
+                    index=0 if st.session_state.tg_strategy_type == "Default" else 1,
+                    key="tg_strategy_type_select"
+                )
+                if strat_choice != st.session_state.tg_strategy_type:
+                    st.session_state.tg_strategy_type = strat_choice
+                    if "Cérebro" in strat_choice:
+                        if os.path.exists("bot_consensus_dna.json"):
+                            try:
+                                with open("bot_consensus_dna.json", "r", encoding="utf-8") as f:
+                                    dna = json.load(f)
+                                smas = dna.get("smas", [5, 13, 21, 55, 144])
+                                st.session_state.tg_p2 = smas[0]
+                                st.session_state.tg_p3 = smas[1]
+                                st.session_state.tg_p4 = smas[2]
+                                st.session_state.tg_p5 = smas[3]
+                                st.session_state.tg_p6 = smas[4]
+                                recalculate_indicators()
+                                st.toast("Médias sincronizadas com o Cérebro de Consenso!")
+                            except Exception:
+                                pass
+                    st.rerun()
+                
+                st.markdown("##### Risco")
+                st.session_state.tg_sl_active = st.checkbox("Stop Loss (SL)", value=st.session_state.tg_sl_active)
+                if st.session_state.tg_sl_active:
+                    st.session_state.tg_sl_pct = st.slider("SL (%)", 0.5, 5.0, value=st.session_state.tg_sl_pct, step=0.1)
+                st.session_state.tg_tp_active = st.checkbox("Take Profit (TP)", value=st.session_state.tg_tp_active)
+                if st.session_state.tg_tp_active:
+                    st.session_state.tg_tp_pct = st.slider("TP (%)", 1.0, 10.0, value=st.session_state.tg_tp_pct, step=0.1)
+                st.session_state.tg_ts_active = st.checkbox("Trailing Stop (TS)", value=st.session_state.tg_ts_active)
+                if st.session_state.tg_ts_active:
+                    st.session_state.tg_ts_pct = st.slider("TS (%)", 0.5, 4.0, value=st.session_state.tg_ts_pct, step=0.1)
+
+        # =========================================================================
+        # MODO REVISAO: gráfico completo apos o fim do jogo
+        # =========================================================================
+        if st.session_state.tg_game_finished and st.session_state.tg_data is not None:
+            df = st.session_state.tg_data
+            ret_pct = st.session_state.tg_capital - 100.0
+            ret_color = "#10B981" if ret_pct >= 0 else "#EF4444"
+            emoji_result = "🏆" if ret_pct > 0 else ("😐" if ret_pct == 0 else "💀")
+
+            st.markdown(f"""
+            <div class="review-banner">
+                <div style="color:#94a3b8; font-size:13px; margin-bottom:12px; letter-spacing:2px; text-transform:uppercase;">
+                    {emoji_result} Sessao concluida — {st.session_state.tg_trader_name} &nbsp;&nbsp;•&nbsp;&nbsp; Grafico completo disponivel para consulta
+                </div>
+                <div style="display:flex; gap:16px; flex-wrap:wrap;">
+                    <div class="review-stat" style="flex:1;">
+                        <div style="color:#64748b; font-size:11px; text-transform:uppercase;">Banca Final</div>
+                        <div style="color:#10B981; font-size:22px; font-weight:900; font-family:monospace;">{st.session_state.tg_capital:.2f} EUR</div>
+                    </div>
+                    <div class="review-stat" style="flex:1;">
+                        <div style="color:#64748b; font-size:11px; text-transform:uppercase;">Retorno Total</div>
+                        <div style="color:{ret_color}; font-size:22px; font-weight:900; font-family:monospace;">{ret_pct:+.2f}%</div>
+                    </div>
+                    <div class="review-stat" style="flex:1;">
+                        <div style="color:#64748b; font-size:11px; text-transform:uppercase;">Operacoes</div>
+                        <div style="color:#e2e8f0; font-size:22px; font-weight:900; font-family:monospace;">{len(st.session_state.tg_trades)}</div>
+                    </div>
+                    <div class="review-stat" style="flex:1;">
+                        <div style="color:#64748b; font-size:11px; text-transform:uppercase;">Win Rate</div>
+                        <div style="color:#e2e8f0; font-size:22px; font-weight:900; font-family:monospace;">
+                            {(sum(1 for t in st.session_state.tg_trades if t.get('pnl_pct', 0) > 0) / max(len(st.session_state.tg_trades), 1) * 100):.0f}%
+                        </div>
+                    </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            col_rev_chart, col_rev_ctrl = st.columns([7, 3])
+
+            with col_rev_ctrl:
+                st.markdown('<div class="game-control-anchor"></div>', unsafe_allow_html=True)
+                st.markdown("##### Ordens Fechadas")
+                if st.session_state.tg_trades:
+                    for i, tr in enumerate(st.session_state.tg_trades, 1):
+                        clr = "#10B981" if tr.get('pnl_pct',0) >= 0 else "#EF4444"
+                        st.markdown(f"<div style='font-size:12px; padding:4px 0; border-bottom:1px solid #f1f5f9;'>"
+                                    f"<b style='color:{clr};'>#{i} {tr['type']}</b>  "
+                                    f"<span style='color:#64748b;'>{tr.get('entry_price',0):.2f}→{tr.get('exit_price',0):.2f}</span>  "
+                                    f"<b style='color:{clr};'>{tr.get('pnl_pct',0):+.2f}%</b></div>", unsafe_allow_html=True)
+                st.markdown("<hr style='margin:8px 0;'>", unsafe_allow_html=True)
+                if st.button("Novo Jogo", type="primary", width='stretch', key="rv_new_game"):
+                    start_new_game()
+                    st.rerun()
+
+            with col_rev_chart:
+                # Grafico completo: das 100 velas jogadas (step 144 a 244)
+                full_game_df = df.iloc[144:245]
+                # Checkboxes cinzentas redundantes removidas. Controlo feito diretamente por clique na legenda do Plotly!
+
+                fig_review = _build_chart(
+                    full_game_df, df,
+                    title_str=f"Revisao Completa — {st.session_state.tg_trader_name} | 100 Velas Jogadas",
+                    show_full_range=True
+                )
+                st.plotly_chart(fig_review, use_container_width=True)
+
+        # =========================================================================
+        # MODO JOGO ATIVO
+        # =========================================================================
+        elif st.session_state.tg_active and st.session_state.tg_data is not None:
+            df = st.session_state.tg_data
+            current_step = st.session_state.tg_step
+            progress_candles = current_step - 144
+            price_now = df['close'].iloc[current_step]
+
+            # Gatilhos de seguranca
+            if st.session_state.tg_position != "NONE":
+                entry_p = st.session_state.tg_entry_price
+                triggered = False
+                trigger_reason = ""
+                executed_price = price_now
+                if st.session_state.tg_position == "LONG":
+                    st.session_state.tg_highest_price = max(st.session_state.tg_highest_price, price_now)
+                    if st.session_state.tg_sl_active and price_now <= entry_p * (1 - st.session_state.tg_sl_pct/100.0):
+                        triggered, trigger_reason = True, "STOP LOSS"
+                        executed_price = entry_p * (1 - st.session_state.tg_sl_pct/100.0)
+                    elif st.session_state.tg_tp_active and price_now >= entry_p * (1 + st.session_state.tg_tp_pct/100.0):
+                        triggered, trigger_reason = True, "TAKE PROFIT"
+                        executed_price = entry_p * (1 + st.session_state.tg_tp_pct/100.0)
+                    elif st.session_state.tg_ts_active and price_now <= st.session_state.tg_highest_price * (1 - st.session_state.tg_ts_pct/100.0):
+                        triggered, trigger_reason = True, "TRAILING STOP"
+                        executed_price = st.session_state.tg_highest_price * (1 - st.session_state.tg_ts_pct/100.0)
+                elif st.session_state.tg_position == "SHORT":
+                    st.session_state.tg_lowest_price = min(st.session_state.tg_lowest_price, price_now)
+                    if st.session_state.tg_sl_active and price_now >= entry_p * (1 + st.session_state.tg_sl_pct/100.0):
+                        triggered, trigger_reason = True, "STOP LOSS"
+                        executed_price = entry_p * (1 + st.session_state.tg_sl_pct/100.0)
+                    elif st.session_state.tg_tp_active and price_now <= entry_p * (1 - st.session_state.tg_tp_pct/100.0):
+                        triggered, trigger_reason = True, "TAKE PROFIT"
+                        executed_price = entry_p * (1 - st.session_state.tg_tp_pct/100.0)
+                    elif st.session_state.tg_ts_active and price_now >= st.session_state.tg_lowest_price * (1 + st.session_state.tg_ts_pct/100.0):
+                        triggered, trigger_reason = True, "TRAILING STOP"
+                        executed_price = st.session_state.tg_lowest_price * (1 + st.session_state.tg_ts_pct/100.0)
+                if triggered:
+                    commissions = st.session_state.tg_capital * 0.0005
+                    if st.session_state.tg_position == "LONG":
+                        trade_pnl_pct = (executed_price - entry_p) / entry_p * 100
+                    else:
+                        trade_pnl_pct = (entry_p - executed_price) / entry_p * 100
+                    net_pnl = st.session_state.tg_capital * (trade_pnl_pct / 100.0) - commissions
+                    st.session_state.tg_capital += net_pnl
+                    st.session_state.tg_trades.append({
+                        "type": st.session_state.tg_position, "entry_price": entry_p, "exit_price": executed_price,
+                        "pnl_pct": trade_pnl_pct, "pnl_eur": net_pnl,
+                        "candles": current_step - st.session_state.tg_entry_step,
+                        "reason": trigger_reason, "entry_step": st.session_state.tg_entry_step, "exit_step": current_step
+                    })
+                    old_pos = st.session_state.tg_position
+                    st.session_state.tg_position = "NONE"
+                    st.toast(f"{trigger_reason} ativado! Posicao {old_pos} liquidada a {executed_price:.2f}")
+                    st.rerun()
+
+            # Fim do desafio (100 velas jogadas)
+            if progress_candles >= 100:
+                # Fechar posicao aberta
+                if st.session_state.tg_position != "NONE":
+                    entry_p = st.session_state.tg_entry_price
+                    commissions = st.session_state.tg_capital * 0.0005
+                    trade_pnl_pct = (price_now - entry_p)/entry_p*100 if st.session_state.tg_position == "LONG" else (entry_p - price_now)/entry_p*100
+                    net_pnl = st.session_state.tg_capital * (trade_pnl_pct/100.0) - commissions
+                    st.session_state.tg_capital += net_pnl
+                    st.session_state.tg_trades.append({
+                        "type": st.session_state.tg_position, "entry_price": entry_p, "exit_price": price_now,
+                        "pnl_pct": trade_pnl_pct, "pnl_eur": net_pnl,
+                        "candles": current_step - st.session_state.tg_entry_step,
+                        "reason": "Fim do Jogo", "entry_step": st.session_state.tg_entry_step, "exit_step": current_step
+                    })
+                    st.session_state.tg_position = "NONE"
+                save_highscore(st.session_state.tg_trader_name, st.session_state.tg_capital, len(st.session_state.tg_trades))
+                save_last_game_persistent(df)
+                # Transicao para modo revisao (nao apaga os dados!)
+                st.session_state.tg_active = False
+                st.session_state.tg_game_finished = True
+                st.session_state.tg_running = False
+                st.balloons()
+                st.rerun()
+
+            pos_str = "FORA"
+            if st.session_state.tg_position == "LONG":
+                pos_str = f"LONG ({st.session_state.tg_entry_price:.2f})"
+            elif st.session_state.tg_position == "SHORT":
+                pos_str = f"SHORT ({st.session_state.tg_entry_price:.2f})"
+
+            ret_pct = st.session_state.tg_capital - 100.0
+            ret_color = "#10B981" if ret_pct >= 0 else "#EF4444"
+            st.markdown(f"""
+            <div style="padding:10px 20px; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center;
+                 border-radius:10px; background:rgba(255,255,255,0.6); backdrop-filter:blur(12px);
+                 box-shadow:0 4px 15px rgba(0,0,0,0.05); border:1px solid rgba(255,255,255,0.3);">
+                <div>Banca: <b style="color:#10B981; font-family:monospace;">{st.session_state.tg_capital:.2f} EUR</b></div>
+                <div>Retorno: <b style="color:{ret_color}; font-family:monospace;">{ret_pct:+.2f}%</b></div>
+                <div>Posicao: <b style="color:#00B0FF;">{pos_str}</b></div>
+                <div>Progresso: <b style="font-family:monospace;">{progress_candles} / 100</b></div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            col_left, col_right = st.columns([7, 3])
+
+            with col_left:
+                start_idx = max(50, current_step - 49)
+                sub_df = df.iloc[start_idx:current_step+1]
+                # Checkboxes cinzentas redundantes removidas. Controlo feito diretamente por clique na legenda do Plotly!
+
+                fig = _build_chart(
+                    sub_df, df,
+                    title_str=f"Arena Real — Batimento {progress_candles} / 100 Velas (ultimas {len(sub_df)})"
+                )
+                st.plotly_chart(fig, use_container_width=True)
+
+            with col_right:
+                st.markdown('<div class="game-control-anchor"></div>', unsafe_allow_html=True)
+
+                # Controlo de fluxo
+                st.markdown("##### Controlo de Fluxo")
+                col_t1, col_t2 = st.columns(2)
+                with col_t1:
+                    if st.button("Avancar", width='stretch', key="tg_step_btn"):
+                        st.session_state.tg_step += 1
+                        st.rerun()
+                with col_t2:
+                    btn_label = "Pausar" if st.session_state.tg_running else "Auto"
+                    if st.button(btn_label, width='stretch', key="tg_loop_btn"):
+                        st.session_state.tg_running = not st.session_state.tg_running
+                        st.rerun()
+
+                tg_speed_select = st.selectbox(
+                    "Velocidade:", ["Lento (1.0s)", "Medio (0.3s)", "Rapido (0.05s)"],
+                    index=1, label_visibility="collapsed", key="tg_speed_widget"
+                )
+                tg_delay = 1.0 if "Lento" in tg_speed_select else (0.3 if "Medio" in tg_speed_select else 0.05)
+
+                st.markdown("<hr style='margin:8px 0; border:0; border-top:1px solid rgba(0,0,0,0.08);'>", unsafe_allow_html=True)
+
+                # --- PAINEL DO BOT ---
+                st.markdown("##### 🤖 Co-piloto & Bot")
+                bot_mode_choice = st.radio(
+                    "Modo:", ["Manual", "Co-piloto", "Bot Autónomo"],
+                    horizontal=True, index=["Manual","Co-piloto","Bot Autónomo"].index(st.session_state.tg_bot_mode),
+                    key="tg_bot_mode_radio", label_visibility="collapsed"
+                )
+                if bot_mode_choice != st.session_state.tg_bot_mode:
+                    st.session_state.tg_bot_mode = bot_mode_choice
+
+                # Compute signal always (needed for co-pilot display and bot mode)
+                _bot_signal, _bot_conf, _bot_conds = compute_bot_signal(df, current_step)
+                _sig_color = {"LONG": "#10B981", "SHORT": "#EF4444", "HOLD": "#94a3b8"}[_bot_signal]
+                _sig_emoji = {"LONG": "🟢", "SHORT": "🔴", "HOLD": "⚪"}[_bot_signal]
+
+                # Signal display (always visible in co-pilot and autonomous)
+                if st.session_state.tg_bot_mode != "Manual":
+                    # Mapeamento do nome do DNA e regime detetado
+                    dna_active = st.session_state.get("tg_strategy_type", "Default") == "Cérebro de Consenso (Lab)"
+                    regime_label = ""
+                    if dna_active:
+                        regime_name = df['regime'].iloc[current_step]
+                        regime_emoji = {"BULL": "🟢 BULL", "BEAR": "🔴 BEAR", "LATERAL": "🟡 LATERAL", "CAOTICO": "⚡ CAÓTICO"}.get(regime_name, "🟡 LATERAL")
+                        regime_label = f'<div style="font-size:11px; margin-bottom:4px; font-weight:bold; color:#7c3aed;">🧠 DNA ATIVO | REGIME DETETADO: {regime_emoji}</div>'
+                    
+                    st.markdown(f"""
+                    <div style="background:rgba(255,255,255,0.45); border-radius:10px; padding:10px 14px; margin:6px 0;
+                         border-left:4px solid {_sig_color}; box-shadow:0 4px 15px rgba(0,0,0,0.02); border:1px solid rgba(255,255,255,0.25);">
+                        {regime_label}
+                        <div style="font-size:18px; font-weight:900; color:{_sig_color};">
+                            {_sig_emoji} {_bot_signal} &nbsp;<span style="font-size:13px; color:#64748b;">confiança {_bot_conf}%</span>
+                        </div>
+                        <div style="margin-top:6px; font-size:12px; line-height:1.8;">
+                            {"".join(f"<span style=\'color:{"#10B981" if v else "#EF4444"};\'>{"✅" if v else "❌"} {k}</span><br>" for k, v in _bot_conds.items())}
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                    # BOT AUTONOMO: executa posicoes automaticamente
+                    if st.session_state.tg_bot_mode == "Bot Autónomo":
+                        _pos = st.session_state.tg_position
+                        # Entrar em posicao se HOLD e sinal claro
+                        if _pos == "NONE" and _bot_signal == "LONG" and _bot_conf >= 67:
+                            st.session_state.tg_position = "LONG"
+                            st.session_state.tg_entry_price = price_now
+                            st.session_state.tg_entry_step = current_step
+                            st.session_state.tg_highest_price = price_now
+                            st.toast(f"🤖 Bot entrou LONG a {price_now:.2f}")
+                        elif _pos == "NONE" and _bot_signal == "SHORT" and _bot_conf >= 67:
+                            st.session_state.tg_position = "SHORT"
+                            st.session_state.tg_entry_price = price_now
+                            st.session_state.tg_entry_step = current_step
+                            st.session_state.tg_lowest_price = price_now
+                            st.toast(f"🤖 Bot entrou SHORT a {price_now:.2f}")
+                        # Sair se sinal invertido ou HOLD com posicao aberta
+                        elif _pos == "LONG" and (_bot_signal == "SHORT" or (_bot_signal == "HOLD" and _bot_conf >= 67)):
+                            entry_p = st.session_state.tg_entry_price
+                            commissions = st.session_state.tg_capital * 0.0005
+                            pnl_pct = (price_now - entry_p) / entry_p * 100
+                            net_pnl = st.session_state.tg_capital * (pnl_pct/100.0) - commissions
+                            st.session_state.tg_capital += net_pnl
+                            st.session_state.tg_trades.append({
+                                "type": "LONG", "entry_price": entry_p, "exit_price": price_now,
+                                "pnl_pct": pnl_pct, "pnl_eur": net_pnl,
+                                "candles": current_step - st.session_state.tg_entry_step,
+                                "reason": f"Bot Exit ({_bot_signal})", "entry_step": st.session_state.tg_entry_step, "exit_step": current_step
+                            })
+                            st.session_state.tg_position = "NONE"
+                            st.toast(f"🤖 Bot saiu LONG a {price_now:.2f} ({pnl_pct:+.2f}%)")
+                        elif _pos == "SHORT" and (_bot_signal == "LONG" or (_bot_signal == "HOLD" and _bot_conf >= 67)):
+                            entry_p = st.session_state.tg_entry_price
+                            commissions = st.session_state.tg_capital * 0.0005
+                            pnl_pct = (entry_p - price_now) / entry_p * 100
+                            net_pnl = st.session_state.tg_capital * (pnl_pct/100.0) - commissions
+                            st.session_state.tg_capital += net_pnl
+                            st.session_state.tg_trades.append({
+                                "type": "SHORT", "entry_price": entry_p, "exit_price": price_now,
+                                "pnl_pct": pnl_pct, "pnl_eur": net_pnl,
+                                "candles": current_step - st.session_state.tg_entry_step,
+                                "reason": f"Bot Exit ({_bot_signal})", "entry_step": st.session_state.tg_entry_step, "exit_step": current_step
+                            })
+                            st.session_state.tg_position = "NONE"
+                            st.toast(f"🤖 Bot saiu SHORT a {price_now:.2f} ({pnl_pct:+.2f}%)")
+
+                st.markdown("<hr style='margin:8px 0; border:0; border-top:1px solid rgba(0,0,0,0.08);'>", unsafe_allow_html=True)
+
+                # (second hr removed - now merged above)
+                _dummy_hr = True  # placeholder
+
+                # Visibilidade das linhas
+
+                # Operar posicoes
+                st.markdown("##### Operar Posicoes")
+                if st.session_state.tg_position == "LONG":
+                    long_pnl = (price_now - st.session_state.tg_entry_price)/st.session_state.tg_entry_price*100
+                    if st.button(f"LONG ATIVO [ON] | {long_pnl:+.2f}%", width='stretch', key="tg_btn_long_act"):
+                        entry_p = st.session_state.tg_entry_price
+                        commissions = st.session_state.tg_capital * 0.0005
+                        trade_pnl_pct = (price_now - entry_p)/entry_p*100
+                        net_pnl = st.session_state.tg_capital * (trade_pnl_pct/100.0) - commissions
+                        st.session_state.tg_capital += net_pnl
+                        st.session_state.tg_trades.append({
+                            "type": "LONG", "entry_price": entry_p, "exit_price": price_now,
+                            "pnl_pct": trade_pnl_pct, "pnl_eur": net_pnl,
+                            "candles": current_step - st.session_state.tg_entry_step,
+                            "reason": "Manual Exit", "entry_step": st.session_state.tg_entry_step, "exit_step": current_step
+                        })
+                        st.session_state.tg_position = "NONE"
+                        save_last_game_persistent(df)
+                        st.toast(f"LONG fechado a {price_now:.2f}")
+                        st.rerun()
+                elif st.session_state.tg_position == "NONE":
+                    if st.button("ENTRAR LONG [OFF]", width='stretch', key="tg_btn_long_inact"):
+                        st.session_state.tg_position = "LONG"
+                        st.session_state.tg_entry_price = price_now
+                        st.session_state.tg_entry_step = current_step
+                        st.session_state.tg_highest_price = price_now
+                        st.toast(f"LONG ativado a {price_now:.2f}")
+                        st.rerun()
+                else:
+                    st.button("LONG BLOQUEADO", disabled=True, width='stretch', key="tg_btn_long_blk")
+
+                st.markdown('<div style="height:5px;"></div>', unsafe_allow_html=True)
+
+                if st.session_state.tg_position == "SHORT":
+                    short_pnl = (st.session_state.tg_entry_price - price_now)/st.session_state.tg_entry_price*100
+                    if st.button(f"SHORT ATIVO [ON] | {short_pnl:+.2f}%", width='stretch', key="tg_btn_short_act"):
+                        entry_p = st.session_state.tg_entry_price
+                        commissions = st.session_state.tg_capital * 0.0005
+                        trade_pnl_pct = (entry_p - price_now)/entry_p*100
+                        net_pnl = st.session_state.tg_capital * (trade_pnl_pct/100.0) - commissions
+                        st.session_state.tg_capital += net_pnl
+                        st.session_state.tg_trades.append({
+                            "type": "SHORT", "entry_price": entry_p, "exit_price": price_now,
+                            "pnl_pct": trade_pnl_pct, "pnl_eur": net_pnl,
+                            "candles": current_step - st.session_state.tg_entry_step,
+                            "reason": "Manual Exit", "entry_step": st.session_state.tg_entry_step, "exit_step": current_step
+                        })
+                        st.session_state.tg_position = "NONE"
+                        save_last_game_persistent(df)
+                        st.toast(f"SHORT fechado a {price_now:.2f}")
+                        st.rerun()
+                elif st.session_state.tg_position == "NONE":
+                    if st.button("ENTRAR SHORT [OFF]", width='stretch', key="tg_btn_short_inact"):
+                        st.session_state.tg_position = "SHORT"
+                        st.session_state.tg_entry_price = price_now
+                        st.session_state.tg_entry_step = current_step
+                        st.session_state.tg_lowest_price = price_now
+                        st.toast(f"SHORT ativado a {price_now:.2f}")
+                        st.rerun()
+                else:
+                    st.button("SHORT BLOQUEADO", disabled=True, width='stretch', key="tg_btn_short_blk")
+
+            # Loop automatico
+            if st.session_state.tg_running and st.session_state.tg_active:
+                time.sleep(tg_delay)
+                if (st.session_state.tg_step - 144) < 100:
+                    st.session_state.tg_step += 1
+                    st.rerun()
+                else:
+                    st.session_state.tg_running = False
+                    st.rerun()
+
+        # Historico e leaderboard (sempre visiveis se houver dados)
+        if st.session_state.tg_data is not None or st.session_state.tg_trades:
+            st.markdown("---")
+            col_h1, col_h2 = st.columns(2)
+            with col_h1:
+                st.markdown("#### Historico de Ordens")
+                if st.session_state.tg_trades:
+                    th_df = pd.DataFrame(st.session_state.tg_trades)
+                    display_cols = {c: c for c in th_df.columns if c in ["type","entry_price","exit_price","pnl_pct","pnl_eur","candles","reason"]}
+                    st.dataframe(th_df[list(display_cols.keys())].rename(columns={
+                        "type":"Operacao","entry_price":"Entrada","exit_price":"Saida",
+                        "pnl_pct":"PnL (%)","pnl_eur":"Retorno","candles":"Duracao","reason":"Motivo"
+                    }), use_container_width=True)
+                else:
+                    st.info("Nenhuma ordem fechada.")
+            with col_h2:
+                st.markdown("#### Top 5 Recordes")
+                scores = load_highscores()
+                if scores:
+                    st.dataframe(pd.DataFrame(scores).rename(columns={
+                        "name":"Nome","capital":"Banca Final","return":"Lucro",
+                        "trades":"Trades","config":"Config","date":"Data"
+                    }), use_container_width=True)
+                else:
+                    st.info("Ainda nao ha recordes!")

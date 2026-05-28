@@ -383,6 +383,243 @@ class CaterpillarAIStrategy(BaseStrategy):
         msg = f"IA Score: {score:.2f} < {threshold:.2f}"
         return {"action": "HOLD", "signal": "HOLD", "price": p_c, "message": msg}
 
+import numpy as np
+
+class QuantumConsensusStrategy(BaseStrategy):
+    """
+    Estratégia Quantum Consensus (Fórmula Mágica).
+    Lê o ficheiro 'bot_consensus_dna.json' e executa apenas as regras estatísticas 
+    que passaram no teste de estabilidade (unânimes e sem contradição) para cada regime de mercado.
+    """
+    def __init__(self, logger=None):
+        self.logger = logger
+        self.dna_path = "bot_consensus_dna.json"
+        self.dna = None
+        self.load_dna()
+
+    def load_dna(self):
+        import json, os
+        if os.path.exists(self.dna_path):
+            try:
+                with open(self.dna_path, "r", encoding="utf-8") as f:
+                    self.dna = json.load(f)
+                msg = f"🔮 DNA de Consenso carregado! Sintonizado com {len(self.dna.get('selected_tests', []))} testes. Última atualização: {self.dna.get('last_updated', 'N/A')}"
+                if self.logger: self.logger.info(msg)
+                else: print(msg)
+            except Exception as e:
+                msg = f"Erro ao ler o DNA de Consenso: {e}"
+                if self.logger: self.logger.error(msg)
+                else: print(msg)
+        else:
+            msg = "⚠️ Ficheiro 'bot_consensus_dna.json' não encontrado! Usando fallback passivo."
+            if self.logger: self.logger.warning(msg)
+            else: print(msg)
+
+    def generate_signal(self, ohlcv_data: pd.DataFrame) -> dict:
+        if self.dna is None:
+            self.load_dna()
+            if self.dna is None:
+                return {"action": "HOLD", "signal": "HOLD", "price": None, "message": "Sem DNA de Consenso ativo."}
+
+        smas_periods = self.dna.get("smas", [5, 13, 21, 55, 144])
+        p2, p3, p4, p5, p6 = smas_periods
+        max_window = max(smas_periods)
+
+        if ohlcv_data.empty or len(ohlcv_data) < max_window:
+            return {"action": "HOLD", "signal": "HOLD", "price": None, "message": "Dados insuficientes para as médias do DNA de Consenso."}
+
+        df = ohlcv_data.copy()
+        
+        # Calcular médias móveis simples (SMA)
+        df['sma_p2'] = ta.trend.sma_indicator(df['close'], window=p2)
+        df['sma_p3'] = ta.trend.sma_indicator(df['close'], window=p3)
+        df['sma_p4'] = ta.trend.sma_indicator(df['close'], window=p4)
+        df['sma_p5'] = ta.trend.sma_indicator(df['close'], window=p5)
+        df['sma_p6'] = ta.trend.sma_indicator(df['close'], window=p6)
+        
+        needed_cols = ['sma_p2', 'sma_p3', 'sma_p4', 'sma_p5', 'sma_p6']
+        df = df.dropna(subset=needed_cols)
+        
+        if df.empty:
+            return {"action": "HOLD", "signal": "HOLD", "price": None, "message": "Dados insuficientes após cálculo das SMAs do DNA."}
+
+        # Calcular indicadores do cockpit
+        df['velocity'] = df['sma_p2'].diff(1)
+        df['acceleration'] = df['velocity'].diff(1)
+        df['volatility'] = df['close'].rolling(window=20, min_periods=1).std()
+        
+        smas_cols = ['sma_p2', 'sma_p3', 'sma_p4', 'sma_p5', 'sma_p6']
+        avg_sma = df[smas_cols].mean(axis=1)
+        df['stretching'] = df[smas_cols].sub(avg_sma, axis=0).abs().mean(axis=1).div(avg_sma).mul(100)
+        
+        # Classificar regime
+        last_row = df.iloc[-1]
+        previous_row = df.iloc[-2] if len(df) >= 2 else None
+        
+        p_c = last_row['close']
+        s2_c = last_row['sma_p2']
+        s3_c = last_row['sma_p3']
+        s4_c = last_row['sma_p4']
+        s5_c = last_row['sma_p5']
+        s6_c = last_row['sma_p6']
+        v_c = last_row['velocity']
+        vol_c = last_row['volatility']
+        stretch_c = last_row['stretching']
+        
+        if pd.isna(s6_c) or pd.isna(v_c) or pd.isna(vol_c) or pd.isna(stretch_c):
+            regime = "LATERAL"
+        else:
+            is_bull_trend = (s2_c > s3_c) and (s3_c > s4_c) and (s4_c > s5_c) and (v_c > 0)
+            is_bear_trend = (s2_c < s3_c) and (s3_c < s4_c) and (s4_c < s5_c) and (v_c < 0)
+            if stretch_c < 0.6:
+                regime = "LATERAL"
+            elif is_bull_trend:
+                regime = "BULL"
+            elif is_bear_trend:
+                regime = "BEAR"
+            elif vol_c > p_c * 0.012:
+                regime = "CAOTICO"
+            else:
+                regime = "LATERAL"
+
+        # Obter regras do regime ativo
+        reg_rules = self.dna.get("regimes", {}).get(regime, {})
+        if not reg_rules:
+            return {"action": "HOLD", "signal": "HOLD", "price": p_c, "message": f"Sem regras definidas para o regime {regime}."}
+            
+        buy_rules = reg_rules.get("buy_rules", {})
+        sell_rules = reg_rules.get("sell_rules", {})
+
+        # Calcular sensores adicionais de Fibonacci
+        std_val = np.std([s2_c, s3_c, s4_c, s5_c, s6_c])
+        mean_val = np.mean([s2_c, s3_c, s4_c, s5_c, s6_c])
+        mola_c = (std_val / mean_val * 100) if mean_val != 0 else 0.0
+        
+        infil_bull_c = (s2_c > s3_c > s4_c and s5_c < s6_c)
+        infil_bear_c = (s2_c < s3_c < s4_c and s5_c > s6_c)
+        
+        dist_p5 = (abs(p_c - s5_c) / s5_c * 100) if s5_c != 0 else 999.0
+        dist_p6 = (abs(p_c - s6_c) / s6_c * 100) if s6_c != 0 else 999.0
+        reteste_c = (dist_p5 < 0.8 or dist_p6 < 0.8)
+        
+        disp_c = ((s2_c - s6_c) / s6_c * 100) if s6_c != 0 else 0.0
+        acc_c = last_row['acceleration']
+
+        # --- GATILHOS DE ENTRADA (BUY) ---
+        crossover_buy = (s2_c > s3_c) # Gatilho primário
+        if previous_row is not None:
+            prev_price = previous_row['close']
+            price_growing = (p_c > prev_price)
+        else:
+            price_growing = True
+
+        buy_signals_passed = True
+        buy_debug_msgs = []
+
+        if crossover_buy and price_growing:
+            # Validar regras estáveis do DNA
+            # 1. Stretching
+            strt_r = buy_rules.get("stretching", {})
+            if strt_r.get("stable", False):
+                min_l = strt_r.get("min_limit")
+                max_l = strt_r.get("max_limit")
+                if min_l is not None and max_l is not None:
+                    if not (min_l <= stretch_c <= max_l):
+                        buy_signals_passed = False
+                        buy_debug_msgs.append(f"Stretching fora ({stretch_c:.2f}% vs [{min_l:.2f}%, {max_l:.2f}%])")
+            
+            # 2. Mola (Compressão)
+            mola_r = buy_rules.get("mola", {})
+            if mola_r.get("stable", False):
+                max_l = mola_r.get("max_limit")
+                if max_l is not None:
+                    if mola_c > max_l:
+                        buy_signals_passed = False
+                        buy_debug_msgs.append(f"Mola muito esticada ({mola_c:.2f}% > {max_l:.2f}%)")
+            
+            # 3. Disp (Dispersão)
+            disp_r = buy_rules.get("disp", {})
+            if disp_r.get("stable", False):
+                max_l = disp_r.get("max_limit")
+                if max_l is not None:
+                    if disp_c > max_l:
+                        buy_signals_passed = False
+                        buy_debug_msgs.append(f"Disp. Vetorial acima ({disp_c:.2f}% > {max_l:.2f}%)")
+
+            # 4. Acceleration
+            acc_r = buy_rules.get("acceleration", {})
+            if acc_r.get("stable", False):
+                mean_l = acc_r.get("mean", 0.0)
+                if acc_c <= mean_l:
+                    buy_signals_passed = False
+                    buy_debug_msgs.append(f"Aceleração fraca ({acc_c:+.4f} <= {mean_l:+.4f})")
+
+            # 5. Infiltração
+            infil_r = buy_rules.get("infil", {})
+            if infil_r.get("active", False):
+                if not infil_bull_c:
+                    buy_signals_passed = False
+                    buy_debug_msgs.append("Sem Infiltração Bull")
+
+            # 6. Reteste Gravitacional
+            reteste_r = buy_rules.get("reteste", {})
+            if reteste_r.get("active", False):
+                if not reteste_c:
+                    buy_signals_passed = False
+                    buy_debug_msgs.append("Sem Reteste de Suporte")
+        else:
+            buy_signals_passed = False
+
+        if crossover_buy and price_growing and buy_signals_passed:
+            msg = f"🔮 BUY Consenso ({regime}): Sinais estáveis validados! Mola={mola_c:.2f}% Stretch={stretch_c:.2f}%"
+            return {"action": "BUY", "signal": "BUY", "price": p_c, "message": msg}
+
+        # --- GATILHOS DE SAÍDA (SELL) ---
+        crossover_sell = (s2_c < s3_c)
+        sell_triggered = False
+        sell_reason = ""
+
+        if crossover_sell:
+            sell_triggered = True
+            sell_reason = f"Cruzamento de queda rápido ({p2} < {p3})"
+        else:
+            # Validar regras estáveis de saída do DNA
+            # 1. Stretching excessivo de topo
+            strt_s = sell_rules.get("stretching", {})
+            if strt_s.get("stable", False):
+                max_l = strt_s.get("max_limit")
+                if max_l is not None and stretch_c > max_l * 1.5:
+                    sell_triggered = True
+                    sell_reason = f"Esticamento de topo crítico ({stretch_c:.2f}% > {max_l*1.5:.2f}%)"
+
+            # 2. Dispersion abaixo do limite da Parede
+            disp_s = sell_rules.get("disp", {})
+            if disp_s.get("stable", False):
+                limit_l = disp_s.get("limit")
+                if limit_l is not None and disp_c < limit_l:
+                    sell_triggered = True
+                    sell_reason = f"Fuga de dispersão da parede ({disp_c:.2f}% < {limit_l:.2f}%)"
+
+            # 3. Aceleração negativa extrema
+            acc_s = sell_rules.get("acceleration", {})
+            if acc_s.get("stable", False):
+                mean_l = acc_s.get("mean", 0.0)
+                if acc_c < mean_l * 1.5:
+                    sell_triggered = True
+                    sell_reason = f"Desaceleração severa de topo ({acc_c:+.4f})"
+
+        if sell_triggered:
+            msg = f"🔮 SELL Consenso ({regime}): {sell_reason}"
+            return {"action": "SELL", "signal": "SELL", "price": p_c, "message": msg}
+
+        # --- MANTER POSIÇÃO (HOLD) ---
+        msg = f"Regime: {regime} | Mola={mola_c:.2f}% | Stretch={stretch_c:.2f}% | Disp={disp_c:.2f}%"
+        if buy_debug_msgs:
+            msg += " | Bloqueios: " + ", ".join(buy_debug_msgs)
+        return {"action": "HOLD", "signal": "HOLD", "price": p_c, "message": msg}
+
+
+
 class StrategyFactory:
     @staticmethod
     def get_strategy(config: dict, logger=None) -> BaseStrategy:
@@ -406,7 +643,9 @@ class StrategyFactory:
             if logger: logger.warning("Fallback para SMACrossover após falha no DNA")
             return SMACrossoverStrategy(logger=logger)
             
-        if strategy_type == "PAULO_GOLD":
+        if strategy_type == "QUANTUM_CONSENSUS":
+            return QuantumConsensusStrategy(logger=logger)
+        elif strategy_type == "PAULO_GOLD":
             return PauloGoldStrategy(
                 short_window=int(config.get("SHORT_WINDOW", 9)),
                 long_window=int(config.get("LONG_WINDOW", 21)),
