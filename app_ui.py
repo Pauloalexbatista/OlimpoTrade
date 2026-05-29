@@ -2031,6 +2031,47 @@ with tab_trader_game:
             else:
                 return "HOLD", round(max(long_score, short_score) * 100), cond_long if long_score >= short_score else cond_short
         
+        def start_new_game():
+            st.session_state.tg_data = generate_game_market()
+            st.session_state.tg_step = 144
+            st.session_state.tg_capital = 100.0
+            st.session_state.tg_position = "NONE"
+            st.session_state.tg_entry_price = 0.0
+            st.session_state.tg_entry_step = 0
+            st.session_state.tg_trades = []
+            st.session_state.tg_active = True
+            st.session_state.tg_game_finished = False
+            st.session_state.tg_running = False
+            st.session_state.tg_highest_price = 0.0
+            st.session_state.tg_lowest_price = 999999.0
+
+        def load_highscores():
+            if os.path.exists(highscores_file):
+                try:
+                    with open(highscores_file, "r", encoding="utf-8") as f:
+                        return json.load(f)
+                except Exception:
+                    return []
+            return []
+
+        def save_highscore(name, final_capital, trades_count):
+            scores = load_highscores()
+            config_desc = (f"Medias:[{st.session_state.tg_p2},{st.session_state.tg_p3},{st.session_state.tg_p4},{st.session_state.tg_p5},{st.session_state.tg_p6}] "
+                           f"SL={st.session_state.tg_sl_pct if st.session_state.tg_sl_active else 'OFF'}% "
+                           f"TP={st.session_state.tg_tp_pct if st.session_state.tg_tp_active else 'OFF'}% "
+                           f"TS={st.session_state.tg_ts_pct if st.session_state.tg_ts_active else 'OFF'}%")
+            scores.append({
+                "name": name, "capital": float(final_capital),
+                "return": float(final_capital - 100.0), "trades": int(trades_count),
+                "config": config_desc, "date": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M")
+            })
+            scores = sorted(scores, key=lambda x: x["capital"], reverse=True)[:5]
+            try:
+                with open(highscores_file, "w", encoding="utf-8") as f:
+                    json.dump(scores, f, indent=2, ensure_ascii=False)
+            except Exception:
+                pass
+
         def save_last_game_persistent(df):
             try:
                 df.to_csv("last_game_data.csv", index=True)
