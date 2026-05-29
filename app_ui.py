@@ -2931,8 +2931,8 @@ with tab_trader_game:
                 _sig_color = {"LONG": "#10B981", "SHORT": "#EF4444", "HOLD": "#94a3b8"}[_bot_signal]
                 _sig_emoji = {"LONG": "🟢", "SHORT": "🔴", "HOLD": "⚪"}[_bot_signal]
 
-                # Signal display (always visible in co-pilot and autonomous)
-                if st.session_state.tg_bot_mode != "Manual":
+                # Signal display (always visible in manual, co-pilot and autonomous to guide operations)
+                if True:
                     # Mapeamento do nome do DNA e regime detetado
                     dna_active = st.session_state.get("tg_strategy_type", "Default") == "Cérebro de Consenso (Lab)"
                     regime_label = ""
