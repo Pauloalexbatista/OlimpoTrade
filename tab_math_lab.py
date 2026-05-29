@@ -850,30 +850,17 @@ def render():
                     st.info(f"Sem topos estruturais para o regime {reg_val}.")
 # 7. Módulo de Persistência de Testes
     st.markdown("---")
-    st.markdown("### 💾 Registar Conclusões do Teste para o Bot")
-    st.markdown("Guarda as regras estatísticas de ouro geradas nesta simulação para acumulá-las no Cérebro do Bot.")
-    
-    col_save1, col_save2 = st.columns([3, 1])
-    with col_save1:
-        test_name_input = st.text_input("Nome do Teste / Ativo (ex: BTC-USD Alta Volatilidade)", placeholder="Insira o nome para identificar este teste...", key="math_test_name_input")
-    with col_save2:
-        st.markdown("<div style='height:28px;'></div>", unsafe_allow_html=True)
-        if st.button("💾 Guardar Conclusões", width='stretch', key="math_save_test_btn"):
-            if test_name_input.strip() == "":
-                st.error("Por favor, insira um nome válido para o teste.")
-            else:
-                save_current_test_rules(test_name_input.strip(), df, fundos_list, topos_list)
-                st.success(f"Teste '{test_name_input}' guardado com sucesso no historial!")
-                st.rerun()
+    col_save, col_info = st.columns([1, 2])
+    with col_save:
+        if st.button("💾 Guardar Lições de Treino", width='stretch', key="math_save_test_btn"):
+            auto_name = f"{st.session_state.math_scenario} ({pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')})"
+            save_current_test_rules(auto_name, df, fundos_list, topos_list)
+            st.toast("🧠 Lições de treino guardadas e cérebro unificado automaticamente!")
+            st.rerun()
+    with col_info:
+        st.markdown("<p style='font-size:12px; color:#64748b; margin-top:8px;'><b>Aprendizagem Cumulativa:</b> Os padrões deste teste são fundidos automaticamente no cérebro consolidado do Bot, refinando regimes sem perder lições passadas.</p>", unsafe_allow_html=True)
 
-    # 8. Cérebro de Consenso & Inteligência do Bot
-    st.markdown("---")
-    st.markdown("## 🧠 Cérebro de Consenso do Bot")
-    st.markdown("Selecione os testes guardados no historial para gerar o DNA unificado e livre de contradições do Bot.")
-    
-    render_consensus_engine()
-
-    # 9. Loop de Simulação
+    # 9. Loop de Simulaçãoção
     if st.session_state.math_running:
         time.sleep(step_delay)
         if st.session_state.math_step < len(df) - 1:
@@ -1148,6 +1135,9 @@ def save_current_test_rules(test_name, df, fundos_list, topos_list):
     
     with open(filepath, "w", encoding="utf-8") as f:
         json.dump(knowledge, f, indent=2, ensure_ascii=False)
+        
+    import variables_registry
+    variables_registry.rebuild_consensus_dna()
 
 
 def render_consensus_engine():

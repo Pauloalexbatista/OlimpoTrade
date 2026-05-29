@@ -508,7 +508,13 @@ slippage_pct = st.session_state.get('slippage_pct_val', 0.05)
 logger = setup_logging()
 
 # 7. Abas Principais do Laboratório (TABS SIMPLIFICADAS)
-tab_backtest, tab_simulator, tab_math_lab, tab_trader_game = st.tabs(["📊 Simulação & Gráficos Real", "🔬 Laboratório de Simulação & Otimização", "🧬 Laboratório Matemático & Regimes", "🎮 Arena de Jogo & Auto-Treino"])
+tab_backtest, tab_simulator, tab_math_lab, tab_trader_game, tab_bot_brain = st.tabs([
+    "📈 Simulação & Gráficos Real",
+    "🔬 Laboratório de Simulação & Otimização",
+    "🎛️ Laboratório Matemático & Regimes",
+    "🎮 Arena de Jogo & Auto-Treino",
+    "🧠 Cérebro do Bot (DNA)"
+])
 
 
 # Ação do Botão Principal do Backtester
@@ -2296,50 +2302,79 @@ with tab_trader_game:
                         winning_t = [t for t in trades_t if t["pnl_pct"] > 0]
                         
                         if winning_t:
+                            import numpy as np
+                            import variables_registry
+                            
+                            knowledge_filepath = "bot_knowledge_base.json"
+                            
+                            knowledge = {}
+                            if os.path.exists(knowledge_filepath):
+                                try:
+                                    with open(knowledge_filepath, "r", encoding="utf-8") as f:
+                                        knowledge = json.load(f)
+                                except Exception:
+                                    pass
+                                    
+                            test_name = f"Auto-Treino {training_source} ({pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')})"
+                            
+                            test_data = {
+                                "test_name": test_name,
+                                "timestamp": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M"),
+                                "smas": [p2_t, p3_t, p4_t, p5_t, p6_t],
+                                "regimes": {}
+                            }
+                            
                             for r_val in ["BULL", "BEAR", "LATERAL", "CAOTICO"]:
-                                if r_val not in dna_t["regimes"]:
-                                    dna_t["regimes"][r_val] = {"active": True, "buy_rules": {}, "sell_rules": {}}
-                                
                                 subset_long = [t for t in winning_t if t["regime"] == r_val and t["type"] == "LONG"]
                                 subset_short = [t for t in winning_t if t["regime"] == r_val and t["type"] == "SHORT"]
                                 
+                                reg_data = {
+                                    "opp_count": len(subset_long),
+                                    "thr_count": len(subset_short),
+                                    "opp_stats": {},
+                                    "thr_stats": {}
+                                }
+                                
                                 if subset_long:
-                                    import numpy as np
                                     avg_mola = float(np.mean([t["mola"] for t in subset_long]))
                                     avg_stretch = float(np.mean([t["stretch"] for t in subset_long]))
                                     avg_acc = float(np.mean([t["acc"] for t in subset_long]))
                                     avg_disp = float(np.mean([t["disp"] for t in subset_long]))
                                     
-                                    dna_t["regimes"][r_val]["buy_rules"] = {
-                                        "stretching": {"stable": True, "mean": avg_stretch, "min_limit": avg_stretch - 1.2, "max_limit": avg_stretch + 1.2},
-                                        "mola": {"stable": True, "mean": avg_mola, "max_limit": avg_mola * 1.2},
-                                        "disp": {"stable": True, "mean": avg_disp, "max_limit": avg_disp * 1.1},
-                                        "acceleration": {"stable": True, "mean": avg_acc},
-                                        "infil": {"rate": 80.0, "active": True},
-                                        "reteste": {"rate": 70.0, "active": True}
+                                    reg_data["opp_stats"] = {
+                                        "acc_mean": avg_acc,
+                                        "strt_mean": avg_stretch,
+                                        "mola_mean": avg_mola,
+                                        "disp_mean": avg_disp,
+                                        "infil_rate": 80.0,
+                                        "reteste_rate": 70.0
                                     }
                                     
                                 if subset_short:
-                                    import numpy as np
                                     avg_mola = float(np.mean([t["mola"] for t in subset_short]))
                                     avg_stretch = float(np.mean([t["stretch"] for t in subset_short]))
                                     avg_acc = float(np.mean([t["acc"] for t in subset_short]))
                                     avg_disp = float(np.mean([t["disp"] for t in subset_short]))
                                     
-                                    dna_t["regimes"][r_val]["sell_rules"] = {
-                                        "stretching": {"stable": True, "mean": avg_stretch, "min_limit": avg_stretch - 1.2, "max_limit": avg_stretch + 1.2},
-                                        "mola": {"stable": True, "mean": avg_mola},
-                                        "disp": {"stable": True, "mean": avg_disp, "limit": avg_disp * 0.9},
-                                        "acceleration": {"stable": True, "mean": avg_acc}
+                                    reg_data["thr_stats"] = {
+                                        "acc_mean": avg_acc,
+                                        "strt_mean": avg_stretch,
+                                        "mola_mean": avg_mola,
+                                        "disp_mean": avg_disp,
+                                        "infil_rate": 0.0,
+                                        "reteste_rate": 0.0
                                     }
                                     
-                            dna_t["last_updated"] = pd.Timestamp.now().strftime("%Y-%m-%d %H:%M")
-                            dna_t["selected_tests"] = list(set(dna_t.get("selected_tests", []) + [f"Auto-Treino ({training_source})"]))
-                            
-                            with open("bot_consensus_dna.json", "w", encoding="utf-8") as f:
-                                json.dump(dna_t, f, indent=2, ensure_ascii=False)
+                                test_data["regimes"][r_val] = reg_data
                                 
-                            st.success(f"🧠 Cérebro de Consenso DNA gravado com sucesso! Sintonizado com {len(winning_t)} operações vencedoras (do total de {len(trades_t)} efetuadas).")
+                            knowledge[test_name] = test_data
+                            
+                            with open(knowledge_filepath, "w", encoding="utf-8") as f:
+                                json.dump(knowledge, f, indent=2, ensure_ascii=False)
+                                
+                            variables_registry.rebuild_consensus_dna()
+                            
+                            st.success(f"🧠 **Auto-Treino Integrado com Sucesso!** Gravámos as conclusões na base de conhecimento e o cérebro consolidado do Bot evoluiu automaticamente em background com {len(winning_t)} operações lucrativas.")
                         else:
                             st.warning(f"Treino concluído mas nenhuma operação obteve lucro positivo (Total de trades: {len(trades_t)}). Tente aumentar o volume ou mudar a fonte.")
                     else:
@@ -2754,3 +2789,112 @@ with tab_trader_game:
 # =========================================================================
 # SEPARADOR 6: CENTRAL DE VARIÁVEIS
 # =========================================================================
+
+# =========================================================================
+# SEPARADOR 7: CÉREBRO DO BOT (DNA) - CONTA TABULAR
+# =========================================================================
+with tab_bot_brain:
+    import variables_registry
+    import json
+    
+    st.markdown("<h3 style='text-align: center; color: #7c3aed; margin-bottom:5px;'>🧠 Cérebro Consolidado do Bot</h3>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; color: #64748b; font-size:13px; margin-bottom:20px; text-align: center;'>Cockpit estatístico cumulativo que unifica 100% das lições de treino do robô de forma automática.</p>", unsafe_allow_html=True)
+    
+    knowledge_path = "bot_knowledge_base.json"
+    dna_path = "bot_consensus_dna.json"
+    
+    has_knowledge = os.path.exists(knowledge_path)
+    knowledge = {}
+    if has_knowledge:
+        try:
+            with open(knowledge_path, "r", encoding="utf-8") as f:
+                knowledge = json.load(f)
+        except Exception:
+            pass
+            
+    has_dna = os.path.exists(dna_path)
+    dna = {}
+    if has_dna:
+        try:
+            with open(dna_path, "r", encoding="utf-8") as f:
+                dna = json.load(f)
+        except Exception:
+            pass
+            
+    tests_list = list(knowledge.keys())
+    opp_total = 0
+    thr_total = 0
+    has_conflict = False
+    
+    for t_name, t_data in knowledge.items():
+        for reg in ["BULL", "BEAR", "LATERAL", "CAOTICO"]:
+            reg_data = t_data.get("regimes", {}).get(reg, {})
+            opp_total += reg_data.get("opp_count", 0)
+            thr_total += reg_data.get("thr_count", 0)
+            
+    if has_dna:
+        for reg, r_data in dna.get("regimes", {}).items():
+            for action in ["buy_rules", "sell_rules"]:
+                for var, v_data in r_data.get(action, {}).items():
+                    if isinstance(v_data, dict) and not v_data.get("stable", True):
+                        has_conflict = True
+                        
+    state_desc = "🟢 Consistente"
+    if has_conflict:
+        state_desc = "⚠️ Contradição Detetada"
+    elif not tests_list:
+        state_desc = "⚪ Sem Treinos"
+        
+    last_up = dna.get("last_updated", "Nunca")
+    
+    # Cartões Compactos de Métrica
+    col_c1, col_c2, col_c3, col_c4 = st.columns(4)
+    with col_c1:
+        st.metric("Estado do Cérebro", state_desc, help="Identifica se existem contradições entre as lições")
+    with col_c2:
+        st.metric("Sessões Integradas", f"{len(tests_list)} Treinos", help="Lições na base de conhecimento")
+    with col_c3:
+        st.metric("Amostras Estudadas", f"{opp_total + thr_total} Padrões", help="Total de fundos (BUY) e topos (SELL) estudados")
+    with col_c4:
+        st.metric("Última Sincronização", last_up, help="Data e hora do último recálculo cumulativo")
+        
+    st.markdown("<div style='margin-top:10px;'></div>", unsafe_allow_html=True)
+    variables_registry.render_bot_brain_table()
+    
+    st.markdown("<div style='margin-top:10px;'></div>", unsafe_allow_html=True)
+    col_h1, col_h2 = st.columns([3, 1])
+    
+    with col_h1:
+        st.markdown("##### 📚 Lições Guardadas na Base de Conhecimento")
+        if tests_list:
+            records = []
+            for t_name, t_data in knowledge.items():
+                smas_str = ", ".join(map(str, t_data.get("smas", [])))
+                opp_cnt = sum(t_data.get("regimes", {}).get(r, {}).get("opp_count", 0) for r in ["BULL","BEAR","LATERAL","CAOTICO"])
+                thr_cnt = sum(t_data.get("regimes", {}).get(r, {}).get("thr_count", 0) for r in ["BULL","BEAR","LATERAL","CAOTICO"])
+                records.append({
+                    "Identificação do Exame": t_name,
+                    "Data/Hora": t_data.get("timestamp", "Desconhecido"),
+                    "Médias Aplicadas": smas_str,
+                    "Total Oportunidades (Fundos)": opp_cnt,
+                    "Total Ameaças (Topos)": thr_cnt
+                })
+            df_hist = pd.DataFrame(records)
+            st.dataframe(df_hist, width='stretch', hide_index=True, height=180)
+        else:
+            st.info("ℹ️ Nenhuma lição de treino ativa na memória do Bot. Execute simulações para treinar.")
+            
+    with col_h2:
+        st.markdown("##### ⚙️ Gestão de Memória")
+        st.markdown("<p style='font-size:11px; color:#64748b; margin-top:5px;'>O cérebro acumula lições infinitamente. Se desejar começar um ciclo do zero, faça reset.</p>", unsafe_allow_html=True)
+        st.markdown("<div style='margin-top:10px;'></div>", unsafe_allow_html=True)
+        
+        if st.button("🗑️ Limpar Todo o Cérebro", type="secondary", width='stretch', key="btn_clear_entire_brain"):
+            for path in [knowledge_path, dna_path]:
+                if os.path.exists(path):
+                    try:
+                        os.remove(path)
+                    except Exception:
+                        pass
+            st.toast("🧠 Cérebro limpo e redefinido com sucesso!")
+            st.rerun()

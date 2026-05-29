@@ -6,161 +6,238 @@
     55,
     144
   ],
-  "last_updated": "2026-05-29 14:53:51",
-  "selected_tests": [
-    "Auto-Treino Demo Live"
-  ],
   "regimes": {
     "BULL": {
       "active": true,
       "opp_samples": 0,
-      "thr_samples": 0,
-      "buy_rules": {},
-      "sell_rules": {}
-    },
-    "BEAR": {
-      "active": true,
-      "opp_samples": 4,
-      "thr_samples": 5,
+      "thr_samples": 124,
       "buy_rules": {
         "stretching": {
           "stable": true,
-          "mean": 6.988077070041472,
-          "min_limit": 5.788077070041472,
-          "max_limit": 8.188077070041471
+          "mean": 0.0,
+          "min_limit": -1.5,
+          "max_limit": 1.5
         },
         "mola": {
           "stable": true,
-          "mean": 8.023485913904569,
-          "max_limit": 10.02935739238071
+          "mean": 0.0,
+          "max_limit": 0.0
         },
         "disp": {
           "stable": true,
-          "mean": -17.52732038016365,
-          "max_limit": -20.156418437188197
+          "mean": 0.0,
+          "max_limit": 0.0
         },
         "acceleration": {
           "stable": true,
-          "mean": 0.4138013016250035
+          "mean": 0.0
+        },
+        "infil": {
+          "rate": 0.0,
+          "active": false
+        },
+        "reteste": {
+          "rate": 0.0,
+          "active": false
         }
       },
       "sell_rules": {
         "stretching": {
           "stable": true,
-          "mean": 4.537758564460141,
-          "min_limit": 3.337758564460141,
-          "max_limit": 5.737758564460141
+          "mean": 3.9921213488082157,
+          "min_limit": 2.4921213488082157,
+          "max_limit": 5.492121348808215
         },
         "mola": {
           "stable": true,
-          "mean": 4.822168794742944
+          "mean": 4.688145161290323
         },
         "disp": {
           "stable": true,
-          "mean": -9.46017378127734,
-          "limit": -8.041147714085739
+          "mean": 12.818225806451613,
+          "limit": 11.536403225806453
         },
         "acceleration": {
           "stable": true,
-          "mean": -0.1434780363678044
+          "mean": 1.3536891434549063
+        }
+      }
+    },
+    "BEAR": {
+      "active": true,
+      "opp_samples": 96,
+      "thr_samples": 0,
+      "buy_rules": {
+        "stretching": {
+          "stable": true,
+          "mean": 10.319276171845663,
+          "min_limit": 8.819276171845663,
+          "max_limit": 11.819276171845663
+        },
+        "mola": {
+          "stable": true,
+          "mean": 12.1875,
+          "max_limit": 15.84375
+        },
+        "disp": {
+          "stable": true,
+          "mean": -16.58385416666667,
+          "max_limit": -18.242239583333337
+        },
+        "acceleration": {
+          "stable": true,
+          "mean": -1.9687783893372481
+        },
+        "infil": {
+          "rate": 0.0,
+          "active": false
+        },
+        "reteste": {
+          "rate": 3.125,
+          "active": false
+        }
+      },
+      "sell_rules": {
+        "stretching": {
+          "stable": true,
+          "mean": 0.0,
+          "min_limit": -1.5,
+          "max_limit": 1.5
+        },
+        "mola": {
+          "stable": true,
+          "mean": 0.0
+        },
+        "disp": {
+          "stable": true,
+          "mean": 0.0,
+          "limit": 0.0
+        },
+        "acceleration": {
+          "stable": true,
+          "mean": 0.0
         }
       }
     },
     "LATERAL": {
       "active": true,
-      "opp_samples": 3,
-      "thr_samples": 2,
+      "opp_samples": 79,
+      "thr_samples": 55,
       "buy_rules": {
         "stretching": {
           "stable": true,
-          "mean": 10.33449408706891,
-          "min_limit": 9.13449408706891,
-          "max_limit": 11.534494087068909
+          "mean": 1.2053160074540556,
+          "min_limit": -0.29468399254594435,
+          "max_limit": 2.705316007454056
         },
         "mola": {
           "stable": true,
-          "mean": 11.28195517648453,
-          "max_limit": 14.102443970605663
+          "mean": 1.4656962025316458,
+          "max_limit": 1.9054050632911397
         },
         "disp": {
           "stable": true,
-          "mean": -22.511268856257235,
-          "max_limit": -25.88795918469582
+          "mean": 2.1359493670886076,
+          "max_limit": 2.3495443037974684
         },
         "acceleration": {
           "stable": true,
-          "mean": 0.23927287025907637
+          "mean": -1.3515042419061807
+        },
+        "infil": {
+          "rate": 2.531645569620253,
+          "active": false
+        },
+        "reteste": {
+          "rate": 45.56962025316456,
+          "active": false
         }
       },
       "sell_rules": {
         "stretching": {
           "stable": true,
-          "mean": 9.171629612233268,
-          "min_limit": 7.971629612233268,
-          "max_limit": 10.371629612233267
+          "mean": 1.110143290708637,
+          "min_limit": -0.38985670929136296,
+          "max_limit": 2.610143290708637
         },
         "mola": {
           "stable": true,
-          "mean": 9.834310400909663
+          "mean": 1.3416363636363635
         },
         "disp": {
           "stable": true,
-          "mean": -16.38633524832526,
-          "limit": -13.928384961076471
+          "mean": 2.122181818181818,
+          "limit": 1.9099636363636363
         },
         "acceleration": {
           "stable": true,
-          "mean": 0.00900688707861974
+          "mean": 1.9860168339198667
         }
       }
     },
     "CAOTICO": {
       "active": true,
-      "opp_samples": 4,
-      "thr_samples": 3,
+      "opp_samples": 115,
+      "thr_samples": 95,
       "buy_rules": {
         "stretching": {
           "stable": true,
-          "mean": 4.2174631933014455,
-          "min_limit": 3.0174631933014453,
-          "max_limit": 5.417463193301446
+          "mean": 13.827390098353305,
+          "min_limit": 12.327390098353305,
+          "max_limit": 15.327390098353305
         },
         "mola": {
           "stable": true,
-          "mean": 4.573304806683092,
-          "max_limit": 5.716631008353865
+          "mean": 16.39773913043478,
+          "max_limit": 21.317060869565214
         },
         "disp": {
-          "stable": true,
-          "mean": -2.277425142317891,
-          "max_limit": -2.619038913665574
+          "stable": false,
+          "mean": -9.35034782608696,
+          "max_limit": 0.0
         },
         "acceleration": {
           "stable": true,
-          "mean": 0.26554994775322527
+          "mean": -1.66314555588261
+        },
+        "infil": {
+          "rate": 5.217391304347826,
+          "active": false
+        },
+        "reteste": {
+          "rate": 16.52173913043478,
+          "active": false
         }
       },
       "sell_rules": {
         "stretching": {
           "stable": true,
-          "mean": 3.9572782014147383,
-          "min_limit": 2.7572782014147386,
-          "max_limit": 5.157278201414738
+          "mean": 6.224492583390068,
+          "min_limit": 4.724492583390068,
+          "max_limit": 7.724492583390068
         },
         "mola": {
           "stable": true,
-          "mean": 4.234357704647601
+          "mean": 7.447473684210528
         },
         "disp": {
-          "stable": true,
-          "mean": 9.287472930255612,
-          "limit": 7.89435199071727
+          "stable": false,
+          "mean": -6.895052631578948,
+          "limit": 0.0
         },
         "acceleration": {
           "stable": true,
-          "mean": 0.7614513854327877
+          "mean": 2.7606936060092817
         }
       }
     }
-  }
+  },
+  "last_updated": "2026-05-29 16:37",
+  "selected_tests": [
+    "Didatico classico ruido5",
+    "Didatico Classico (2026-05-28 20:58:15)",
+    "Didatico Classico (2026-05-28 21:07:22)",
+    "Montanha Russa (2026-05-28 21:11:46)",
+    "Flash Crash (2026-05-28 21:17:28)"
+  ]
 }

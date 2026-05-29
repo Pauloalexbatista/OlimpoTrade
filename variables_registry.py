@@ -364,3 +364,179 @@ def render_bot_brain_table():
     last_up = dna.get("last_updated", "Desconhecido")
     selected = ", ".join(dna.get("selected_tests", []))
     st.markdown(f"<div style='font-size: 11px; color: #64748b; text-align: right; margin-top:-10px;'>🧬 <b>DNA unificado de:</b> {selected} | <b>Última Atualização:</b> {last_up}</div>", unsafe_allow_html=True)
+
+def rebuild_consensus_dna():
+    import os
+    import json
+    
+    knowledge_path = "bot_knowledge_base.json"
+    dna_path = "bot_consensus_dna.json"
+    
+    if not os.path.exists(knowledge_path):
+        return
+        
+    try:
+        with open(knowledge_path, "r", encoding="utf-8") as f:
+            knowledge = json.load(f)
+    except Exception as e:
+        import streamlit as st
+        st.error("Erro ao ler a base de dados de testes para fusão: " + str(e))
+        return
+        
+    if not knowledge:
+        return
+        
+    regimes = ["BULL", "BEAR", "LATERAL", "CAOTICO"]
+    consensus_dna = {"smas": [], "regimes": {}, "last_updated": "", "selected_tests": []}
+    
+    latest_test_name = list(knowledge.keys())[-1]
+    consensus_dna["smas"] = knowledge[latest_test_name].get("smas", [5, 13, 21, 55, 144])
+    consensus_dna["selected_tests"] = list(knowledge.keys())
+    
+    for reg in regimes:
+        opp_samples = 0
+        thr_samples = 0
+        
+        opp_acc_list, opp_strt_list, opp_mola_list, opp_disp_list = [], [], [], []
+        opp_weighted_acc, opp_weighted_strt, opp_weighted_mola, opp_weighted_disp = 0.0, 0.0, 0.0, 0.0
+        opp_infil_weighted, opp_reteste_weighted = 0.0, 0.0
+        
+        thr_acc_list, thr_strt_list, thr_mola_list, thr_disp_list = [], [], [], []
+        thr_weighted_acc, thr_weighted_strt, thr_weighted_mola, thr_weighted_disp = 0.0, 0.0, 0.0, 0.0
+        thr_infil_weighted, thr_reteste_weighted = 0.0, 0.0
+        
+        for t_name, t_data in knowledge.items():
+            reg_data = t_data.get("regimes", {}).get(reg, {})
+            if not reg_data:
+                continue
+                
+            opp_c = reg_data.get("opp_count", 0)
+            thr_c = reg_data.get("thr_count", 0)
+            
+            opp_s = reg_data.get("opp_stats", {})
+            if opp_c > 0 and opp_s:
+                opp_samples += opp_c
+                if "acc_mean" in opp_s: opp_acc_list.append(opp_s["acc_mean"])
+                if "strt_mean" in opp_s: opp_strt_list.append(opp_s["strt_mean"])
+                if "mola_mean" in opp_s: opp_mola_list.append(opp_s["mola_mean"])
+                if "disp_mean" in opp_s: opp_disp_list.append(opp_s["disp_mean"])
+                
+                opp_weighted_acc += opp_s.get("acc_mean", 0.0) * opp_c
+                opp_weighted_strt += opp_s.get("strt_mean", 0.0) * opp_c
+                opp_weighted_mola += opp_s.get("mola_mean", 0.0) * opp_c
+                opp_weighted_disp += opp_s.get("disp_mean", 0.0) * opp_c
+                opp_infil_weighted += opp_s.get("infil_rate", 0.0) * opp_c
+                opp_reteste_weighted += opp_s.get("reteste_rate", 0.0) * opp_c
+                
+            thr_s = reg_data.get("thr_stats", {})
+            if thr_c > 0 and thr_s:
+                thr_samples += thr_c
+                if "acc_mean" in thr_s: thr_acc_list.append(thr_s["acc_mean"])
+                if "strt_mean" in thr_s: thr_strt_list.append(thr_s["strt_mean"])
+                if "mola_mean" in thr_s: thr_mola_list.append(thr_s["mola_mean"])
+                if "disp_mean" in thr_s: thr_disp_list.append(thr_s["disp_mean"])
+                
+                thr_weighted_acc += thr_s.get("acc_mean", 0.0) * thr_c
+                thr_weighted_strt += thr_s.get("strt_mean", 0.0) * thr_c
+                thr_weighted_mola += thr_s.get("mola_mean", 0.0) * thr_c
+                thr_weighted_disp += thr_s.get("disp_mean", 0.0) * thr_c
+                thr_infil_weighted += thr_s.get("infil_rate", 0.0) * thr_c
+                thr_reteste_weighted += thr_s.get("reteste_rate", 0.0) * thr_c
+                
+        opp_final_acc = opp_weighted_acc / opp_samples if opp_samples > 0 else 0.0
+        opp_final_strt = opp_weighted_strt / opp_samples if opp_samples > 0 else 0.0
+        opp_final_mola = opp_weighted_mola / opp_samples if opp_samples > 0 else 0.0
+        opp_final_disp = opp_weighted_disp / opp_samples if opp_samples > 0 else 0.0
+        opp_final_infil = opp_infil_weighted / opp_samples if opp_samples > 0 else 0.0
+        opp_final_reteste = opp_reteste_weighted / opp_samples if opp_samples > 0 else 0.0
+        
+        thr_final_acc = thr_weighted_acc / thr_samples if thr_samples > 0 else 0.0
+        thr_final_strt = thr_weighted_strt / thr_samples if thr_samples > 0 else 0.0
+        thr_final_mola = thr_weighted_mola / thr_samples if thr_samples > 0 else 0.0
+        thr_final_disp = thr_weighted_disp / thr_samples if thr_samples > 0 else 0.0
+        thr_final_infil = thr_infil_weighted / thr_samples if thr_samples > 0 else 0.0
+        thr_final_reteste = thr_reteste_weighted / thr_samples if thr_samples > 0 else 0.0
+        
+        def check_stability(lst):
+            if not lst:
+                return True
+            has_pos = any(x > 0.0001 for x in lst)
+            has_neg = any(x < -0.0001 for x in lst)
+            return not (has_pos and has_neg)
+            
+        opp_acc_stable = check_stability(opp_acc_list)
+        opp_strt_stable = check_stability(opp_strt_list)
+        opp_mola_stable = check_stability(opp_mola_list)
+        opp_disp_stable = check_stability(opp_disp_list)
+        
+        thr_acc_stable = check_stability(thr_acc_list)
+        thr_strt_stable = check_stability(thr_strt_list)
+        thr_mola_stable = check_stability(thr_mola_list)
+        thr_disp_stable = check_stability(thr_disp_list)
+        
+        consensus_dna["regimes"][reg] = {
+            "active": True,
+            "opp_samples": opp_samples,
+            "thr_samples": thr_samples,
+            "buy_rules": {
+                "stretching": {
+                    "stable": bool(opp_strt_stable) if opp_samples > 0 else True,
+                    "mean": float(opp_final_strt),
+                    "min_limit": float(opp_final_strt - 1.5) if opp_strt_stable and opp_samples > 0 else -1.5,
+                    "max_limit": float(opp_final_strt + 1.5) if opp_strt_stable and opp_samples > 0 else 1.5
+                },
+                "mola": {
+                    "stable": bool(opp_mola_stable) if opp_samples > 0 else True,
+                    "mean": float(opp_final_mola),
+                    "max_limit": float(opp_final_mola * 1.3) if opp_mola_stable and opp_samples > 0 else 0.0
+                },
+                "disp": {
+                    "stable": bool(opp_disp_stable) if opp_samples > 0 else True,
+                    "mean": float(opp_final_disp),
+                    "max_limit": float(opp_final_disp * 1.1) if opp_disp_stable and opp_samples > 0 else 0.0
+                },
+                "acceleration": {
+                    "stable": bool(opp_acc_stable) if opp_samples > 0 else True,
+                    "mean": float(opp_final_acc)
+                },
+                "infil": {
+                    "rate": float(opp_final_infil),
+                    "active": bool(opp_final_infil > 50.0) if opp_samples > 0 else False
+                },
+                "reteste": {
+                    "rate": float(opp_final_reteste),
+                    "active": bool(opp_final_reteste > 50.0) if opp_samples > 0 else False
+                }
+            },
+            "sell_rules": {
+                "stretching": {
+                    "stable": bool(thr_strt_stable) if thr_samples > 0 else True,
+                    "mean": float(thr_final_strt),
+                    "min_limit": float(thr_final_strt - 1.5) if thr_strt_stable and thr_samples > 0 else -1.5,
+                    "max_limit": float(thr_final_strt + 1.5) if thr_strt_stable and thr_samples > 0 else 1.5
+                },
+                "mola": {
+                    "stable": bool(thr_mola_stable) if thr_samples > 0 else True,
+                    "mean": float(thr_final_mola)
+                },
+                "disp": {
+                    "stable": bool(thr_disp_stable) if thr_samples > 0 else True,
+                    "mean": float(thr_final_disp),
+                    "limit": float(thr_final_disp * 0.9) if thr_disp_stable and thr_samples > 0 else 0.0
+                },
+                "acceleration": {
+                    "stable": bool(thr_acc_stable) if thr_samples > 0 else True,
+                    "mean": float(thr_final_acc)
+                }
+            }
+        }
+        
+    import pandas as pd
+    consensus_dna["last_updated"] = pd.Timestamp.now().strftime("%Y-%m-%d %H:%M")
+    
+    try:
+        with open(dna_path, "w", encoding="utf-8") as f:
+            json.dump(consensus_dna, f, indent=2, ensure_ascii=False)
+    except Exception as e:
+        import streamlit as st
+        st.error("Erro ao gravar o DNA Consensual do Bot: " + str(e))
