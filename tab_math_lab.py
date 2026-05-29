@@ -545,7 +545,7 @@ def render():
             running_label = "⏸️ Pausar Simulação" if st.session_state.math_running else "▶️ Iniciar Simulação"
 
             
-            if st.button(running_label, use_container_width=True):
+            if st.button(running_label, width='stretch'):
 
             
                 st.session_state.math_running = not st.session_state.math_running
@@ -563,7 +563,7 @@ def render():
             with col_btn1:
 
             
-                if st.button("➡️ Avançar 1 Passo", use_container_width=True):
+                if st.button("➡️ Avançar 1 Passo", width='stretch'):
 
             
                     st.session_state.math_running = False
@@ -584,7 +584,7 @@ def render():
             with col_btn2:
 
             
-                if st.button("🔄 Reiniciar", use_container_width=True):
+                if st.button("🔄 Reiniciar", width='stretch'):
 
             
                     st.session_state.math_step = 50
@@ -662,7 +662,7 @@ def render():
             mime="text/csv",
 
             
-            use_container_width=True
+            width='stretch'
 
             
         )
@@ -774,7 +774,7 @@ def render():
         yaxis2=dict(showgrid=True, gridcolor='#e2e8f0', title="Derivadas")
     )
     
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width='stretch')
     
     # 5. Live Bloomberg Reversed Table (Reversed view: latest at top)
     st.subheader("📜 Registo Detalhado de Variáveis (Real-time)")
@@ -793,7 +793,7 @@ def render():
     styled_view = rev_sub_df[display_cols].style
     styled_view = apply_styler(styled_view, 'Regime')
     
-    st.dataframe(styled_view, use_container_width=True, height=250)
+    st.dataframe(styled_view, width='stretch', height=250)
 
     # 6. Auto-Miner: Retrospective Structural Analysis
     st.markdown("---")
@@ -834,7 +834,7 @@ def render():
                     opp_df_disp = opp_df.drop(columns=["var_raw"])
                     styled_opp = opp_df_disp.style
                     styled_opp = apply_styler(styled_opp, 'Regime Inicial')
-                    st.dataframe(styled_opp, use_container_width=True, height=350)
+                    st.dataframe(styled_opp, width='stretch', height=350)
                 else:
                     st.info(f"Sem fundos estruturais para o regime {reg_val}.")
                     
@@ -844,7 +844,7 @@ def render():
                     thr_df_disp = thr_df.drop(columns=["var_raw"])
                     styled_thr = thr_df_disp.style
                     styled_thr = apply_styler(styled_thr, 'Regime Inicial')
-                    st.dataframe(styled_thr, use_container_width=True, height=350)
+                    st.dataframe(styled_thr, width='stretch', height=350)
                 else:
                     st.info(f"Sem topos estruturais para o regime {reg_val}.")
 # 7. Módulo de Persistência de Testes
@@ -857,7 +857,7 @@ def render():
         test_name_input = st.text_input("Nome do Teste / Ativo (ex: BTC-USD Alta Volatilidade)", placeholder="Insira o nome para identificar este teste...", key="math_test_name_input")
     with col_save2:
         st.markdown("<div style='height:28px;'></div>", unsafe_allow_html=True)
-        if st.button("💾 Guardar Conclusões", use_container_width=True, key="math_save_test_btn"):
+        if st.button("💾 Guardar Conclusões", width='stretch', key="math_save_test_btn"):
             if test_name_input.strip() == "":
                 st.error("Por favor, insira um nome válido para o teste.")
             else:
@@ -884,7 +884,7 @@ def render():
             st.rerun()
 
 def show_golden_rules(filtered_opp, filtered_thr, selected_regime):
-    st.markdown("### 🏆 Conclusões de Ouro (Intervalos Sagrados)")
+    st.markdown("### 🧬 Conclusões de Ouro & Cockpit Analítico")
     
     p2 = st.session_state.get('math_active_sma_p2', 5)
     p3 = st.session_state.get('math_active_sma_p3', 13)
@@ -898,108 +898,149 @@ def show_golden_rules(filtered_opp, filtered_thr, selected_regime):
     col_p5 = f"Média {p5}"
     col_p6 = f"Média {p6}"
     
-    opp_msg = ""
-    opp_geo_msg = ""
-    if filtered_opp.empty:
-        opp_msg = f"Sem dados suficientes para minerar padrões de compra no regime {selected_regime}."
-    else:
-        acc_m = filtered_opp["Aceleração"].astype(float).mean()
-        strt_m = filtered_opp["Stretching"].astype(float).mean()
-        acc_min = filtered_opp["Aceleração"].astype(float).min()
-        acc_max = filtered_opp["Aceleração"].astype(float).max()
+    col_left, col_right = st.columns(2)
+    
+    # --- PROCESSAR COMPRAS (LONG / FUNDOS) ---
+    with col_left:
+        st.markdown(f'''
+        <div style="background: rgba(34, 197, 94, 0.05); border-left: 5px solid #2ecc71; border-radius: 12px; padding: 16px; border: 1px solid rgba(34,197,94,0.15); margin-bottom: 20px;">
+            <h4 style="color:#2ecc71; margin-top:0; margin-bottom:10px;">🟢 Diagnóstico de LONG (Compra - Fundos)</h4>
+        </div>
+        ''', unsafe_allow_html=True)
         
-        opp_msg = f"As reversões de alta no regime **{selected_regime}** ocorrem com uma **Aceleração média de {acc_m:+.4f}** (entre {acc_min:+.4f} e {acc_max:+.4f}) e um **Stretching médio de {strt_m:.2f}%**."
-        
-        if col_p2 in filtered_opp.columns and col_p3 in filtered_opp.columns:
-            sma2 = pd.to_numeric(filtered_opp[col_p2], errors='coerce')
-            sma3 = pd.to_numeric(filtered_opp[col_p3], errors='coerce')
-            sma4 = pd.to_numeric(filtered_opp[col_p4], errors='coerce')
-            sma5 = pd.to_numeric(filtered_opp[col_p5], errors='coerce')
-            sma6 = pd.to_numeric(filtered_opp[col_p6], errors='coerce')
+        if filtered_opp.empty:
+            st.info(f"Sem fundos suficientes para o regime {selected_regime}.")
+        else:
+            acc_vals = filtered_opp["Aceleração"].astype(float)
+            strt_vals = filtered_opp["Stretching"].astype(float)
             
-            # Tensão e dispersão médias
+            acc_mean = acc_vals.mean()
+            acc_std = acc_vals.std()
+            strt_mean = strt_vals.mean()
+            strt_std = strt_vals.std()
+            
             mola_vals = filtered_opp["Compressão Mola %"].str.rstrip("%").replace('', '0').astype(float)
-            mola_m = mola_vals.mean()
+            mola_mean = mola_vals.mean()
             
             disp_vals = filtered_opp["Disp. Vetorial %"].str.rstrip("%").replace('', '0').astype(float)
-            disp_m = disp_vals.mean()
+            disp_mean = disp_vals.mean()
             
             infil_rate = (filtered_opp["Infiltração"] == "Sim").mean() * 100
             reteste_rate = (filtered_opp["Reteste Gravitacional"] == "Sim").mean() * 100
             
-            opp_geo_msg = f"📐 **Assinatura Geométrica da Reversão:**\n"
-            opp_geo_msg += f"• **Dispersão Vetorial (Mola):** {disp_m:+.2f}% de esticamento médio.\n"
-            opp_geo_msg += f"• **Compressão de Feixe (Coesão):** {mola_m:.2f}% (linhas muito juntas).\n"
-            opp_geo_msg += f"• **Taxa de Infiltração Fractal:** {infil_rate:.1f}% das vezes (sinal antecipado de micro-tempo).\n"
-            opp_geo_msg += f"• **Taxa de Reteste Gravitacional:** {reteste_rate:.1f}% das vezes (ricochete no trampolim de suporte)."
+            # 1. Tabela Estatística de Curvatura
+            st.markdown("##### 📐 Estatísticas da Curvatura e Estabilidade")
+            df_stats = pd.DataFrame({
+                "Métrica": ["Aceleração Reversão", "Stretching (Elástico)"],
+                "Média": [f"{acc_mean:+.4f}", f"{strt_mean:.2f}%"],
+                "Desvio Padrão": [f"{acc_std:.4f}", f"{strt_std:.2f}%"],
+                "Estabilidade": ["Alta" if acc_std < 0.005 else "Média", "Excelente" if strt_std < 1.0 else "Instável"]
+            })
+            st.dataframe(df_stats, width='stretch', hide_index=True)
             
-    thr_msg = ""
-    thr_geo_msg = ""
-    if filtered_thr.empty:
-        thr_msg = f"Sem dados suficientes para minerar padrões de venda/segurança no regime {selected_regime}."
-    else:
-        acc_m = filtered_thr["Aceleração"].astype(float).mean()
-        strt_m = filtered_thr["Stretching"].astype(float).mean()
-        acc_min = filtered_thr["Aceleração"].astype(float).min()
-        acc_max = filtered_thr["Aceleração"].astype(float).max()
-        
-        thr_msg = f"As reversões de queda no regime **{selected_regime}** ocorrem com uma **Aceleração média de {acc_m:+.4f}** (entre {acc_min:+.4f} e {acc_max:+.4f}) e um **Stretching médio de {strt_m:.2f}%**."
-        
-        if col_p2 in filtered_thr.columns and col_p3 in filtered_thr.columns:
-            sma2 = pd.to_numeric(filtered_thr[col_p2], errors='coerce')
-            sma3 = pd.to_numeric(filtered_thr[col_p3], errors='coerce')
-            sma4 = pd.to_numeric(filtered_thr[col_p4], errors='coerce')
-            sma5 = pd.to_numeric(filtered_thr[col_p5], errors='coerce')
-            sma6 = pd.to_numeric(filtered_thr[col_p6], errors='coerce')
+            # 2. Indicadores Fractais (Micro-Barras HD)
+            st.markdown("##### 🔮 Fidelidade Fractal & Fibonacci")
             
-            mola_vals = filtered_thr["Compressão Mola %"].str.rstrip("%").replace('', '0').astype(float)
-            mola_m = mola_vals.mean()
+            # Barra Infiltração
+            st.markdown(f"**Infiltração Fractal Rápida:** {infil_rate:.1f}%")
+            st.progress(int(infil_rate)/100.0)
+            infil_badge = "✅ Excelente Confirmação" if infil_rate >= 70.0 else "⚠️ Sinal Fraco / Ruído"
+            st.markdown(f"<span style='color:#64748b; font-size:11px;'>Robustez: <b>{infil_badge}</b></span>", unsafe_allow_html=True)
             
-            disp_vals = filtered_thr["Disp. Vetorial %"].str.rstrip("%").replace('', '0').astype(float)
-            disp_m = disp_vals.mean()
+            # Barra Reteste
+            st.markdown(f"**Reteste Gravitacional (Suporte Lento):** {reteste_rate:.1f}%")
+            st.progress(int(reteste_rate)/100.0)
+            reteste_badge = "💎 Trampolim Altamente Fiável" if reteste_rate >= 50.0 else "⚠️ Suporte Vulnerável"
+            st.markdown(f"<span style='color:#64748b; font-size:11px;'>Robustez: <b>{reteste_badge}</b></span>", unsafe_allow_html=True)
             
-            infil_rate = (filtered_thr["Infiltração"] == "Sim").mean() * 100
-            reteste_rate = (filtered_thr["Reteste Gravitacional"] == "Sim").mean() * 100
-            
-            thr_geo_msg = f"📐 **Assinatura Geométrica do Topo/Queda:**\n"
-            thr_geo_msg += f"• **Dispersão Vetorial (Mola):** {disp_m:+.2f}% de dispersão no topo.\n"
-            thr_geo_msg += f"• **Compressão de Feixe (Coesão):** {mola_m:.2f}%.\n"
-            thr_geo_msg += f"• **Taxa de Infiltração Fractal:** {infil_rate:.1f}% das vezes.\n"
-            thr_geo_msg += f"• **Taxa de Reteste Gravitacional:** {reteste_rate:.1f}% das vezes (quebra de trampolim)."
-
-    col1, col2 = st.columns(2)
-    with col1:
-        st.markdown(f'''
-        <div class="glass-card" style="padding:20px; border-left: 5px solid #2ecc71; margin-bottom: 15px;">
-            <h5 style="color:#2ecc71; margin-top:0;">💚 Oportunidades de Compra (Fundos)</h5>
-            <p style="font-size: 14px; line-height: 1.5; color: #1e293b;">{opp_msg}</p>
-        </div>
-        ''', unsafe_allow_html=True)
-        if opp_geo_msg:
+            # 3. O Veredicto do Consenso
+            st.markdown("##### 🧠 O Veredicto Quantitativo")
+            verdict = ""
+            if selected_regime == "BULL":
+                verdict = "🐂 **Regime Bull Estável:** Entrada de alta probabilidade estatística. A compressão de mola seguida de aceleração positiva rápida confirma a continuação da tendência. Recomenda-se operar com Stop Loss estreito logo abaixo da SMA55."
+            elif selected_regime == "BEAR":
+                verdict = "🐻 **Recuperação em Bear Market:** Entradas perigosas contra a maré principal. Procure apenas retestes gravíticos perfeitos na SMA144 e execute saídas rápidas (Take Profit curto)."
+            elif selected_regime == "LATERAL":
+                verdict = "🦀 **Mercado Lateralizado:** Perigo extremo de falsos breakouts. A mola comprimida é forte, mas o esticamento é limitado. Opere apenas ressaltos nas paredes de suporte e evite posições longas de holding."
+            else:
+                verdict = "⚡ **Regime Caótico / Ruído:** Volatilidade extrema sem direção. Os indicadores fractais falham com frequência. Recomenda-se **inação completa (HOLD)** ou redução do risco em 70%."
+                
             st.markdown(f'''
-            <div class="glass-card" style="padding:20px; border-left: 5px solid #00B0FF; margin-bottom: 15px; background: rgba(0, 176, 255, 0.03);">
-                <h5 style="color:#00B0FF; margin-top:0;">📐 Geometria Sagrada de Alta (Fibonacci)</h5>
-                <p style="font-size: 13px; line-height: 1.5; color: #1e293b; white-space: pre-line;">{opp_geo_msg}</p>
-            </div>
-            ''', unsafe_allow_html=True)
-            
-    with col2:
-        st.markdown(f'''
-        <div class="glass-card" style="padding:20px; border-left: 5px solid #e74c3c; margin-bottom: 15px;">
-            <h5 style="color:#e74c3c; margin-top:0;">💔 Sinais de Alerta (Queda)</h5>
-            <p style="font-size: 14px; line-height: 1.5; color: #1e293b;">{thr_msg}</p>
-        </div>
-        ''', unsafe_allow_html=True)
-        if thr_geo_msg:
-            st.markdown(f'''
-            <div class="glass-card" style="padding:20px; border-left: 5px solid #FFAB00; margin-bottom: 15px; background: rgba(255, 171, 0, 0.03);">
-                <h5 style="color:#FFAB00; margin-top:0;">📐 Geometria Sagrada de Queda (Fibonacci)</h5>
-                <p style="font-size: 13px; line-height: 1.5; color: #1e293b; white-space: pre-line;">{thr_geo_msg}</p>
+            <div style="background: rgba(2, 132, 199, 0.05); border: 1px dashed rgba(2, 132, 199, 0.3); border-radius: 8px; padding: 12px; font-size: 13px; color:#1e293b; line-height:1.5;">
+                {verdict}
             </div>
             ''', unsafe_allow_html=True)
 
-import json
-import os
+    # --- PROCESSAR VENDAS (SHORT / TOPOS) ---
+    with col_right:
+        st.markdown(f'''
+        <div style="background: rgba(239, 68, 68, 0.05); border-left: 5px solid #e74c3c; border-radius: 12px; padding: 16px; border: 1px solid rgba(239,68,68,0.15); margin-bottom: 20px;">
+            <h4 style="color:#e74c3c; margin-top:0; margin-bottom:10px;">🔴 Diagnóstico de SHORT (Venda - Topos)</h4>
+        </div>
+        ''', unsafe_allow_html=True)
+        
+        if filtered_thr.empty:
+            st.info(f"Sem topos de alerta para o regime {selected_regime}.")
+        else:
+            acc_vals_t = filtered_thr["Aceleração"].astype(float)
+            strt_vals_t = filtered_thr["Stretching"].astype(float)
+            
+            acc_mean_t = acc_vals_t.mean()
+            acc_std_t = acc_vals_t.std()
+            strt_mean_t = strt_vals_t.mean()
+            strt_std_t = strt_vals_t.std()
+            
+            mola_vals_t = filtered_thr["Compressão Mola %"].str.rstrip("%").replace('', '0').astype(float)
+            mola_mean_t = mola_vals_t.mean()
+            
+            disp_vals_t = filtered_thr["Disp. Vetorial %"].str.rstrip("%").replace('', '0').astype(float)
+            disp_mean_t = disp_vals_t.mean()
+            
+            infil_rate_t = (filtered_thr["Infiltração"] == "Sim").mean() * 100
+            reteste_rate_t = (filtered_thr["Reteste Gravitacional"] == "Sim").mean() * 100
+            
+            # 1. Tabela Estatística de Curvatura
+            st.markdown("##### 📐 Estatísticas da Curvatura e Estabilidade")
+            df_stats_t = pd.DataFrame({
+                "Métrica": ["Aceleração Reversão", "Stretching (Elástico)"],
+                "Média": [f"{acc_mean_t:+.4f}", f"{strt_mean_t:.2f}%"],
+                "Desvio Padrão": [f"{acc_std_t:.4f}", f"{strt_std_t:.2f}%"],
+                "Estabilidade": ["Alta" if acc_std_t < 0.005 else "Média", "Excelente" if strt_std_t < 1.0 else "Instável"]
+            })
+            st.dataframe(df_stats_t, width='stretch', hide_index=True)
+            
+            # 2. Indicadores Fractais (Micro-Barras HD)
+            st.markdown("##### 🔮 Fidelidade Fractal & Fibonacci")
+            
+            # Barra Infiltração
+            st.markdown(f"**Infiltração Fractal Rápida:** {infil_rate_t:.1f}%")
+            st.progress(int(infil_rate_t)/100.0)
+            infil_badge_t = "✅ Excelente Confirmação" if infil_rate_t >= 70.0 else "⚠️ Sinal Fraco / Ruído"
+            st.markdown(f"<span style='color:#64748b; font-size:11px;'>Robustez: <b>{infil_badge_t}</b></span>", unsafe_allow_html=True)
+            
+            # Barra Reteste
+            st.markdown(f"**Reteste Gravitacional (Suporte Lento):** {reteste_rate_t:.1f}%")
+            st.progress(int(reteste_rate_t)/100.0)
+            reteste_badge_t = "💎 Parede de Reversão Estável" if reteste_rate_t >= 50.0 else "⚠️ Parede Vulnerável"
+            st.markdown(f"<span style='color:#64748b; font-size:11px;'>Robustez: <b>{reteste_badge_t}</b></span>", unsafe_allow_html=True)
+            
+            # 3. O Veredicto do Consenso
+            st.markdown("##### 🧠 O Veredicto Quantitativo")
+            verdict_t = ""
+            if selected_regime == "BULL":
+                verdict_t = "🐂 **Exaustão de Topo em Bull:** Sinais de reversão de curta duração. Desaceleração de topo severa com o elástico esticado. O Bot usará estes limites para disparar saídas de segurança e proteger o capital acumulado."
+            elif selected_regime == "BEAR":
+                verdict_t = "🐻 **Regime Bear Forte:** Cenário ideal para ordens de SHORT agressivas. A quebra gravitacional com aceleração negativa confirma o momentum de queda livre colina abaixo. Alvos de lucro alargados são viáveis."
+            elif selected_regime == "LATERAL":
+                verdict_t = "🦀 **Distribuição em Range:** O preço atinge a resistência do canal lateralizado. Entrada ideal para SHORT com objetivo de queda até ao centro da mola comprimida. Stop Loss curto colocado imediatamente acima do pico anterior."
+            else:
+                verdict_t = "⚡ **Volatilidade Caótica:** Ruído extremo e dispersão descontrolada. Picos falsos de venda frequentes. Recomenda-se **fechar posições abertas manualmente** e aguardar a coesão das médias."
+                
+            st.markdown(f'''
+            <div style="background: rgba(239, 68, 68, 0.05); border: 1px dashed rgba(239, 68, 68, 0.3); border-radius: 8px; padding: 12px; font-size: 13px; color:#1e293b; line-height:1.5;">
+                {verdict_t}
+            </div>
+            ''', unsafe_allow_html=True)
 
 def save_current_test_rules(test_name, df, fundos_list, topos_list):
     filepath = "bot_knowledge_base.json"
@@ -1147,11 +1188,11 @@ def render_consensus_engine():
         })
         
     df_lessons = pd.DataFrame(records)
-    st.dataframe(df_lessons, use_container_width=True, hide_index=True)
+    st.dataframe(df_lessons, width='stretch', hide_index=True)
     
     col_hist1, col_hist2 = st.columns([1, 3])
     with col_hist1:
-        if st.button("🗑️ Limpar Historial", use_container_width=True, key="math_clear_history_btn"):
+        if st.button("🗑️ Limpar Historial", width='stretch', key="math_clear_history_btn"):
             if os.path.exists(filepath):
                 try:
                     os.remove(filepath)
@@ -1179,7 +1220,7 @@ def render_consensus_engine():
     
     col_an1, col_an2 = st.columns([1, 2])
     with col_an1:
-        run_analysis = st.button("🔍 Analisar Contradições nas Regras", use_container_width=True, key="math_run_contradictions_analysis")
+        run_analysis = st.button("🔍 Analisar Contradições nas Regras", width='stretch', key="math_run_contradictions_analysis")
         
     if run_analysis:
         if len(selected_tests) < 2:
@@ -1502,7 +1543,7 @@ def render_consensus_engine():
 
     # Gravar o DNA
     st.markdown("---")
-    if st.button("💾 Gravar Consenso DNA Activo no Bot", type="primary", use_container_width=True, key="math_save_dna_btn"):
+    if st.button("💾 Gravar Consenso DNA Activo no Bot", type="primary", width='stretch', key="math_save_dna_btn"):
         try:
             p2 = st.session_state.get('math_active_sma_p2', 5)
             p3 = st.session_state.get('math_active_sma_p3', 13)

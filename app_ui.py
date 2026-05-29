@@ -443,330 +443,77 @@ with col_ctrl5:
 if '_active_caterpillar_dna' not in dir():
     _active_caterpillar_dna = None
 
-with st.expander("🛠️ Painel Global de Configuração do Robô (Clique para Configurar)", expanded=False):
+config = load_config()
+
+with st.expander("🔧 Painel Global de Configuração do Robô & Central de Variáveis (Clique para Configurar)", expanded=False):
     st.markdown("""
-    <div style='font-size: 0.9rem; color: #64748b; margin-bottom: 1rem;'>
-        Configure aqui todos os parâmetros matemáticos do algoritmo de trading e as regras estritas de gestão de risco de banca. 
-        Estas definições são comuns a todas as abas e afetam o comportamento do robô instantaneamente!
+    <div style='font-size: 0.9rem; color: #64748b; margin-bottom: 1.5rem; text-align:center;'>
+        💡 <b>Comando Central:</b> Configure aqui todas as variáveis quantitativas, médias de Fibonacci, limites de risco e fricções de mercado.
+        As alterações propagam-se instantaneamente para todas as abas e simulações da app!
     </div>
     """, unsafe_allow_html=True)
     
-    col_cfg1, col_cfg2, col_cfg3 = st.columns(3)
+    import variables_registry
+    variables_registry.render_variables_dashboard(compact=True)
     
-    with col_cfg1:
-        st.markdown("##### 📈 Estrutura da Estratégia")
-        
-        # Banner informativo: lagarta selecionada no menu de estrategias principal
-        if _active_caterpillar_dna is not None:
-            st.success(f"🎓 **Lagarta Especialista Ativa!** | Stop Loss: `{_active_caterpillar_dna['stop_loss_pct']:.2f}%` | Limiar: `{_active_caterpillar_dna['threshold']:.2f}`")
+    config.update({
+        "ENV": "development",
+        "EXCHANGE_NAME": "binance",
+        "SYMBOL": symbol,
+        "TIMEFRAME": timeframe,
+        "TRADING_INTERVAL_SECONDS": 300,
+        "LOG_LEVEL": "INFO",
+        "LOG_FILE": "trading_bot.log",
+        "INITIAL_CAPITAL": 100.0,
+        "SHORT_WINDOW": st.session_state.get('short_window_val', 9),
+        "LONG_WINDOW": st.session_state.get('long_window_val', 21),
+        "P2_WINDOW": st.session_state.get('tg_p2', 5),
+        "P3_WINDOW": st.session_state.get('tg_p3', 13),
+        "P4_WINDOW": st.session_state.get('tg_p4', 21),
+        "P5_WINDOW": st.session_state.get('tg_p5', 55),
+        "P6_WINDOW": st.session_state.get('tg_p6', 144),
+        "STOP_LOSS_ACTIVE": st.session_state.get('tg_sl_pct_active', True),
+        "STOP_LOSS_PERCENT": st.session_state.get('tg_sl_pct', 2.0),
+        "TAKE_PROFIT_ACTIVE": st.session_state.get('tg_tp_pct_active', False),
+        "TAKE_PROFIT_PERCENT": st.session_state.get('tg_tp_pct', 7.0),
+        "TRAILING_STOP_ACTIVE": st.session_state.get('tg_ts_pct_active', False),
+        "TRAILING_STOP_PERCENT": st.session_state.get('tg_ts_pct', 1.5),
+        "ALLOW_REENTRY": st.session_state.get('allow_reentry_val', True),
+        "PAULO_GOLD_TREND_FILTER": st.session_state.get('paulo_gold_trend_filter_val', False),
+        "PAULO_GOLD_MIN_DIST_PCT": st.session_state.get('paulo_gold_min_dist_pct_val', 0.0),
+        "FEE_PCT": st.session_state.get('fee_pct_val', 0.1),
+        "TAX_PCT": st.session_state.get('tax_pct_val', 28.0),
+        "SLIPPAGE_PCT": st.session_state.get('slippage_pct_val', 0.05)
+    })
 
-        if strategy_type == "MULTIPOINT_VECTOR":
-            operation_mode = st.selectbox(
-                "Modo Operacional da Lagarta",
-                ["TREND_FOLLOWING", "MEAN_REVERSION"],
-                index=0 if st.session_state.operation_mode_val == "TREND_FOLLOWING" else 1,
-                format_func=lambda x: "Seguimento de Tendência (Clássica)" if x == "TREND_FOLLOWING" else "Reversão à Média (Reversa)",
-                help="Seguimento de Tendência compra na alta e vende na queda. Reversão à Média compra nos baixos (sobrevenda) e vende nos altos (picos)!"
-            )
-            entry_mode = st.selectbox(
-                "Modo de Entrada (Gatilho)",
-                ["3PONTOS", "4PONTOS", "5PONTOS"],
-                index=0 if st.session_state.entry_mode_val == "3PONTOS" else (1 if st.session_state.entry_mode_val == "4PONTOS" else 2),
-                format_func=lambda x: "Super-Ágil (3 Pernas: P1 > P2 > P3)" if x == "3PONTOS" else ("Equilibrada (4 Pernas: P1 > P2 > P3 > P4)" if x == "4PONTOS" else "Conservadora (5 Pernas: P1 > P2 > P3 > P4 > P5)"),
-                help="Escolha quantas pernas da lagarta devem alinhar para disparar a COMPRA."
-            )
-            exit_mode = st.selectbox(
-                "Modo de Saída (Suporte)",
-                ["P2", "P3", "P4"],
-                index=0 if st.session_state.exit_mode_val == "P2" else (1 if st.session_state.exit_mode_val == "P3" else 2),
-                format_func=lambda x: "Saída Rápida (Preço < P2/Média 9)" if x == "P2" else ("Saída Intermédia (Preço < P3/Média 21)" if x == "P3" else "Saída Lenta (Preço < P4/Média 50)"),
-                help="Escolha que suporte a cabeça da lagarta deve quebrar para disparar a VENDA."
-            )
-            short_window = 9
-            long_window = 21
-            multipoint_mode = "AGILE" # Modo dinâmico controlado por pernas
-            allow_reentry = True  # Lagarta IA: re-entrada permitida por defeito
-        else:
-            st.info("Estratégias clássicas de cruzamento não possuem sub-modos dinâmicos de pernas.")
-            if strategy_type == "PAULO_GOLD":
-                paulo_gold_trend_filter = st.checkbox("Filtro de Tendência Macro (Curta > Lenta)", value=st.session_state.paulo_gold_trend_filter_val, help="Se ativado, o robó só compra se a média rápida estiver acima da lenta. Evita perdas em quedas!")
-                if paulo_gold_trend_filter:
-                    paulo_gold_min_dist_pct = st.slider(
-                        "Distância Mínima das Médias (%)",
-                        min_value=0.0, max_value=2.0,
-                        value=st.session_state.paulo_gold_min_dist_pct_val,
-                        step=0.05,
-                        help="O robó só compra se a média curta estiver pelo menos a esta % acima da lenta. Bloqueia ruídos e falsas entradas em mercados horizontais/planos!"
-                    )
-                else:
-                    paulo_gold_min_dist_pct = 0.0
-                allow_reentry = True
-            else:
-                paulo_gold_trend_filter = True
-                allow_reentry = st.checkbox(
-                "Permitir Re-Entrada em Tendência",
-                value=st.session_state.allow_reentry_val,
-                help="Se ativado, o robô volta a comprar a meio da subida se o preço recuperar acima da média rápida, mantendo a tendência de alta."
-            )
-            operation_mode = "TREND_FOLLOWING"
-            entry_mode = "4PONTOS"
-            exit_mode = "P3"
-            multipoint_mode = "AGILE"
-            
-    with col_cfg2:
-        st.markdown("##### 📐 Pontos de Medição (Médias)")
-        if strategy_type in ["SMA_CROSSOVER", "EMA_CROSSOVER", "PAULO_GOLD"]:
-            short_window = st.number_input(
-                "Janela Curta (Rápida)",
-                min_value=2, max_value=100,
-                value=st.session_state.short_window_val,
-                help="Número de candles para calcular a média móvel curta. Padrões profissionais: 9 a 20."
-            )
-            long_window = st.number_input(
-                "Janela Longa (Lenta)",
-                min_value=5, max_value=200,
-                value=st.session_state.long_window_val,
-                help="Número de candles para calcular a média móvel lenta. Padrões profissionais: 21 a 50."
-            )
-            p2_window = 9
-            p3_window = 21
-            p4_window = 50
-            p5_window = 200
-            p5_filter_active = False
-            exhaustion_filter = False
-            exhaustion_threshold = 2.5
-        else:
-            p2_window = st.number_input(
-                "Média Muito Rápida - P2",
-                min_value=2, max_value=50,
-                value=st.session_state.p2_window_val,
-                help="Representa o Ponto 2 (Média Rápida de curto-prazo, ex: 9)."
-            )
-            p3_window = st.number_input(
-                "Média Curta/Confirmadora - P3",
-                min_value=5, max_value=100,
-                value=st.session_state.p3_window_val,
-                help="Representa o Ponto 3 (Média Curta confirmadora, ex: 21)."
-            )
-            p4_window = st.number_input(
-                "Média Média - P4",
-                min_value=10, max_value=150,
-                value=st.session_state.p4_window_val,
-                help="Representa o Ponto 4 (Média de suporte dinâmico, ex: 50)."
-            )
-            p5_window = st.number_input(
-                "Média Longa/Mestra - P5",
-                min_value=50, max_value=500,
-                value=st.session_state.p5_window_val,
-                help="Representa o Ponto 5 (Média Longa da tendência macro global, ex: 200)."
-            )
-            p5_filter_active = st.checkbox(
-                "Filtro de Inclinação P5 (Média 200) Ativo",
-                value=st.session_state.p5_filter_active_val if "p5_filter_active_val" in st.session_state else True,
-                help="Se ativado, bloqueia novas compras se a Média 200 estiver inclinada para baixo (macro queda)."
-            )
-            exhaustion_filter = st.checkbox(
-                "Ativar Filtro de Exaustão",
-                value=st.session_state.exhaustion_filter_val,
-                help="Se ativado, bloqueia novas compras caso o Preço Atual (P1) esteja demasiado longe da Média Rápida (P2)."
-            )
-            if exhaustion_filter:
-                exhaustion_threshold = st.slider(
-                    "Limite de Exaustão (%)",
-                    0.5, 10.0,
-                    value=st.session_state.exhaustion_threshold_val,
-                    step=0.1,
-                    help="Distância máxima percentual entre o Preço (P1) e a Média Rápida (P2) para permitir a compra."
-                )
-            else:
-                exhaustion_threshold = 2.5
-            short_window = p2_window
-            long_window = p3_window
-            
-    with col_cfg3:
-        st.markdown("##### 🛡️ Gestão de Risco & Banca")
-        initial_capital = st.number_input(
-            "Capital Inicial (EUR)",
-            min_value=10.0, max_value=100000.0,
-            value=100.0,
-            step=10.0,
-            help="Saldo simulado de Euros com que inicia a sua conta no primeiro dia."
-        )
-        max_risk_pct = st.slider(
-            "Risco por Trade (%)",
-            0.1, 5.0, 1.0,
-            step=0.1,
-            help="A percentagem máxima da sua banca total que aceita perder caso a operação atinja o Stop Loss. Padrão: 1.0%."
-        )
-        sl_active = st.checkbox(
-            "Stop Loss Ativo (Limite de Perda)",
-            value=st.session_state.sl_active_val,
-            help="Se desativado, o robô só vende quando ocorrer o cruzamento das médias (estratégia pura)."
-        )
-        if sl_active:
-            stop_loss_pct = st.slider(
-                "Stop Loss (%)",
-                0.5, 10.0,
-                value=st.session_state.stop_loss_pct_val,
-                step=0.1,
-                help="Limite de perda automática. Se o preço cair esta percentagem abaixo da compra, o robô vende."
-            )
-        else:
-            stop_loss_pct = 100.0
-        trailing_stop_active = st.checkbox(
-            "Acompanhar Lucros (Trailing Stop)",
-            value=st.session_state.trailing_stop_active_val,
-            help="Se ativado, o seu Stop Loss subirá automaticamente acompanhando o preço para proteger lucros!"
-        )
-        emergency_exit_price_cross = st.selectbox(
-            "Saída de Emergência por Preço",
-            ["NONE", "SHORT", "LONG", "ANY"],
-            index=["NONE", "SHORT", "LONG", "ANY"].index(st.session_state.emergency_exit_price_cross_val),
-            format_func=lambda x: "Desativada" if x == "NONE" else ("Preço < Média Curta" if x == "SHORT" else ("Preço < Média Lenta" if x == "LONG" else "Preço < Qualquer uma")),
-            help="Vende a posição imediatamente assim que o preço de fecho atual cruzar abaixo da média selecionada (evita o atraso do cruzamento das médias)."
-        )
-        
-        tp_active = st.checkbox(
-            "Take Profit Ativo (Meta de Lucro)",
-            value=st.session_state.tp_active_val,
-            help="Se ativado, o robô vende quando atinge a percentagem de ganho definida abaixo."
-        )
-        if not tp_active:
-            take_profit_pct = 999.0
-        else:
-            take_profit_pct = st.slider(
-                "Take Profit (%)",
-                1.0, 30.0,
-                value=st.session_state.take_profit_pct_val,
-                step=0.5,
-                help="Alvo de ganho automático. Se o preço subir esta percentagem, o robô vende."
-            )
-        max_daily_loss_pct = st.slider(
-            "Limite Perda Diária (%)",
-            1.0, 20.0, 5.0,
-            step=0.5,
-            help="Se a sua conta perder esta percentagem total num único dia, o robô desliga-se automaticamente."
-        )
-        st.markdown("---")
-        st.markdown("##### 💸 Custos & Realismo")
-        fee_pct = st.slider(
-            "Taxa de Operação da API (%)",
-            0.0, 1.0,
-            value=st.session_state.fee_pct_val,
-            step=0.01,
-            help="Comissão cobrada pela exchange por transação. Binance padrão spot é 0.1%."
-        )
-        tax_pct = st.slider(
-            "Imposto sobre Mais-Valias (%)",
-            0.0, 50.0,
-            value=st.session_state.tax_pct_val,
-            step=1.0,
-            help="Imposto cobrado sobre o lucro líquido positivo no final do período. Padrão Portugal: 28%."
-        )
-        slippage_pct = st.slider(
-            "Deslizamento / Slippage (%)",
-            0.0, 1.0,
-            value=st.session_state.slippage_pct_val,
-            step=0.01,
-            help="Desvio no preço de execução a mercado simulando lag de rede e profundidade."
-        )
-    
-    # Adicionar o Guia e Dicionário de Parâmetros de forma discreta dentro do Painel de Configurações
-    with st.expander("📚 Guia Prático & Dicionário de Parâmetros"):
-        st.markdown("""
-        **Como testar 1 Ano Inteiro (Instantâneo):**
-        1. Defina o **Timeframe** para `1d` (velas diárias).
-        2. Defina a **Quantidade de Candles** para `365` (1 ano) ou `1000` (quase 3 anos).
-        *Isto descarrega instantaneamente dados reais de longo prazo da Binance!*
-
-        ---
-
-        **Conceitos Rápidos:**
-        * **Risco por Trade (%)**: Percentagem da sua banca que aceita perder se o trade correr mal (bater no Stop Loss). Recomenda-se **1%**.
-        * **Stop Loss (SL)**: Limite de perda automática. Vende se o ativo cair esta % abaixo do preço de compra.
-        * **Take Profit (TP)**: Alvo de lucro. Vende automaticamente quando o ativo subir esta % para embolsar o ganho.
-        * **Médias Móveis (SMA)**:
-          * **Curta (Rápida)**: Média de curto prazo. Reage rápido ao preço (ex: 9 a 20).
-          * **Longa (Lenta)**: Média de médio prazo. Reage devagar (ex: 21 a 50).
-        """)
-
-# Sincronizar o estado interno caso o utilizador tenha mexido manualmente nos widgets
-st.session_state.strategy_type_val = strategy_type
-st.session_state.short_window_val = short_window
-st.session_state.long_window_val = long_window
-st.session_state.p2_window_val = p2_window
-st.session_state.p3_window_val = p3_window
-st.session_state.p4_window_val = p4_window
-st.session_state.p5_window_val = p5_window
-st.session_state.multipoint_mode_val = multipoint_mode
-st.session_state.exhaustion_filter_val = exhaustion_filter
-st.session_state.exhaustion_threshold_val = exhaustion_threshold
-st.session_state.p5_filter_active_val = p5_filter_active
-st.session_state.entry_mode_val = entry_mode
-st.session_state.exit_mode_val = exit_mode
-st.session_state.operation_mode_val = operation_mode
-
-st.session_state.sl_active_val = sl_active
-if sl_active:
-    st.session_state.stop_loss_pct_val = stop_loss_pct
-st.session_state.tp_active_val = tp_active
-st.session_state.trailing_stop_active_val = trailing_stop_active
-st.session_state.emergency_exit_price_cross_val = emergency_exit_price_cross
-st.session_state.allow_reentry_val = allow_reentry
-if 'paulo_gold_trend_filter' in locals():
-    st.session_state.paulo_gold_trend_filter_val = paulo_gold_trend_filter
-if 'paulo_gold_min_dist_pct' in locals():
-    st.session_state.paulo_gold_min_dist_pct_val = paulo_gold_min_dist_pct
-if tp_active:
-    st.session_state.take_profit_pct_val = take_profit_pct
-
-st.session_state.fee_pct_val = fee_pct
-st.session_state.tax_pct_val = tax_pct
-st.session_state.slippage_pct_val = slippage_pct
-
-# Carregar configurações e atualizar com a seleção da UI
-config = load_config()
-config.update({
-    "INITIAL_CAPITAL": initial_capital,
-    "FEE_PERCENT": fee_pct,
-    "TAX_PERCENT": tax_pct,
-    "SLIPPAGE_PCT": slippage_pct,
-    "SYMBOL": symbol,
-    "TIMEFRAME": timeframe,
-    "STRATEGY_TYPE": strategy_type,
-    "SHORT_WINDOW": short_window,
-    "LONG_WINDOW": long_window,
-    "P2_WINDOW": p2_window,
-    "P3_WINDOW": p3_window,
-    "P4_WINDOW": p4_window,
-    "P5_WINDOW": p5_window,
-    "MULTIPOINT_MODE": multipoint_mode,
-    "EXHAUSTION_FILTER": exhaustion_filter,
-    "EXHAUSTION_THRESHOLD": exhaustion_threshold,
-    "P5_SLOPE_FILTER_ACTIVE": p5_filter_active,
-    "ENTRY_MODE": entry_mode,
-    "EXIT_MODE": exit_mode,
-    "OPERATION_MODE": operation_mode,
-    "MAX_RISK_PER_TRADE_PERCENT": max_risk_pct,
-    "STOP_LOSS_PERCENT": stop_loss_pct,
-    "TAKE_PROFIT_PERCENT": take_profit_pct,
-    "MAX_DAILY_LOSS_PERCENT": max_daily_loss_pct,
-    "TRAILING_STOP_ACTIVE": trailing_stop_active,
-    "EMERGENCY_EXIT_PRICE_CROSS": emergency_exit_price_cross,
-    "ALLOW_REENTRY": allow_reentry,
-    "PAULO_GOLD_TREND_FILTER": paulo_gold_trend_filter if 'paulo_gold_trend_filter' in locals() else st.session_state.paulo_gold_trend_filter_val,
-    "PAULO_GOLD_MIN_DIST_PCT": paulo_gold_min_dist_pct if 'paulo_gold_min_dist_pct' in locals() else st.session_state.paulo_gold_min_dist_pct_val
-})
+# Mapear variáveis locais a partir do estado para compatibilidade global
+short_window = st.session_state.get('short_window_val', 9)
+long_window = st.session_state.get('long_window_val', 21)
+operation_mode = st.session_state.get('operation_mode_val', 'TREND_FOLLOWING')
+entry_mode = st.session_state.get('entry_mode_val', '4PONTOS')
+exit_mode = st.session_state.get('exit_mode_val', 'P3')
+multipoint_mode = st.session_state.get('multipoint_mode_val', 'AGILE')
+allow_reentry = st.session_state.get('allow_reentry_val', True)
+paulo_gold_trend_filter = st.session_state.get('paulo_gold_trend_filter_val', False)
+paulo_gold_min_dist_pct = st.session_state.get('paulo_gold_min_dist_pct_val', 0.0)
+max_risk_pct = 1.0
+stop_loss_pct = st.session_state.get('tg_sl_pct', 2.0)
+take_profit_pct = st.session_state.get('tg_tp_pct', 7.0)
+trailing_stop_pct = st.session_state.get('tg_ts_pct', 1.5)
+fee_pct = st.session_state.get('fee_pct_val', 0.1)
+tax_pct = st.session_state.get('tax_pct_val', 28.0)
+slippage_pct = st.session_state.get('slippage_pct_val', 0.05)
 
 # Inicializar logger
 logger = setup_logging()
 
 # 7. Abas Principais do Laboratório (TABS SIMPLIFICADAS)
-tab_backtest, tab_simulator, tab_game, tab_math_lab, tab_trader_game = st.tabs(["📊 Simulaçao & Gráficos Real", "🔬 Laboratório de Simulaçao & Otimizaçao", "🎓 Universidade de Lagartas IA", "▵ Laboratório Matemático & Regimes", "🎮 Jogo do Trader Quantitativo"])
+tab_backtest, tab_simulator, tab_math_lab, tab_trader_game = st.tabs(["📊 Simulação & Gráficos Real", "🔬 Laboratório de Simulação & Otimização", "🧬 Laboratório Matemático & Regimes", "🎮 Arena de Jogo & Auto-Treino"])
+
 
 # Ação do Botão Principal do Backtester
 if run_button:
-    st.markdown("### ⏳ Recolhendo dados e processando simulação...")
+    st.markdown("### 🚀 Recolhendo dados e processando simulação...")
     progress_bar = st.progress(0)
 
     # Obter dados da Binance
@@ -789,44 +536,14 @@ if run_button:
         progress_bar.progress(100)
         progress_bar.empty()
 
-        # Guardar no session state para preservação após rerun
+        # Guardar no session state para preservação
         st.session_state.backtest_results = metrics
         st.session_state.backtest_trades = trades
         st.session_state.backtest_capital_history = capital_history
         st.session_state.backtest_df = df_ohlcv
-        st.rerun()
+        # st.rerun() removido para evitar loop infinito de re-execução em Streamlit pós-2025
 
-# Ação do Botão Principal do Backtester
-if run_button:
-    st.markdown("### ⏳ Recolhendo dados e processando simulação...")
-    progress_bar = st.progress(0)
 
-    # Obter dados da Binance
-    collector = DataCollector(exchange_id='binance', symbol=symbol, timeframe=timeframe)
-    progress_bar.progress(30)
-
-    df_ohlcv = collector.get_ohlcv(limit=limit_candles)
-    progress_bar.progress(60)
-
-    if df_ohlcv is not None and not df_ohlcv.empty:
-        # Criar backtester
-        backtester = Backtester(config, logger)
-
-        # Correr backtest
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        trades, capital_history = loop.run_until_complete(backtester.run_backtest(df_ohlcv))
-        metrics = backtester.get_performance_metrics()
-
-        progress_bar.progress(100)
-        progress_bar.empty()
-
-        # Guardar no session state para preservação após rerun
-        st.session_state.backtest_results = metrics
-        st.session_state.backtest_trades = trades
-        st.session_state.backtest_capital_history = capital_history
-        st.session_state.backtest_df = df_ohlcv
-        st.rerun()
 
 # ─── CLASSIFICADOR DE TIPO DE MERCADO (usando precos reais da Binance) ──────────
 def classify_market_type(prices_list):
@@ -1101,7 +818,7 @@ with tab_backtest:
             height=350
         )
 
-        st.plotly_chart(fig_equity, use_container_width=True)
+        st.plotly_chart(fig_equity, width='stretch')
         st.markdown('</div>', unsafe_allow_html=True)
 
         # 2. Gráfico Interativo de Sinais no Preço do Ativo + Médias Móveis (SMA)
@@ -1315,7 +1032,7 @@ with tab_backtest:
             height=400
         )
 
-        st.plotly_chart(fig_prices, use_container_width=True)
+        st.plotly_chart(fig_prices, width='stretch')
         st.caption("💡 Dica: Passe com o rato por cima de qualquer ponto do gráfico para ver a guia vertical unificada com o preço e o valor exato das duas médias móveis!")
         st.markdown('</div>', unsafe_allow_html=True)
 
@@ -1435,12 +1152,28 @@ with tab_simulator:
     if sim_df is not None and not sim_df.empty:
         st.session_state.sim_df_val = sim_df
         
-        sim_config = config.copy()
-        sim_config["INITIAL_CAPITAL"] = 100.0
-        
-        sim_bt = Backtester(sim_config, logger)
-        sim_trades, sim_cap_history = asyncio.run(sim_bt.run_backtest(sim_df))
-        sim_metrics = sim_bt.get_performance_metrics()
+        # Caching inteligente do backtest para evitar execução em loop nas atualizações de página
+        run_sim = True
+        current_config_hash = hash(str(config))
+        if "sim_metrics" in st.session_state and st.session_state.get("sim_config_hash") == current_config_hash:
+            run_sim = False
+            
+        if run_sim:
+            sim_config = config.copy()
+            sim_config["INITIAL_CAPITAL"] = 100.0
+            
+            sim_bt = Backtester(sim_config, logger)
+            sim_trades, sim_cap_history = asyncio.run(sim_bt.run_backtest(sim_df))
+            sim_metrics = sim_bt.get_performance_metrics()
+            
+            st.session_state.sim_metrics = sim_metrics
+            st.session_state.sim_trades = sim_trades
+            st.session_state.sim_cap_history = sim_cap_history
+            st.session_state.sim_config_hash = current_config_hash
+        else:
+            sim_metrics = st.session_state.sim_metrics
+            sim_trades = st.session_state.sim_trades
+            sim_cap_history = st.session_state.sim_cap_history
         
         col_m1, col_m2, col_m3, col_m4 = st.columns(4)
         with col_m1:
@@ -1606,7 +1339,7 @@ with tab_simulator:
             height=500, 
             margin=dict(l=10, r=10, t=40, b=10)
         )
-        st.plotly_chart(fig_sim, use_container_width=True)
+        st.plotly_chart(fig_sim, width='stretch')
 
         if strategy_type == "MULTIPOINT_VECTOR":
             import logging
@@ -1699,7 +1432,7 @@ with tab_simulator:
             with col_l1:
                 st.markdown(f"💡 **Análise Quantitativa**: A melhor lógica para este bioma de mercado foi **Entrada {best_combo['entry']} + Saída {best_combo['exit']}**, obtendo um retorno de **{best_combo['ret']:+.2f}%**.")
             with col_l2:
-                if st.button("🏆 Aplicar Lógica Campeã", use_container_width=True):
+                if st.button("🏆 Aplicar Lógica Campeã", width='stretch'):
                     st.session_state.entry_mode_val = best_combo["entry"]
                     st.session_state.exit_mode_val = best_combo["exit"]
                     if best_combo["entry"] == "3PONTOS":
@@ -1714,7 +1447,7 @@ with tab_simulator:
         if "opt_sim_results" not in st.session_state:
             st.session_state.opt_sim_results = None
 
-        if st.button("⚡ Executar Varredura de Parâmetros neste Mercado", use_container_width=True):
+        if st.button("⚡ Executar Varredura de Parâmetros neste Mercado", width='stretch'):
             with st.spinner("A processar varredura de parâmetros..."):
                 main_logger = logging.getLogger("TradingBot")
                 old_level = main_logger.level
@@ -1781,10 +1514,10 @@ with tab_simulator:
                 "Win Rate (%)": "{:.1f}%",
                 "Stop Loss (%)": "{:.1f}%",
                 "Take Profit (%)": "{:.1f}%"
-            }), use_container_width=True)
+            }), width='stretch')
             
             best_row = top_df.iloc[0]
-            if st.button("🏆 Aplicar Melhor Configuração Otimizada (Top 1) no Painel Principal", use_container_width=True):
+            if st.button("🏆 Aplicar Melhor Configuração Otimizada (Top 1) no Painel Principal", width='stretch'):
                 st.session_state.p2_window_val = int(best_row["P2 (Rápida)"])
                 st.session_state.p3_window_val = int(best_row["P3 (Confirmadora)"])
                 st.session_state.short_window_val = int(best_row["P2 (Rápida)"])
@@ -1800,1012 +1533,6 @@ with tab_simulator:
     st.markdown('</div>', unsafe_allow_html=True)
 
 # --- CONTEÚDO DA ABA 4: O CENTRO DE TREINAMENTO DA LAGARTA IA (VERSÃO 3.0) ---
-with tab_game:
-    st.markdown('<div class="glass-card">', unsafe_allow_html=True)
-    st.markdown('<h3>🔬 Centro de Treino IA: Especialização & Sobrevivência (Versão 3.0)</h3>', unsafe_allow_html=True)
-    st.markdown(
-        "Neste centro de investigação quantitativa, a nossa Lagarta aprende a operar **de forma 100% autónoma**."
-        " Não és tu quem a ensina — a IA corre terrenos maciços de treino (até 10.000 velas) e evolui o seu DNA "
-        "ao longo de gerações darwinianas. Cada trade desconta **comissões** e sofre **slippage** real. "
-    )
-    
-    # 1. PARÂMETROS E CONFIGURAÇÕES DO TREINO
-    st.markdown("##### ⚙️ Configurações da Sessão de Treinamento")
-    
-    col_g1, col_g2, col_g3 = st.columns(3)
-    
-    with col_g1:
-        st.markdown("**1. Selecionar Mercado & Terreno**")
-        market_type = st.selectbox(
-            "Tipo de Mercado para Treino",
-            [
-                "Tendência de Alta Forte (Bull Market)",
-                "Tendência de Baixa Forte (Bear Market)",
-                "Mercado Lateral / Range (Consolidação)",
-                "Hiper-Volátil Caótico (Chaos Market)"
-            ],
-            help="Escolhe o habitat da tua lagarta. Uma especialista BULL aprende a ganhar em altas. Uma BEAR aprende a ganhar em quedas. Lateral aprende a trabalhar em ranges. Caótico é sobrevivência extrema."
-        )
-        
-        dynamic_terrain = st.checkbox(
-            "🧬 Terrenos Dinâmicos (Evita Cópia)",
-            value=True,
-            help="Se ativo, a lagarta enfrenta um gráfico de preços completamente novo a cada nova geração (Epoch). Isto obriga-a a desenvolver regras universais em vez de memorizar o mapa!"
-        )
-        
-    with col_g2:
-        st.markdown("**2. Volume de Dados (Dificuldade)**")
-        candles_count = st.select_slider(
-            "Número de Velas do Terreno de Treino",
-            options=[500, 1000, 2000, 5000, 10000],
-            value=2000
-        )
-        
-        st.session_state.game_specialist_name = st.text_input(
-            "Nome da Lagarta Especialista",
-            value=f"Lagarta Especialista {market_type.split()[0]}"
-        )
-        
-    with col_g3:
-        st.markdown("**3. Parâmetros Genéticos (Epochs)**")
-        generations_count = st.slider(
-            "Gerações Evolutivas (Epochs)",
-            min_value=5,
-            max_value=50,
-            value=30,
-            step=5
-        )
-        
-        # Recuperar valores da Aba Global
-        fee_pct = st.session_state.fee_pct_val
-        tax_pct = st.session_state.tax_pct_val
-        slippage_pct = st.session_state.slippage_pct_val
-        
-        st.write(f"💼 Taxa da API (Comissão): **{fee_pct}%**")
-        st.write(f"⚡ Slippage Padrão: **{slippage_pct}%**")
-        st.write(f"⚖️ Imposto de Mais-Valias: **{tax_pct}%**")
-        
-    run_training = st.button("🚀 Lançar Treino IA Autónomo", type="primary", use_container_width=True)
-    
-    # 2. VARIÁVEIS DE ESTADO DA ABA DO JOGO
-    if "game_trained_champion" not in st.session_state:
-        st.session_state.game_trained_champion = None
-    if "game_learning_curve" not in st.session_state:
-        st.session_state.game_learning_curve = []
-    if "game_prices" not in st.session_state:
-        st.session_state.game_prices = []
-    if "game_training_history" not in st.session_state:
-        st.session_state.game_training_history = []
-    if "game_trained_caterpillars" not in st.session_state:
-        st.session_state.game_trained_caterpillars = {}
-        
-    # 3. MOTOR GENÉTICO ULTRA-RÁPIDO EM PYTHON (VERSÃO 3.0)
-    if run_training:
-        mutation_rate = 5 # Taxa de mutação genética padrão (5%)
-        with st.spinner(f"A treinar a população de lagartas sobre {candles_count} velas por {generations_count} gerações..."):
-            
-            # Função para gerar preços e indicadores dinamicamente com base em seed
-            def generate_terrain(seed_val, size_val):
-                t_local = np.linspace(0, 15, size_val)
-                np.random.seed(seed_val)
-                if "Alta" in market_type or "Bull" in market_type:
-                    # BULL: tendencia de subida clara com oscilacoes suaves
-                    prices = 100.0 + t_local * 4.5 + 12.0 * np.sin(t_local * 1.5) + np.random.normal(0, 0.8, size_val)
-                elif "Baixa" in market_type or "Bear" in market_type:
-                    # BEAR: tendencia de descida clara — espelho do BULL
-                    prices = 100.0 + t_local * (-4.5) + 12.0 * np.sin(t_local * 1.5) + np.random.normal(0, 0.8, size_val)
-                elif "Lateral" in market_type:
-                    # LATERAL: oscila horizontalmente em torno de 100
-                    prices = 100.0 + 15.0 * np.sin(t_local * 2.5) + np.random.normal(0, 0.5, size_val)
-                else:
-                    # CAOTICO: oscilacoes violentas, tendencia indefinida (sobrevivencia extrema)
-                    prices = 100.0 + 8.0 * np.sin(t_local * 0.8) + 20.0 * np.sin(t_local * 5.5) + np.random.normal(0, 3.5, size_val)
-                prices = np.clip(prices, 5.0, 100000.0).tolist()
-                
-                df_local = pd.DataFrame({"close": prices})
-                df_local['MA_Fast'] = df_local['close'].rolling(window=5).mean()
-                df_local['MA_Slow'] = df_local['close'].rolling(window=12).mean()
-                df_local['MA_200'] = df_local['close'].rolling(window=20).mean()
-                df_local['Std'] = df_local['close'].rolling(window=8).std()
-                
-                delta_l = df_local['close'].diff()
-                gain_l = (delta_l.where(delta_l > 0, 0)).rolling(window=8).mean()
-                loss_l = (-delta_l.where(delta_l < 0, 0)).rolling(window=8).mean()
-                rs_l = gain_l / (loss_l + 1e-5)
-                df_local['RSI'] = 100 - (100 / (1 + rs_l))
-                df_local = df_local.fillna(method='bfill')
-                
-                return (
-                    prices,
-                    df_local['close'].values,
-                    df_local['MA_Fast'].values,
-                    df_local['MA_Slow'].values,
-                    df_local['MA_200'].values,
-                    df_local['Std'].values,
-                    df_local['RSI'].values
-                )
-
-            # C. Inicializar 25 lagartas com DNA aleatório (Versão 3.0)
-            pop_size = 25
-            
-            def make_dna():
-                return {
-                    "w_trend": np.random.uniform(-1.0, 1.0),
-                    "w_slope": np.random.uniform(-1.0, 1.0),
-                    "w_vol": np.random.uniform(-1.0, 1.0),
-                    "w_floor": np.random.uniform(-1.0, 1.0),
-                    "w_rsi": np.random.uniform(-1.0, 1.0),
-                    "w_stop": np.random.uniform(-0.5, 0.5),
-                    "threshold": np.random.uniform(0.1, 1.2),
-                    "stop_loss_pct": np.random.uniform(0.5, 6.0),
-                    "bank": 100.0,
-                    "net_bank": 100.0,
-                    "in_trade": False,
-                    "entry_price": 0.0,
-                    "trade_size": 0.0,
-                    "units": 0.0,
-                    "alive": True,
-                    "trades_count": 0
-                }
-                
-            population = [make_dna() for _ in range(pop_size)]
-            learning_curve = []
-            
-            # Se terrenos dinâmicos estiver ativo, o terreno é gerado a cada época.
-            # Caso contrário, geramos um terreno único estático para todo o treino.
-            if not dynamic_terrain:
-                close_prices, prices_arr, ma_f_arr, ma_s_arr, ma_200_arr, std_arr, rsi_arr = generate_terrain(42, candles_count)
-            
-            # D. Loop Evolutivo por Gerações
-            for gen in range(1, generations_count + 1):
-                # Resetar bancos e estados a cada nova geração de vida
-                for ind in population:
-                    ind["bank"] = 100.0
-                    ind["in_trade"] = False
-                    ind["alive"] = True
-                    ind["trades_count"] = 0
-                
-                # Regenerar Terreno dinâmico contra cópia se ativado!
-                if dynamic_terrain:
-                    close_prices, prices_arr, ma_f_arr, ma_s_arr, ma_200_arr, std_arr, rsi_arr = generate_terrain(100 + gen, candles_count)
-                    
-                # Correr o terreno de velas
-                for i in range(20, candles_count):
-                    p_c = prices_arr[i]
-                    ma_f_c = ma_f_arr[i]
-                    ma_s_c = ma_s_arr[i]
-                    ma_f_p = ma_f_arr[i-1]
-                    ma_200 = ma_200_arr[i]
-                    std_val = std_arr[i]
-                    rsi_val = rsi_arr[i]
-                    
-                    # Sensores (Valores binários/trinários rápidos)
-                    s1_trend = 1.0 if (p_c > ma_f_c > ma_s_c) else -1.0
-                    s2_slope = 1.0 if (ma_f_c > ma_f_p) else -1.0
-                    s3_vol = -1.0 if (std_val > 6.0) else 1.0
-                    s4_floor = -1.0 if ((p_c - ma_200)/ma_200 > 0.09) else 1.0
-                    s5_rsi = 1.0 if (rsi_val < 35) else (-1.0 if rsi_val > 65 else 0.0)
-                    
-                    for ind in population:
-                        if not ind["alive"]:
-                            continue
-                            
-                        # Verificar Stop Loss de Sobrevivência
-                        if ind["in_trade"]:
-                            pnl_pct_ind = (p_c - ind["entry_price"]) / ind["entry_price"] * 100
-                            if pnl_pct_ind < -ind["stop_loss_pct"]:
-                                # Stop Loss disparado instantaneamente (Preço piorado pelo slippage)
-                                real_exit = p_c * (1 - slippage_pct / 100.0)
-                                gross_val = real_exit * ind["units"]
-                                en_fee = ind["trade_size"] * (fee_pct / 100.0)
-                                ex_fee = gross_val * (fee_pct / 100.0)
-                                net_pnl = gross_val - ind["trade_size"] - (en_fee + ex_fee)
-                                
-                                ind["bank"] += net_pnl
-                                ind["trades_count"] += 1
-                                ind["in_trade"] = False
-                                if ind["bank"] < 10.0:
-                                    ind["bank"] = 0.0
-                                    ind["alive"] = False
-                                continue
-                        
-                        # Decisão neuronal
-                        score = (
-                            ind["w_trend"] * s1_trend +
-                            ind["w_slope"] * s2_slope +
-                            ind["w_vol"] * s3_vol +
-                            ind["w_floor"] * s4_floor +
-                            ind["w_rsi"] * s5_rsi
-                        )
-                        
-                        w_dec = "entrar" if (score > ind["threshold"]) else "sair"
-                        
-                        if w_dec == "entrar" and not ind["in_trade"] and ind["bank"] >= 10.0:
-                            ind["in_trade"] = True
-                            ind["trade_size"] = ind["bank"] * 0.95
-                            ind["entry_price"] = p_c * (1 + slippage_pct / 100.0)
-                            ind["units"] = ind["trade_size"] / ind["entry_price"]
-                        elif w_dec == "sair" and ind["in_trade"]:
-                            # Fechar posição (Preço piorado pelo slippage)
-                            real_exit = p_c * (1 - slippage_pct / 100.0)
-                            gross_val = real_exit * ind["units"]
-                            en_fee = ind["trade_size"] * (fee_pct / 100.0)
-                            ex_fee = gross_val * (fee_pct / 100.0)
-                            net_pnl = gross_val - ind["trade_size"] - (en_fee + ex_fee)
-                            
-                            ind["bank"] += net_pnl
-                            ind["trades_count"] += 1
-                            ind["in_trade"] = False
-                            if ind["bank"] < 10.0:
-                                ind["bank"] = 0.0
-                                ind["alive"] = False
-                                
-                # Avaliação de Fitness líquida de Imposto e penalização por inatividade
-                # Se o terreno for bearish (tendência de queda), perdoamos a inatividade (min_trades = 0)
-                is_bearish = prices_arr[-1] < prices_arr[0]
-                min_trades_required = 0 if is_bearish else max(3, int(candles_count / 1500))
-                for ind in population:
-                    # Fechar trade virtual pendente na última vela
-                    if ind["in_trade"]:
-                        p_c = prices_arr[-1]
-                        real_exit = p_c * (1 - slippage_pct / 100.0)
-                        gross_val = real_exit * ind["units"]
-                        en_fee = ind["trade_size"] * (fee_pct / 100.0)
-                        ex_fee = gross_val * (fee_pct / 100.0)
-                        net_pnl = gross_val - ind["trade_size"] - (en_fee + ex_fee)
-                        ind["bank"] += net_pnl
-                        ind["trades_count"] += 1
-                        ind["in_trade"] = False
-                        if ind["bank"] < 0:
-                            ind["bank"] = 0.0
-                            ind["alive"] = False
-
-                    # Penalização por inatividade comercial
-                    if ind["trades_count"] < min_trades_required:
-                        ind["bank"] = ind["bank"] * 0.15 # Perde 85% do saldo final
-                        
-                    gross_profit = ind["bank"] - 100.0
-                    if gross_profit > 0:
-                        tax_due = gross_profit * (tax_pct / 100.0)
-                        ind["net_bank"] = ind["bank"] - tax_due
-                    else:
-                        ind["net_bank"] = ind["bank"]
-                
-                # Seleção natural (Ordenar pelo banco líquido final)
-                population.sort(key=lambda x: x["net_bank"], reverse=True)
-                champ = population[0]
-                
-                # CORRER SIMULAÇÃO DE REFERÊNCIA FIXA (SEED 42) PARA A CURVA DE CONVERGÊNCIA REAL E ESTÁVEL
-                ref_prices, ref_prices_arr, ref_ma_f_arr, ref_ma_s_arr, ref_ma_200_arr, ref_std_arr, ref_rsi_arr = generate_terrain(42, min(2000, candles_count))
-                
-                ref_bank = 100.0
-                ref_in_trade = False
-                ref_entry_price = 0.0
-                ref_units = 0.0
-                ref_trade_size = 0.0
-                
-                for idx_ref in range(20, len(ref_prices_arr)):
-                    p_ref = ref_prices_arr[idx_ref]
-                    ma_f_ref = ref_ma_f_arr[idx_ref]
-                    ma_s_ref = ref_ma_s_arr[idx_ref]
-                    ma_f_p_ref = ref_ma_f_arr[idx_ref-1]
-                    ma_200_ref = ref_ma_200_arr[idx_ref]
-                    std_ref = ref_std_arr[idx_ref]
-                    rsi_ref = ref_rsi_arr[idx_ref]
-                    
-                    s1_t = 1.0 if (p_ref > ma_f_ref > ma_s_ref) else -1.0
-                    s2_s = 1.0 if (ma_f_ref > ma_f_p_ref) else -1.0
-                    s3_v = -1.0 if (std_ref > 6.0) else 1.0
-                    s4_f = -1.0 if ((p_ref - ma_200_ref)/ma_200_ref > 0.09) else 1.0
-                    s5_r = 1.0 if (rsi_ref < 35) else (-1.0 if rsi_ref > 65 else 0.0)
-                    
-                    if ref_in_trade:
-                        pnl_pct_ref = (p_ref - ref_entry_price) / ref_entry_price * 100
-                        if pnl_pct_ref < -champ["stop_loss_pct"]:
-                            r_exit = p_ref * (1 - slippage_pct / 100.0)
-                            g_val = r_exit * ref_units
-                            en_f = ref_trade_size * (fee_pct / 100.0)
-                            ex_f = g_val * (fee_pct / 100.0)
-                            n_pnl = g_val - ref_trade_size - (en_f + ex_f)
-                            
-                            ref_bank += n_pnl
-                            ref_in_trade = False
-                            if ref_bank < 10.0:
-                                ref_bank = 0.0
-                                break
-                            continue
-                            
-                    score_ref = (
-                        champ["w_trend"] * s1_t +
-                        champ["w_slope"] * s2_s +
-                        champ["w_vol"] * s3_v +
-                        champ["w_floor"] * s4_f +
-                        champ["w_rsi"] * s5_r
-                    )
-                    
-                    w_dec_ref = "entrar" if (score_ref > champ["threshold"]) else "sair"
-                    
-                    if w_dec_ref == "entrar" and not ref_in_trade and ref_bank >= 10.0:
-                        ref_in_trade = True
-                        ref_trade_size = ref_bank * 0.95
-                        ref_entry_price = p_ref * (1 + slippage_pct / 100.0)
-                        ref_units = ref_trade_size / ref_entry_price
-                    elif w_dec_ref == "sair" and ref_in_trade:
-                        r_exit = p_ref * (1 - slippage_pct / 100.0)
-                        g_val = r_exit * ref_units
-                        en_f = ref_trade_size * (fee_pct / 100.0)
-                        ex_f = g_val * (fee_pct / 100.0)
-                        n_pnl = g_val - ref_trade_size - (en_f + ex_f)
-                        
-                        ref_bank += n_pnl
-                        ref_in_trade = False
-                        if ref_bank < 10.0:
-                            ref_bank = 0.0
-                            break
-                            
-                if ref_in_trade:
-                    p_ref = ref_prices_arr[-1]
-                    r_exit = p_ref * (1 - slippage_pct / 100.0)
-                    g_val = r_exit * ref_units
-                    en_f = ref_trade_size * (fee_pct / 100.0)
-                    ex_f = g_val * (fee_pct / 100.0)
-                    n_pnl = g_val - ref_trade_size - (en_f + ex_f)
-                    ref_bank += n_pnl
-                    
-                g_p_ref = ref_bank - 100.0
-                if g_p_ref > 0:
-                    net_ref_bank = ref_bank - g_p_ref * (tax_pct / 100.0)
-                else:
-                    net_ref_bank = ref_bank
-                    
-                learning_curve.append(net_ref_bank)
-                
-                # Crossover e Mutação
-                parents = population[:5] # Top 20%
-                new_pop = [parents[0].copy(), parents[1].copy()] # Elitismo (preserva os 2 melhores)
-                
-                import random
-                while len(new_pop) < pop_size:
-                    p1 = random.choice(parents)
-                    p2 = random.choice(parents)
-                    child = {
-                        "w_trend": p1["w_trend"] if random.random() < 0.5 else p2["w_trend"],
-                        "w_slope": p1["w_slope"] if random.random() < 0.5 else p2["w_slope"],
-                        "w_vol": p1["w_vol"] if random.random() < 0.5 else p2["w_vol"],
-                        "w_floor": p1["w_floor"] if random.random() < 0.5 else p2["w_floor"],
-                        "w_rsi": p1["w_rsi"] if random.random() < 0.5 else p2["w_rsi"],
-                        "w_stop": p1["w_stop"] if random.random() < 0.5 else p2["w_stop"],
-                        "threshold": p1["threshold"] if random.random() < 0.5 else p2["threshold"],
-                        "stop_loss_pct": p1["stop_loss_pct"] if random.random() < 0.5 else p2["stop_loss_pct"],
-                        "bank": 100.0,
-                        "net_bank": 100.0,
-                        "in_trade": False,
-                        "entry_price": 0.0,
-                        "trade_size": 0.0,
-                        "units": 0.0,
-                        "alive": True,
-                        "trades_count": 0
-                    }
-                    # Mutação
-                    for gene in ["w_trend", "w_slope", "w_vol", "w_floor", "w_rsi", "w_stop", "threshold", "stop_loss_pct"]:
-                        if random.random() < (mutation_rate / 100.0):
-                            if gene == "stop_loss_pct":
-                                child[gene] = np.clip(child[gene] + np.random.uniform(-0.5, 0.5), 0.5, 10.0)
-                            elif gene == "threshold":
-                                child[gene] = np.clip(child[gene] + np.random.uniform(-0.1, 0.1), 0.05, 1.5)
-                            else:
-                                child[gene] = np.clip(child[gene] + np.random.uniform(-0.2, 0.2), -1.0, 1.0)
-                    new_pop.append(child)
-                population = new_pop
-                
-            # E. Fim do Treino - Extrair Campeã absoluta sintonizada
-            champion = champ.copy()
-            st.session_state.game_trained_champion = champion
-            st.session_state.game_learning_curve = learning_curve
-            
-            # PROVA DE FOGO (EXAME CEGO FINAL): 
-            # Geramos um terreno final Z completamente novo e cego com TAMANHO IDENTICO ao de treino (candles_count)
-            # usando a semente 999
-            test_prices, test_prices_arr, test_ma_f_arr, test_ma_s_arr, test_ma_200_arr, test_std_arr, test_rsi_arr = generate_terrain(999, candles_count)
-            st.session_state.game_prices = test_prices # Armazenamos o terreno de teste cego para auditoria
-            
-            # Determinar taxa de sobrevivência no final do treino
-            alive_count = sum(1 for ind in population if ind["alive"])
-            survival_rate = (alive_count / pop_size) * 100.0
-            
-            # Salvar no registo persistente da Universidade de Lagartas para o Hermes (Mercado de Trabalho)
-            if "game_trained_caterpillars" not in st.session_state:
-                st.session_state.game_trained_caterpillars = {}
-            # Enriquecer o DNA com metadados de habitat e treino
-            champion["market_habitat"] = market_type  # Tipo de mercado em que foi treinada
-            champion["trained_at"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-            champion["training_candles"] = candles_count
-            champion["training_sessions"] = len([h for h in st.session_state.game_training_history
-                                                  if h.get("Lagarta") == st.session_state.game_specialist_name]) + 1
-
-            st.session_state.game_trained_caterpillars[st.session_state.game_specialist_name] = champion
-
-            # Gravar em disco para persistencia entre sessoes e acesso por outros programas
-            try:
-                with open(_CATERPILLARS_FILE, "w", encoding="utf-8") as _f:
-                    json.dump(st.session_state.game_trained_caterpillars, _f, indent=2, ensure_ascii=False)
-            except Exception as _e:
-                st.warning(f"Aviso: Nao foi possivel gravar lagarta em disco: {_e}")
-
-            # Adicionar ao Histórico
-            session_id = len(st.session_state.game_training_history) + 1
-            st.session_state.game_training_history.append({
-                "Nº Treino": session_id,
-                "Lagarta": st.session_state.game_specialist_name,
-                "Terreno/Mercado": market_type.split("(")[0].strip(),
-                "Velas": candles_count,
-                "Banca Final (EUR)": round(champion["net_bank"], 2),
-                "w_Trend": round(champion["w_trend"], 2),
-                "w_Slope": round(champion["w_slope"], 2),
-                "w_Vol": round(champion["w_vol"], 2),
-                "w_Chão": round(champion["w_floor"], 2),
-                "w_RSI": round(champion["w_rsi"], 2),
-                "Sobrevivência (%)": round(survival_rate, 1),
-                "SL Aprendido (%)": round(champion["stop_loss_pct"], 2),
-                "Gatilho Aprendido": round(champion["threshold"], 2),
-                "Resultado": "Sucesso" if champion["net_bank"] > 100 else ("Colapso" if champion["net_bank"] <= 0 else "Sobrevivente Neutral"),
-                "Modo": "Dinâmico" if dynamic_terrain else "Estático"
-            })
-            
-            st.success(f"🎉 Sessão de Treino Concluída! Lagarta '{st.session_state.game_specialist_name}' especializada em {market_type.split('(')[0]}!")
-            st.rerun()
-
-    # 4. EXIBIÇÃO DA CURVA DE APRENDIZAGEM & HISTÓRICO
-    if st.session_state.game_trained_champion is not None:
-        st.markdown("---")
-        st.markdown("##### 📈 Prova de Aprendizagem (Curva de Evolução & Histórico)")
-        
-        col_curve, col_table = st.columns([1.2, 1.5])
-        
-        with col_curve:
-            st.markdown("<span style='font-size:0.9rem; font-weight:600;'>Banca da Campeã por Geração (Curva de Aprendizagem)</span>", unsafe_allow_html=True)
-            
-            # Plotly Line Chart da curva de aprendizado
-            fig_curve = go.Figure()
-            gens_x = list(range(1, len(st.session_state.game_learning_curve) + 1))
-            fig_curve.add_trace(go.Scatter(
-                x=gens_x,
-                y=st.session_state.game_learning_curve,
-                mode='lines+markers',
-                name='Banca Líquida (EUR)',
-                line=dict(color='#22c55e', width=3),
-                marker=dict(size=6, color='#15803d')
-            ))
-            fig_curve.update_layout(
-                height=260,
-                margin=dict(l=10, r=10, t=10, b=10),
-                xaxis=dict(title="Geração (Epoch)", showgrid=True, gridcolor='rgba(255,255,255,0.05)'),
-                yaxis=dict(title="Banca Líquida (EUR)", showgrid=True, gridcolor='rgba(255,255,255,0.03)')
-            )
-            st.plotly_chart(fig_curve, use_container_width=True)
-            st.info("💡 **Como interpretar:** Se a linha estiver a subir ao longo das Gerações, a lagarta aprendeu a adaptar o seu DNA para evitar perdas e focar em ganhos líquidos reais!")
-            
-        with col_table:
-            st.markdown("<span style='font-size:0.9rem; font-weight:600;'>Histórico de Sessões de Treino</span>", unsafe_allow_html=True)
-            df_hist = pd.DataFrame(st.session_state.game_training_history)
-            st.dataframe(
-                df_hist,
-                width='stretch',
-                column_config={
-                    "Nº Treino": st.column_config.NumberColumn("Nº", width=35),
-                    "Lagarta": st.column_config.TextColumn("Nome Lagarta"),
-                    "Banca Final (EUR)": st.column_config.NumberColumn("Banca Final", format="%.2f EUR"),
-                    "w_Trend": st.column_config.NumberColumn("w_Trend", format="%.2f", width=55),
-                    "w_Slope": st.column_config.NumberColumn("w_Slope", format="%.2f", width=55),
-                    "w_Vol": st.column_config.NumberColumn("w_Vol", format="%.2f", width=55),
-                    "w_Chão": st.column_config.NumberColumn("w_Chão", format="%.2f", width=55),
-                    "w_RSI": st.column_config.NumberColumn("w_RSI", format="%.2f", width=55),
-                    "Sobrevivência (%)": st.column_config.NumberColumn("Sobrevivência", format="%.1f%%"),
-                    "SL Aprendido (%)": st.column_config.NumberColumn("SL (%)", format="%.2f%%"),
-                    "Gatilho Aprendido": st.column_config.NumberColumn("Limiar", format="%.2f"),
-                    "Modo": st.column_config.TextColumn("Treino", width=70)
-                },
-                hide_index=True
-            )
-            
-        # 4b. ARQUIVO DE ESPECIALISTAS — Consulta, Gestao e Exportacao
-        if st.session_state.game_trained_caterpillars:
-            st.markdown("---")
-            st.markdown("### 📚 Arquivo de Especialistas Treinadas")
-            st.caption("Todas as lagartas listadas estao gravadas em disco (caterpillars.json) e disponiveis no menu principal de Estrategias.")
-
-            _specialist_names = list(st.session_state.game_trained_caterpillars.keys())
-            _sel_spec = st.selectbox(
-                "🔍 Consultar Especialista",
-                _specialist_names,
-                key="archive_specialist_selector"
-            )
-
-            if _sel_spec:
-                _dna = st.session_state.game_trained_caterpillars[_sel_spec]
-                st.markdown(f"#### 🧬 DNA da Lagarta: `{_sel_spec}`")
-
-                _col_d1, _col_d2, _col_d3 = st.columns(3)
-
-                with _col_d1:
-                    st.markdown("**🧠 Pesos Neuronais (Como Pensa)**")
-                    st.metric("w_trend (Tendencia)", f"{_dna.get('w_trend', 0):.3f}", help="Importancia dada a tendencia macro")
-                    st.metric("w_slope (Momentum)", f"{_dna.get('w_slope', 0):.3f}", help="Importancia dada ao momentum/velocidade")
-                    st.metric("w_vol (Volatilidade)", f"{_dna.get('w_vol', 0):.3f}", help="Importancia dada a volatilidade")
-                    st.metric("w_floor (Suporte)", f"{_dna.get('w_floor', 0):.3f}", help="Importancia dada ao suporte da media lenta")
-                    st.metric("w_rsi (RSI)", f"{_dna.get('w_rsi', 0):.3f}", help="Importancia dada ao RSI")
-
-                with _col_d2:
-                    st.markdown("**🎯 Parametros de Decisao**")
-                    st.metric("Limiar de Entrada", f"{_dna.get('threshold', 0):.3f}", help="Score minimo para decidir entrar")
-                    st.metric("Stop Loss (%)", f"{_dna.get('stop_loss_pct', 0):.2f}%", help="Perda maxima tolerada antes de sair")
-                    st.metric("Banca Final (EUR)", f"EUR {_dna.get('net_bank', 0):.2f}", help="Capital final no ultimo treino")
-                    st.markdown("---")
-                    st.markdown("**🌍 Habitat & Metadados**")
-                    _habitat_raw = _dna.get("market_habitat", "Desconhecido")
-                    _habitat_emoji = "🐂" if "Alta" in _habitat_raw or "Bull" in _habitat_raw else (
-                                     "🐻" if "Baixa" in _habitat_raw or "Bear" in _habitat_raw else (
-                                     "↔️" if "Lateral" in _habitat_raw else "💥"))
-                    st.markdown(f"**Habitat:** {_habitat_emoji} `{_habitat_raw.split('(')[0].strip()}`")
-                    st.markdown(f"**Treinada em:** `{_dna.get('trained_at', 'N/A')}`")
-                    st.markdown(f"**Velas de treino:** `{_dna.get('training_candles', 'N/A')}`")
-                    st.markdown(f"**Sessoes de treino:** `{_dna.get('training_sessions', 'N/A')}`")
-                    st.code("caterpillars.json", language="text")
-
-                with _col_d3:
-                    st.markdown("**📊 Regra de Entrada (Visualizacao)**")
-                    _w_dict = {
-                        "Tendencia": _dna.get('w_trend', 0),
-                        "Momentum": _dna.get('w_slope', 0),
-                        "Volatilidade": _dna.get('w_vol', 0),
-                        "Suporte": _dna.get('w_floor', 0),
-                        "RSI": _dna.get('w_rsi', 0)
-                    }
-                    _max_w_val = max(_w_dict.values()) if _w_dict else 1
-                    _thresh_val = _dna.get('threshold', 0.5)
-                    for _sn, _sw in sorted(_w_dict.items(), key=lambda x: -x[1]):
-                        _bar_len = int((_sw / max(_max_w_val, 0.001)) * 10)
-                        _bar_viz = "█" * _bar_len + "░" * (10 - _bar_len)
-                        st.markdown(f"`{_sn:<12}` {_bar_viz} `{_sw:.3f}`")
-                    st.markdown(f"**Score >= `{_thresh_val:.3f}` para COMPRAR**")
-                    st.caption("score = soma(peso x sensor). Se score > limiar → entra no mercado")
-
-                # Acoes
-                _col_a1, _col_a2, _col_a3 = st.columns(3)
-                with _col_a1:
-                    if st.button(f"🗑️ Apagar '{_sel_spec}'", key="del_spec_btn", type="secondary"):
-                        del st.session_state.game_trained_caterpillars[_sel_spec]
-                        try:
-                            _cfp = os.path.join(os.path.dirname(__file__), "caterpillars.json")
-                            with open(_cfp, "w", encoding="utf-8") as _f:
-                                json.dump(st.session_state.game_trained_caterpillars, _f, indent=2, ensure_ascii=False)
-                        except Exception:
-                            pass
-                        st.success(f"Lagarta '{_sel_spec}' apagada!")
-                        st.rerun()
-                with _col_a2:
-                    _export_data = json.dumps({_sel_spec: _dna}, indent=2, ensure_ascii=False)
-                    st.download_button(
-                        label="📥 Exportar DNA (JSON)",
-                        data=_export_data,
-                        file_name=f"lagarta_{_sel_spec.replace(' ', '_')}.json",
-                        mime="application/json",
-                        key="export_spec_btn"
-                    )
-                with _col_a3:
-                    st.success(f"💾 Disponivel no menu principal como estrategia")
-
-        # 5. AUDITORIA VISUAL DO GRÁFICO PÓS-TREINO & CÉREBRO DA CAMPEÃ
-        st.markdown("---")
-        st.markdown("##### 🔍 Auditoria Visual Pós-Treino (Como a Campeã opera no final?)")
-        
-        champ = st.session_state.game_trained_champion
-        
-        # Calcular os indicadores para todo o terreno de teste cego
-        df_post = pd.DataFrame({"close": st.session_state.game_prices})
-        df_post['MA_Fast'] = df_post['close'].rolling(window=5).mean()
-        df_post['MA_Slow'] = df_post['close'].rolling(window=12).mean()
-        df_post['MA_200'] = df_post['close'].rolling(window=20).mean()
-        df_post['Std'] = df_post['close'].rolling(window=8).std()
-        
-        delta_p = df_post['close'].diff()
-        gain_p = (delta_p.where(delta_p > 0, 0)).rolling(window=8).mean()
-        loss_p = (-delta_p.where(delta_p < 0, 0)).rolling(window=8).mean()
-        rs_p = gain_p / (loss_p + 1e-5)
-        df_post['RSI'] = 100 - (100 / (1 + rs_p))
-        df_post = df_post.fillna(method='bfill')
-        
-        # Simular a campeã em TODO o terreno do Exame Cego (Prova de Fogo Financeira Completa e Justa)
-        post_decisions = []
-        in_trade = False
-        entry_price = 0.0
-        entry_real = 0.0
-        trade_size = 0.0
-        units = 0.0
-        audit_bank = 100.0
-        
-        start_idx = 20
-        completed_trades_post = []
-        trade_start = None
-        
-        for idx in range(start_idx, len(st.session_state.game_prices)):
-            p_c = st.session_state.game_prices[idx]
-            ma_f_c = df_post.at[idx, 'MA_Fast']
-            ma_s_c = df_post.at[idx, 'MA_Slow']
-            ma_f_p = df_post.at[idx-1, 'MA_Fast'] if idx > 0 else ma_f_c
-            ma_200 = df_post.at[idx, 'MA_200']
-            std_val = df_post.at[idx, 'Std']
-            rsi_val = df_post.at[idx, 'RSI']
-            
-            s1_trend = 1.0 if (p_c > ma_f_c > ma_s_c) else -1.0
-            s2_slope = 1.0 if (ma_f_c > ma_f_p) else -1.0
-            s3_vol = -1.0 if (std_val > 6.0) else 1.0
-            s4_floor = -1.0 if ((p_c - ma_200)/ma_200 > 0.09) else 1.0
-            s5_rsi = 1.0 if (rsi_val < 35) else (-1.0 if rsi_val > 65 else 0.0)
-            
-            if in_trade:
-                pnl_pct_ind = (p_c - entry_real) / entry_real * 100
-                if pnl_pct_ind < -champ["stop_loss_pct"]:
-                    # Stop Loss disparado instantaneamente (Preço piorado pelo slippage)
-                    real_exit = p_c * (1 - slippage_pct / 100.0)
-                    gross_val = real_exit * units
-                    en_fee = trade_size * (fee_pct / 100.0)
-                    ex_fee = gross_val * (fee_pct / 100.0)
-                    net_pnl = gross_val - trade_size - (en_fee + ex_fee)
-                    
-                    audit_bank += net_pnl
-                    if audit_bank < 10.0:
-                        audit_bank = 0.0
-                        
-                    completed_trades_post.append({
-                        "start": trade_start,
-                        "end": idx,
-                        "entry": entry_price,
-                        "exit": p_c,
-                        "entry_real": entry_real,
-                        "exit_real": real_exit,
-                        "trade_size": trade_size,
-                        "pnl_raw_pct": (real_exit - entry_real) / entry_real * 100,
-                        "net_pnl_eur": net_pnl,
-                        "was_stopped": True,
-                        "bank_after": audit_bank
-                    })
-                    in_trade = False
-                    post_decisions.append("sair")
-                    continue
-            
-            score = (
-                champ["w_trend"] * s1_trend +
-                champ["w_slope"] * s2_slope +
-                champ["w_vol"] * s3_vol +
-                champ["w_floor"] * s4_floor +
-                champ["w_rsi"] * s5_rsi
-            )
-            
-            w_dec = "entrar" if (score > champ["threshold"]) else "sair"
-            
-            if w_dec == "entrar" and not in_trade and audit_bank >= 10.0:
-                in_trade = True
-                trade_size = audit_bank * 0.95
-                entry_price = p_c
-                entry_real = entry_price * (1 + slippage_pct / 100.0)
-                units = trade_size / entry_real
-                trade_start = idx
-                post_decisions.append("entrar")
-            elif w_dec == "sair" and in_trade:
-                # Fechar posição (Preço piorado pelo slippage)
-                real_exit = p_c * (1 - slippage_pct / 100.0)
-                gross_val = real_exit * units
-                en_fee = trade_size * (fee_pct / 100.0)
-                ex_fee = gross_val * (fee_pct / 100.0)
-                net_pnl = gross_val - trade_size - (en_fee + ex_fee)
-                
-                audit_bank += net_pnl
-                if audit_bank < 10.0:
-                    audit_bank = 0.0
-                    
-                completed_trades_post.append({
-                    "start": trade_start,
-                    "end": idx,
-                    "entry": entry_price,
-                    "exit": p_c,
-                    "entry_real": entry_real,
-                    "exit_real": real_exit,
-                    "trade_size": trade_size,
-                    "pnl_raw_pct": (real_exit - entry_real) / entry_real * 100,
-                    "net_pnl_eur": net_pnl,
-                    "was_stopped": False,
-                    "bank_after": audit_bank
-                })
-                in_trade = False
-                post_decisions.append("sair")
-            else:
-                post_decisions.append("manter" if in_trade else "esperar")
-                
-        # Fechar trade pendente na última vela
-        if in_trade:
-            idx = len(st.session_state.game_prices) - 1
-            p_c = st.session_state.game_prices[idx]
-            real_exit = p_c * (1 - slippage_pct / 100.0)
-            gross_val = real_exit * units
-            en_fee = trade_size * (fee_pct / 100.0)
-            ex_fee = gross_val * (fee_pct / 100.0)
-            net_pnl = gross_val - trade_size - (en_fee + ex_fee)
-            
-            audit_bank += net_pnl
-            if audit_bank < 10.0:
-                audit_bank = 0.0
-                
-            completed_trades_post.append({
-                "start": trade_start,
-                "end": idx,
-                "entry": entry_price,
-                "exit": p_c,
-                "entry_real": entry_real,
-                "exit_real": real_exit,
-                "trade_size": trade_size,
-                "pnl_raw_pct": (real_exit - entry_real) / entry_real * 100,
-                "net_pnl_eur": net_pnl,
-                "was_stopped": False,
-                "bank_after": audit_bank
-            })
-            in_trade = False
-            
-        # Fitness líquida do Exame Cego (Impostos)
-        gross_profit_exame = audit_bank - 100.0
-        if gross_profit_exame > 0:
-            tax_due_exame = gross_profit_exame * (tax_pct / 100.0)
-            audit_net_bank = audit_bank - tax_due_exame
-        else:
-            tax_due_exame = 0.0
-            audit_net_bank = audit_bank
-            
-        # Calcular estatísticas do exame cego
-        total_audit_trades = len(completed_trades_post)
-        winning_audit_trades = sum(1 for t in completed_trades_post if t["net_pnl_eur"] > 0)
-        losing_audit_trades = total_audit_trades - winning_audit_trades
-        win_rate_audit = (winning_audit_trades / total_audit_trades * 100.0) if total_audit_trades > 0 else 0.0
-        
-        m_start = st.session_state.game_prices[0]
-        m_end = st.session_state.game_prices[-1]
-        market_return_pct = ((m_end - m_start) / m_start) * 100.0
-        caterpillar_return_pct = ((audit_net_bank - 100.0) / 100.0) * 100.0
-        alpha_pct = caterpillar_return_pct - market_return_pct
-        
-        # A. Painel Explicativo Didático Premium
-        st.markdown(f'''
-        <div style="background-color:rgba(30, 41, 59, 0.5); padding:1.2rem; border-radius:12px; border:1px solid rgba(255,255,255,0.08); margin-bottom:1.5rem;">
-            <h6 style="margin:0 0 0.5rem 0; color:#e2e8f0; font-size:1.05rem;">🎓 O mistério desvendado: Como interpretar estes dados?</h6>
-            <p style="margin:0; font-size:0.9rem; color:#94a3b8; line-height:1.5;">
-                O valor de <b>{round(champ["net_bank"], 2):,.2f} EUR</b> que vê no histórico acima representa o capital líquido acumulado pela lagarta ao longo de <b>todo o treino de {st.session_state.game_training_history[-1]['Velas'] if len(st.session_state.game_training_history) > 0 else 5000} velas</b>. Durante esse longo treino, ela surfou dezenas de ciclos de alta e acumulou esse lucro extraordinário.<br><br>
-                Em contraste, o gráfico e painel abaixo representam um <b>Exame Cego de {len(st.session_state.game_prices)} velas (Terreno Novo)</b> com capitais resetados (começando com <b>1.000,00 EUR</b>). Este exame serve para auditar se ela reage de forma inteligente a mercados que nunca viu!
-            </p>
-        </div>
-        ''', unsafe_allow_html=True)
-        
-        # B. Métricas Financeiras Consolidadas do Exame Cego (Prova de Fogo)
-        st.markdown(f"<span style='font-size:0.95rem; font-weight:700; color:#38bdf8;'>📊 Desempenho Financeiro no Exame Cego ({len(st.session_state.game_prices)} Velas Completas)</span>", unsafe_allow_html=True)
-        col_m1, col_m2, col_m3, col_m4 = st.columns(4)
-        
-        # Calcular banca final equivalente do mercado Buy & Hold baseado em 100 EUR
-        market_final_capital = 100.0 * (m_end / m_start)
-        
-        with col_m1:
-            st.metric(
-                label="Banca Final Líquida (Exame)",
-                value=f"{audit_net_bank:,.2f} EUR",
-                delta=f"{audit_net_bank - 100.0:+.2f} EUR ({caterpillar_return_pct:+.2f}%)"
-            )
-            
-        with col_m2:
-            st.metric(
-                label="Banca Mercado (Buy & Hold)",
-                value=f"{market_final_capital:,.2f} EUR",
-                delta=f"{market_return_pct:+.2f}%",
-                delta_color="normal"
-            )
-            
-        with col_m3:
-            st.metric(
-                label="Métricas de Operações",
-                value=f"{total_audit_trades} Trades",
-                delta=f"{win_rate_audit:.1f}% Win Rate",
-                delta_color="normal" if win_rate_audit >= 50 else "off"
-            )
-            
-        with col_m4:
-            st.metric(
-                label="Alpha vs Mercado (Diferencial)",
-                value=f"{alpha_pct:+.2f}%",
-                delta=f"{alpha_pct:+.2f}% contra o Mercado",
-                delta_color="normal"
-            )
-            
-        # Explicação de resiliência de Alpha
-        if alpha_pct > 0:
-            if caterpillar_return_pct < 0:
-                st.info(f"💡 **Vitória Estrondosa da Sobrevivência:** Embora a lagarta tenha tido um saldo ligeiramente negativo ({caterpillar_return_pct:+.2f}%) neste mercado em queda livre, ela **bateu o mercado por {alpha_pct:.2f}%**! Em vez de perder os {abs(market_return_pct):.2f}% do mercado passivo, ela cortou as perdas rápido e protegeu a sua banca!")
-            else:
-                st.success(f"🎉 **Super Performance Real:** A lagarta não só bateu o mercado por {alpha_pct:.2f}%, como conseguiu arrancar lucros reais ({caterpillar_return_pct:+.2f}%) num terreno completamente cego!")
-        else:
-            st.warning("⚠️ **Alinhamento do DNA:** A lagarta não conseguiu bater o buy and hold passivo neste exame rápido. Recomenda-se treinar por mais gerações (Epochs) em modo dinâmico para melhorar a robustez do DNA.")
-
-        # C. Gráficos de Auditoria Visual & Cérebro
-        st.markdown("<br>", unsafe_allow_html=True)
-        col_post_chart, col_brain_radar = st.columns([1.6, 1.0])
-        
-        with col_post_chart:
-            # Mostrar visualmente as últimas 150 velas no gráfico Plotly para manter interatividade rápida e fluida
-            show_window = min(150, len(st.session_state.game_prices))
-            prices_subset = st.session_state.game_prices[-show_window:]
-            xs_post = [f"V{k+1}" for k in range(len(st.session_state.game_prices) - show_window, len(st.session_state.game_prices))]
-            
-            st.markdown(f"<span style='font-size:0.9rem; font-weight:600;'>Gráfico de Auditoria (Últimas {show_window} Velas do Exame de {len(st.session_state.game_prices)} Velas)</span>", unsafe_allow_html=True)
-            
-            fig_post = go.Figure()
-            
-            # Preço cinzento geral
-            # Gerar OHLC pseudo-realista se for terreno sintético (se não houver open, criamos)
-            if 'open_post' not in locals():
-                import numpy as np
-                open_post = prices_subset - np.random.normal(0, 0.5, len(prices_subset))
-                high_post = np.maximum(open_post, prices_subset) + np.abs(np.random.normal(0, 0.5, len(prices_subset)))
-                low_post = np.minimum(open_post, prices_subset) - np.abs(np.random.normal(0, 0.5, len(prices_subset)))
-            
-            fig_post.add_trace(go.Candlestick(
-                x=xs_post,
-                open=open_post,
-                high=high_post,
-                low=low_post,
-                close=prices_subset,
-                name='Velas',
-                increasing_line_color='#22c55e',
-                decreasing_line_color='#ef4444'
-            ))
-            fig_post.update_layout(xaxis_rangeslider_visible=False)
-            
-            # Pintar apenas os trades decididos pelo cérebro campeão que intersectam a janela visível
-            start_visible_idx = len(st.session_state.game_prices) - show_window
-            for tr in completed_trades_post:
-                t_start = tr["start"]
-                t_end = tr["end"]
-                
-                if t_end >= start_visible_idx:
-                    v_start = max(0, t_start - start_visible_idx)
-                    v_end = t_end - start_visible_idx
-                    t_color = '#22c55e' if tr["net_pnl_eur"] >= 0 else '#ef4444'
-                    
-                    fig_post.add_trace(go.Scatter(
-                        x=xs_post[v_start:v_end+1],
-                        y=prices_subset[v_start:v_end+1],
-                        mode='lines+markers',
-                        name='Lagarta Ativa (Trade)',
-                        line=dict(color=t_color, width=4),
-                        marker=dict(size=5, color=t_color),
-                        showlegend=False
-                    ))
-                    
-                    # Triângulos de entrada e saída se caírem dentro da janela
-                    if t_start >= start_visible_idx:
-                        fig_post.add_trace(go.Scatter(
-                            x=[xs_post[v_start]], y=[tr["entry"]], mode='markers',
-                            marker=dict(symbol='triangle-up', size=11, color='#22c55e'), showlegend=False
-                        ))
-                    fig_post.add_trace(go.Scatter(
-                        x=[xs_post[v_end]], y=[tr["exit"]], mode='markers',
-                        marker=dict(symbol='triangle-down', size=11, color='#ef4444'), showlegend=False
-                    ))
-                
-            fig_post.update_layout(
-                height=300,
-                margin=dict(l=10, r=10, t=10, b=10),
-                xaxis=dict(title="Velas Finais", showgrid=True, gridcolor='rgba(255,255,255,0.05)'),
-                yaxis=dict(title="Valor (EUR)", showgrid=True, gridcolor='rgba(255,255,255,0.03)')
-            )
-            st.plotly_chart(fig_post, use_container_width=True)
-            st.info("🟢 **Rasto Verde:** Posição em Lucro Líquido | 🔴 **Rasto Vermelho:** Posição em Prejuízo Líquido | **Preço Cinzento:** Lagarta de fora (Protegida).")
-            
-        with col_brain_radar:
-            st.markdown("<span style='font-size:0.9rem; font-weight:600;'>🧠 Cérebro Sintonizado do Campeão</span>", unsafe_allow_html=True)
-            
-            genes_d = {
-                "Sensor/Gene": ["Trend (S1)", "Slope (S2)", "Volat. (S3)", "Chão (S4)", "RSI (S5)", "Stop Loss (SL)"],
-                "Sensibilidade": [champ["w_trend"], champ["w_slope"], champ["w_vol"], champ["w_floor"], champ["w_rsi"], champ["w_stop"]]
-            }
-            df_g_v = pd.DataFrame(genes_d)
-            
-            fig_g_b = go.Figure()
-            cols = ['#22c55e' if w > 0 else '#ef4444' for w in df_g_v["Sensibilidade"]]
-            
-            fig_g_b.add_trace(go.Bar(
-                x=df_g_v["Sensor/Gene"],
-                y=df_g_v["Sensibilidade"],
-                marker_color=cols
-            ))
-            
-            fig_g_b.update_layout(
-                height=200,
-                margin=dict(l=10, r=10, t=10, b=10),
-                yaxis=dict(title="Sensibilidade", range=[-1.1, 1.1])
-            )
-            st.plotly_chart(fig_g_b, use_container_width=True)
-            
-            st.write(f"🛑 **Stop Loss Aprendido:** `{champ['stop_loss_pct']:.2f}%`")
-            st.write(f"🎯 **Limiar de Boca Aberta:** `{champ['threshold']:.2f}`")
-            
-            # Ficha Técnica de DNA Copiável (JSON Interativo)
-            st.markdown("<span style='font-size:0.9rem; font-weight:600;'>🧬 Ficha Técnica do DNA (Copiável)</span>", unsafe_allow_html=True)
-            dna_summary = {
-                "w_trend": round(champ["w_trend"], 4),
-                "w_slope": round(champ["w_slope"], 4),
-                "w_vol": round(champ["w_vol"], 4),
-                "w_floor": round(champ["w_floor"], 4),
-                "w_rsi": round(champ["w_rsi"], 4),
-                "threshold": round(champ["threshold"], 4),
-                "stop_loss_pct": round(champ["stop_loss_pct"], 2)
-            }
-            st.json(dna_summary)
-            
-            # Botão de Sinergia Real
-            if st.button("🔌 Ativar esta Especialista no Robô Principal", width='stretch', type="primary"):
-                # Ativa diretamente a estratégia da Lagarta pelo seu nome
-                st.session_state.strategy_type_val = f"🎓 {st.session_state.game_specialist_name}"
-                st.session_state.stop_loss_pct_val = float(round(champ["stop_loss_pct"], 1))
-                st.session_state.sl_active_val = True
-                st.success(f"🔌 Cérebro IA da '{st.session_state.game_specialist_name}' Injetado no Robô Principal! Verifique a aba 1.")
-                st.rerun()
-
-        # D. Tabela Detalhada de Trades do Exame Cego (O Dossiê de Provas)
-        with st.expander("🔍 Dossiê de Provas: Dados Detalhados de cada Trade no Exame Cego"):
-            if len(completed_trades_post) == 0:
-                st.info(f"A lagarta campeã optou por segurança absoluta e não efetuou nenhuma operação nas {len(st.session_state.game_prices)} velas deste exame.")
-            else:
-                trades_df_data = []
-                for idx_t, tr in enumerate(completed_trades_post):
-                    status_emoji = "🟢 Lucro" if tr["net_pnl_eur"] > 0 else "🔴 Prejuízo"
-                    motivo = "🛑 Stop Loss Ativado" if tr["was_stopped"] else "🧠 Sinal do Cérebro"
-                    
-                    trades_df_data.append({
-                        "Operação": f"Trade #{idx_t + 1}",
-                        "Capital Investido": f"{tr['trade_size']:,.2f} EUR",
-                        "Entrada (Vela)": f"Vela {tr['start'] + 1}",
-                        "Preço Entrada (Mkt)": f"{tr['entry']:.2f} EUR",
-                        "Entrada Real (Slippage)": f"{tr['entry_real']:.2f} EUR",
-                        "Saída (Vela)": f"Vela {tr['end'] + 1}",
-                        "Preço Saída (Mkt)": f"{tr['exit']:.2f} EUR",
-                        "Saída Real (Slippage)": f"{tr['exit_real']:.2f} EUR",
-                        "PnL Bruto (%)": f"{tr['pnl_raw_pct']:+.2f}%",
-                        "PnL Líquido (EUR)": f"{tr['net_pnl_eur']:+.2f} EUR",
-                        "Resultado": status_emoji,
-                        "Motivo de Saída": motivo,
-                        "Banca Restante": f"{tr['bank_after']:.2f} EUR"
-                    })
-                
-                df_trades_audit = pd.DataFrame(trades_df_data)
-                st.dataframe(
-                    df_trades_audit,
-                    width='stretch',
-                    column_config={
-                        "Operação": st.column_config.TextColumn("Operação", width=60),
-                        "Capital Investido": st.column_config.TextColumn("Capital Investido", width=105),
-                        "Entrada (Vela)": st.column_config.TextColumn("Entrada", width=80),
-                        "Preço Entrada (Mkt)": st.column_config.TextColumn("Mkt Entrada", width=80),
-                        "Entrada Real (Slippage)": st.column_config.TextColumn("Real Entrada", width=95),
-                        "Saída (Vela)": st.column_config.TextColumn("Saída", width=80),
-                        "Preço Saída (Mkt)": st.column_config.TextColumn("Mkt Saída", width=80),
-                        "Saída Real (Slippage)": st.column_config.TextColumn("Real Saída", width=95),
-                        "PnL Bruto (%)": st.column_config.TextColumn("PnL (%)", width=70),
-                        "PnL Líquido (EUR)": st.column_config.TextColumn("PnL Líquido", width=85),
-                        "Resultado": st.column_config.TextColumn("Resultado", width=75),
-                        "Motivo de Saída": st.column_config.TextColumn("Motivo Fim", width=120),
-                        "Banca Restante": st.column_config.TextColumn("Banca Pós-Trade", width=90)
-                    },
-                    hide_index=True
-                )
-
-    st.markdown('</div>', unsafe_allow_html=True)
-
-
 with tab_math_lab:
     import tab_math_lab
     tab_math_lab.render()
@@ -2813,6 +1540,8 @@ with tab_math_lab:
 # SEPARADOR 5: JOGO DO TRADER QUANTITATIVO (ARENA BLIND TRADER)
 # =========================================================================
 with tab_trader_game:
+    import variables_registry
+    variables_registry.initialize_variables_registry()
 
 
     # =========================================================================
@@ -3084,6 +1813,12 @@ with tab_trader_game:
                 df.bfill(inplace=True)
                 st.session_state.tg_data = df
 
+        # Sincronização automática se as médias mudaram
+        current_smas = (st.session_state.tg_p2, st.session_state.tg_p3, st.session_state.tg_p4, st.session_state.tg_p5, st.session_state.tg_p6)
+        if st.session_state.get('tg_last_calculated_smas') != current_smas:
+            recalculate_indicators()
+            st.session_state.tg_last_calculated_smas = current_smas
+
         def compute_bot_signal(df, step):
             """Calcula sinal do bot: LONG / SHORT / HOLD com confianca 0-100%."""
             if step < 10:
@@ -3151,9 +1886,9 @@ with tab_trader_game:
                         long_score = sum(cond_long.values()) / len(cond_long) if cond_long else 0.0
                         short_score = sum(cond_short.values()) / len(cond_short) if cond_short else 0.0
                         
-                        if long_score > short_score and long_score >= 0.60:
+                        if long_score > short_score and long_score >= (st.session_state.get('tg_min_confidence_pct', 80.0) / 100.0):
                             return "LONG", round(long_score * 100), cond_long
-                        elif short_score > long_score and short_score >= 0.60:
+                        elif short_score > long_score and short_score >= (st.session_state.get('tg_min_confidence_pct', 80.0) / 100.0):
                             return "SHORT", round(short_score * 100), cond_short
                         else:
                             return "HOLD", round(max(long_score, short_score) * 100), cond_long if long_score >= short_score else cond_short
@@ -3186,10 +1921,10 @@ with tab_trader_game:
                 long_score  *= 0.4
                 short_score *= 0.4
 
-            if long_score > short_score and long_score >= 0.60:
+            if long_score > short_score and long_score >= (st.session_state.get('tg_min_confidence_pct', 80.0) / 100.0):
                 confidence = round(long_score * 100)
                 return "LONG", confidence, cond_long
-            elif short_score > long_score and short_score >= 0.60:
+            elif short_score > long_score and short_score >= (st.session_state.get('tg_min_confidence_pct', 80.0) / 100.0):
                 confidence = round(short_score * 100)
                 return "SHORT", confidence, cond_short
             else:
@@ -3294,32 +2029,46 @@ with tab_trader_game:
         """, unsafe_allow_html=True)
 
         # --- COCKPIT DE CONFIGURACOES ---
-        with st.expander("Configuracao: Periodos das Medias & Risco", expanded=not st.session_state.tg_active and not st.session_state.tg_game_finished):
+        with st.expander("Configuração: Períodos das Médias & Risco", expanded=not st.session_state.tg_active and not st.session_state.tg_game_finished):
             col_c1, col_c2, col_c3 = st.columns([0.8, 1.8, 1.0])
             with col_c1:
                 st.markdown("##### Jogador")
                 name_input = st.text_input("Nome:", value=st.session_state.tg_trader_name, key="tg_name_wdg")
                 if name_input: st.session_state.tg_trader_name = name_input
                 st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
-                if st.button("Iniciar / Novo Jogo", type="primary", use_container_width=True):
+                if st.button("Iniciar / Novo Jogo", type="primary", width='stretch'):
                     start_new_game()
                     st.rerun()
             with col_c2:
-                st.markdown("##### Periodos das Medias Moveis")
-                s1,s2,s3,s4,s5 = st.columns(5)
-                with s1: new_p2 = st.number_input("Rapida", min_value=2, max_value=20, value=st.session_state.tg_p2, step=1, key="tg_in_p2")
-                with s2: new_p3 = st.number_input("Confirm.", min_value=5, max_value=40, value=st.session_state.tg_p3, step=1, key="tg_in_p3")
-                with s3: new_p4 = st.number_input("Media", min_value=10, max_value=80, value=st.session_state.tg_p4, step=1, key="tg_in_p4")
-                with s4: new_p5 = st.number_input("Longa", min_value=20, max_value=150, value=st.session_state.tg_p5, step=1, key="tg_in_p5")
-                with s5: new_p6 = st.number_input("Mestra", min_value=50, max_value=300, value=st.session_state.tg_p6, step=1, key="tg_in_p6")
-                if (new_p2!=st.session_state.tg_p2 or new_p3!=st.session_state.tg_p3 or
-                    new_p4!=st.session_state.tg_p4 or new_p5!=st.session_state.tg_p5 or new_p6!=st.session_state.tg_p6):
-                    st.session_state.tg_p2,st.session_state.tg_p3 = new_p2,new_p3
-                    st.session_state.tg_p4,st.session_state.tg_p5 = new_p4,new_p5
-                    st.session_state.tg_p6 = new_p6
-                    recalculate_indicators()
-                    st.toast("Medias recalculadas!")
-                    st.rerun()
+                st.markdown("##### 📏 Médias Ativas no Jogo")
+                # Exibir as médias como badges premium estilizados
+                st.markdown(f"""
+                <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px;">
+                    <div style="background: rgba(14, 165, 233, 0.1); border: 1px solid rgba(14, 165, 233, 0.3); border-radius: 6px; padding: 6px 12px; text-align: center; flex: 1; min-width: 60px;">
+                        <div style="font-size: 10px; color: #0ea5e9; text-transform: uppercase; font-weight: bold;">Rápida (P2)</div>
+                        <div style="font-size: 18px; font-weight: 900; color: #e2e8f0;">{st.session_state.tg_p2}</div>
+                    </div>
+                    <div style="background: rgba(249, 115, 22, 0.1); border: 1px solid rgba(249, 115, 22, 0.3); border-radius: 6px; padding: 6px 12px; text-align: center; flex: 1; min-width: 60px;">
+                        <div style="font-size: 10px; color: #f97316; text-transform: uppercase; font-weight: bold;">Confirm (P3)</div>
+                        <div style="font-size: 18px; font-weight: 900; color: #e2e8f0;">{st.session_state.tg_p3}</div>
+                    </div>
+                    <div style="background: rgba(168, 85, 247, 0.1); border: 1px solid rgba(168, 85, 247, 0.3); border-radius: 6px; padding: 6px 12px; text-align: center; flex: 1; min-width: 60px;">
+                        <div style="font-size: 10px; color: #a855f7; text-transform: uppercase; font-weight: bold;">Média (P4)</div>
+                        <div style="font-size: 18px; font-weight: 900; color: #e2e8f0;">{st.session_state.tg_p4}</div>
+                    </div>
+                    <div style="background: rgba(236, 72, 153, 0.1); border: 1px solid rgba(236, 72, 153, 0.3); border-radius: 6px; padding: 6px 12px; text-align: center; flex: 1; min-width: 60px;">
+                        <div style="font-size: 10px; color: #ec4899; text-transform: uppercase; font-weight: bold;">Longa (P5)</div>
+                        <div style="font-size: 18px; font-weight: 900; color: #e2e8f0;">{st.session_state.tg_p5}</div>
+                    </div>
+                    <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 6px; padding: 6px 12px; text-align: center; flex: 1; min-width: 60px;">
+                        <div style="font-size: 10px; color: #10b981; text-transform: uppercase; font-weight: bold;">Mestra (P6)</div>
+                        <div style="font-size: 18px; font-weight: 900; color: #e2e8f0;">{st.session_state.tg_p6}</div>
+                    </div>
+                </div>
+                <div style="font-size: 11px; color: #64748b; margin-top: 10px; font-style: italic; text-align: center;">
+                    💡 Altere os períodos das médias móveis na Central de Variáveis no topo da página.
+                </div>
+                """, unsafe_allow_html=True)
             with col_c3:
                 st.markdown("##### Estratégia do Robô")
                 strat_choice = st.selectbox(
@@ -3346,22 +2095,269 @@ with tab_trader_game:
                                 pass
                     st.rerun()
                 
-                st.markdown("##### Risco")
-                st.session_state.tg_sl_active = st.checkbox("Stop Loss (SL)", value=st.session_state.tg_sl_active)
-                if st.session_state.tg_sl_active:
-                    st.session_state.tg_sl_pct = st.slider("SL (%)", 0.5, 5.0, value=st.session_state.tg_sl_pct, step=0.1)
-                st.session_state.tg_tp_active = st.checkbox("Take Profit (TP)", value=st.session_state.tg_tp_active)
-                if st.session_state.tg_tp_active:
-                    st.session_state.tg_tp_pct = st.slider("TP (%)", 1.0, 10.0, value=st.session_state.tg_tp_pct, step=0.1)
-                st.session_state.tg_ts_active = st.checkbox("Trailing Stop (TS)", value=st.session_state.tg_ts_active)
-                if st.session_state.tg_ts_active:
-                    st.session_state.tg_ts_pct = st.slider("TS (%)", 0.5, 4.0, value=st.session_state.tg_ts_pct, step=0.1)
+                st.markdown("##### 🛡️ Gestão de Risco Ativa")
+                sl_status = f"<span style='color:#10b981; font-weight:bold;'>LIGADO ({st.session_state.tg_sl_pct:.1f}%)</span>" if st.session_state.tg_sl_active else "<span style='color:#64748b; font-style:italic;'>Desativado</span>"
+                tp_status = f"<span style='color:#10b981; font-weight:bold;'>LIGADO ({st.session_state.tg_tp_pct:.1f}%)</span>" if st.session_state.tg_tp_active else "<span style='color:#64748b; font-style:italic;'>Desativado</span>"
+                ts_status = f"<span style='color:#10b981; font-weight:bold;'>LIGADO ({st.session_state.tg_ts_pct:.1f}%)</span>" if st.session_state.tg_ts_active else "<span style='color:#64748b; font-style:italic;'>Desativado</span>"
+                st.markdown(f"""
+                <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; padding: 10px; font-size: 13px; margin-top: 5px;">
+                    <div style="display:flex; justify-content:space-between; margin-bottom: 6px;">
+                        <span style="color:#94a3b8;">Stop Loss (SL):</span>
+                        <span>{sl_status}</span>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; margin-bottom: 6px;">
+                        <span style="color:#94a3b8;">Take Profit (TP):</span>
+                        <span>{tp_status}</span>
+                    </div>
+                    <div style="display:flex; justify-content:space-between;">
+                        <span style="color:#94a3b8;">Trailing Stop (TS):</span>
+                        <span>{ts_status}</span>
+                    </div>
+                </div>
+                <div style="font-size: 11px; color: #64748b; margin-top: 10px; font-style: italic; text-align: center;">
+                    💡 Ajuste os parâmetros de risco na Central de Variáveis no topo.
+                </div>
+                """, unsafe_allow_html=True)
+        # --- NOVO EXPANDER: AUTO-TREINO (MACHINE LEARNING AUTÓNOMO) ---
+        with st.expander("🧠 Otimizador de Auto-Treino (Machine Learning Autónomo)", expanded=False):
+            col_t1, col_t2 = st.columns([1, 1])
+            with col_t1:
+                training_source = st.selectbox(
+                    "Fonte de Aprendizagem:",
+                    ["Sintético (Aleatório)", "Real Binance (BTC/USDT)", "Real Binance (ETH/USDT)"],
+                    key="tg_train_source"
+                )
+                training_candles = st.number_input(
+                    "Volume de Treino (Velas):",
+                    min_value=100, max_value=20000, value=1000, step=100,
+                    key="tg_train_candles"
+                )
+            with col_t2:
+                st.markdown("<div style='height:28px;'></div>", unsafe_allow_html=True)
+                if st.button("🚀 Iniciar Auto-Treino Estatístico", width='stretch', type="primary", key="tg_btn_train"):
+                    st.toast("A inicializar motor de aprendizagem...")
+                    
+                    # 1. Obter dados
+                    df_train = None
+                    if "Sintético" in training_source:
+                        st.toast("A gerar mercado didático...")
+                        np.random.seed(int(time.time() * 100) % 100000)
+                        drift = np.random.choice([0.08, -0.04, 0.0, 0.12])
+                        volatility = np.random.uniform(1.3, 3.2)
+                        dt = 0.1
+                        prices = [100.0]
+                        for _ in range(int(training_candles) - 1):
+                            change = prices[-1] * (drift / 100.0 * dt + volatility / 100.0 * np.sqrt(dt) * np.random.normal())
+                            prices.append(max(10.0, prices[-1] + change))
+                        dates = pd.date_range(start="2026-01-01", periods=int(training_candles), freq="1h")
+                        df_train = pd.DataFrame({
+                            'close': prices,
+                            'open': [p - np.random.normal(0, 0.1) for p in prices],
+                            'high': [p + abs(np.random.normal(0, 0.15)) for p in prices],
+                            'low': [p - abs(np.random.normal(0, 0.15)) for p in prices],
+                            'volume': [1000] * int(training_candles)
+                        }, index=dates)
+                    else:
+                        st.toast("A descarregar dados históricos da Binance...")
+                        from data_collector import DataCollector
+                        symbol = "BTC/USDT" if "BTC" in training_source else "ETH/USDT"
+                        try:
+                            collector = DataCollector(exchange_id='binance', symbol=symbol, timeframe='1h')
+                            df_train = collector.get_ohlcv(limit=int(training_candles))
+                        except Exception as e:
+                            st.error(f"Erro ao descarregar da Binance: {e}")
+                            
+                    if df_train is not None and not df_train.empty:
+                        st.toast("A calcular feixe de médias de Fibonacci...")
+                        p2_t = st.session_state.get('tg_p2', 5)
+                        p3_t = st.session_state.get('tg_p3', 13)
+                        p4_t = st.session_state.get('tg_p4', 21)
+                        p5_t = st.session_state.get('tg_p5', 55)
+                        p6_t = st.session_state.get('tg_p6', 144)
+                        
+                        df_train['sma_5'] = df_train['close'].rolling(window=p2_t).mean()
+                        df_train['sma_13'] = df_train['close'].rolling(window=p3_t).mean()
+                        df_train['sma_21'] = df_train['close'].rolling(window=p4_t).mean()
+                        df_train['sma_55'] = df_train['close'].rolling(window=p5_t).mean()
+                        df_train['sma_144'] = df_train['close'].rolling(window=p6_t).mean()
+                        smas_t = ['sma_5','sma_13','sma_21','sma_55','sma_144']
+                        df_train['avg_sma'] = df_train[smas_t].mean(axis=1)
+                        df_train['sma_std'] = df_train[smas_t].std(axis=1)
+                        df_train['stretching'] = df_train[smas_t].sub(df_train['avg_sma'], axis=0).abs().mean(axis=1).div(df_train['avg_sma']).mul(100)
+                        df_train['velocity'] = df_train['sma_5'].diff(periods=2)
+                        df_train['acceleration'] = df_train['velocity'].diff(periods=2)
+                        df_train['volatility'] = df_train['close'].rolling(window=20, min_periods=1).std()
+                        
+                        def classify_regime_row_t(row):
+                            p = row['close']
+                            s2 = row['sma_5']
+                            s3 = row['sma_13']
+                            s4 = row['sma_21']
+                            s5 = row['sma_55']
+                            s6 = row['sma_144']
+                            v = row['velocity']
+                            vol = row['volatility']
+                            stretch = row['stretching']
+                            if pd.isna(s6) or pd.isna(v) or pd.isna(vol) or pd.isna(stretch):
+                                return "LATERAL"
+                            is_bull_trend = (s2 > s3) and (s3 > s4) and (s4 > s5) and (v > 0)
+                            is_bear_trend = (s2 < s3) and (s3 < s4) and (s4 < s5) and (v < 0)
+                            if stretch < 0.6:
+                                return "LATERAL"
+                            elif is_bull_trend:
+                                return "BULL"
+                            elif is_bear_trend:
+                                return "BEAR"
+                            elif vol > p * 0.012:
+                                return "CAOTICO"
+                            else:
+                                return "LATERAL"
+                        
+                        df_train['regime'] = df_train.apply(classify_regime_row_t, axis=1)
+                        df_train['disp_pct'] = (df_train['sma_5'] - df_train['sma_144']) / df_train['sma_144'] * 100
+                        df_train['mola_pct'] = df_train[smas_t].std(axis=1) / df_train[smas_t].mean(axis=1) * 100
+                        df_train['infil_bull'] = (df_train['sma_5'] > df_train['sma_13']) & (df_train['sma_13'] > df_train['sma_21']) & (df_train['sma_55'] < df_train['sma_144'])
+                        df_train['infil_bear'] = (df_train['sma_5'] < df_train['sma_13']) & (df_train['sma_13'] < df_train['sma_21']) & (df_train['sma_55'] > df_train['sma_144'])
+                        df_train['reteste_val'] = ((df_train['close'] - df_train['sma_55']).abs() / df_train['sma_55'] * 100 < 0.8) | ((df_train['close'] - df_train['sma_144']).abs() / df_train['sma_144'] * 100 < 0.8)
+                        df_train.bfill(inplace=True)
+                        
+                        st.toast("A processar treino massivo...")
+                        pos_t = "NONE"
+                        ent_p_t = 0.0
+                        ent_step_t = 0
+                        trades_t = []
+                        
+                        dna_t = {"smas": [p2_t, p3_t, p4_t, p5_t, p6_t], "regimes": {}}
+                        if os.path.exists("bot_consensus_dna.json"):
+                            try:
+                                with open("bot_consensus_dna.json", "r", encoding="utf-8") as f:
+                                    dna_t = json.load(f)
+                            except Exception:
+                                pass
+                                
+                        for step_t in range(p6_t + 10, len(df_train)):
+                            price_now_t = df_train['close'].iloc[step_t]
+                            
+                            if pos_t == "LONG":
+                                pnl_pct_t = (price_now_t - ent_p_t) / ent_p_t * 100
+                                if pnl_pct_t <= -st.session_state.get('tg_sl_pct', 2.0):
+                                    trades_t.append({
+                                        "type": "LONG", "entry_price": ent_p_t, "exit_price": price_now_t, "pnl_pct": pnl_pct_t,
+                                        "regime": df_train['regime'].iloc[ent_step_t], "mola": df_train['mola_pct'].iloc[ent_step_t],
+                                        "stretch": df_train['stretching'].iloc[ent_step_t], "acc": df_train['acceleration'].iloc[ent_step_t],
+                                        "disp": df_train['disp_pct'].iloc[ent_step_t]
+                                    })
+                                    pos_t = "NONE"
+                                    continue
+                            elif pos_t == "SHORT":
+                                pnl_pct_t = (ent_p_t - price_now_t) / ent_p_t * 100
+                                if pnl_pct_t <= -st.session_state.get('tg_sl_pct', 2.0):
+                                    trades_t.append({
+                                        "type": "SHORT", "entry_price": ent_p_t, "exit_price": price_now_t, "pnl_pct": pnl_pct_t,
+                                        "regime": df_train['regime'].iloc[ent_step_t], "mola": df_train['mola_pct'].iloc[ent_step_t],
+                                        "stretch": df_train['stretching'].iloc[ent_step_t], "acc": df_train['acceleration'].iloc[ent_step_t],
+                                        "disp": df_train['disp_pct'].iloc[ent_step_t]
+                                    })
+                                    pos_t = "NONE"
+                                    continue
+                                    
+                            sig_t, conf_t, _ = compute_bot_signal(df_train, step_t)
+                            min_conf_t = st.session_state.get('tg_min_confidence_pct', 80.0)
+                            
+                            if pos_t == "NONE":
+                                if sig_t == "LONG" and conf_t >= min_conf_t:
+                                    pos_t = "LONG"
+                                    ent_p_t = price_now_t
+                                    ent_step_t = step_t
+                                elif sig_t == "SHORT" and conf_t >= min_conf_t:
+                                    pos_t = "SHORT"
+                                    ent_p_t = price_now_t
+                                    ent_step_t = step_t
+                            else:
+                                if pos_t == "LONG" and (sig_t == "SHORT" or (sig_t == "HOLD" and conf_t >= min_conf_t)):
+                                    pnl_pct_t = (price_now_t - ent_p_t) / ent_p_t * 100
+                                    trades_t.append({
+                                        "type": "LONG", "entry_price": ent_p_t, "exit_price": price_now_t, "pnl_pct": pnl_pct_t,
+                                        "regime": df_train['regime'].iloc[ent_step_t], "mola": df_train['mola_pct'].iloc[ent_step_t],
+                                        "stretch": df_train['stretching'].iloc[ent_step_t], "acc": df_train['acceleration'].iloc[ent_step_t],
+                                        "disp": df_train['disp_pct'].iloc[ent_step_t]
+                                    })
+                                    pos_t = "NONE"
+                                elif pos_t == "SHORT" and (sig_t == "LONG" or (sig_t == "HOLD" and conf_t >= min_conf_t)):
+                                    pnl_pct_t = (ent_p_t - price_now_t) / ent_p_t * 100
+                                    trades_t.append({
+                                        "type": "SHORT", "entry_price": ent_p_t, "exit_price": price_now_t, "pnl_pct": pnl_pct_t,
+                                        "regime": df_train['regime'].iloc[ent_step_t], "mola": df_train['mola_pct'].iloc[ent_step_t],
+                                        "stretch": df_train['stretching'].iloc[ent_step_t], "acc": df_train['acceleration'].iloc[ent_step_t],
+                                        "disp": df_train['disp_pct'].iloc[ent_step_t]
+                                    })
+                                    pos_t = "NONE"
+                                    
+                        winning_t = [t for t in trades_t if t["pnl_pct"] > 0]
+                        
+                        if winning_t:
+                            for r_val in ["BULL", "BEAR", "LATERAL", "CAOTICO"]:
+                                if r_val not in dna_t["regimes"]:
+                                    dna_t["regimes"][r_val] = {"active": True, "buy_rules": {}, "sell_rules": {}}
+                                
+                                subset_long = [t for t in winning_t if t["regime"] == r_val and t["type"] == "LONG"]
+                                subset_short = [t for t in winning_t if t["regime"] == r_val and t["type"] == "SHORT"]
+                                
+                                if subset_long:
+                                    import numpy as np
+                                    avg_mola = float(np.mean([t["mola"] for t in subset_long]))
+                                    avg_stretch = float(np.mean([t["stretch"] for t in subset_long]))
+                                    avg_acc = float(np.mean([t["acc"] for t in subset_long]))
+                                    avg_disp = float(np.mean([t["disp"] for t in subset_long]))
+                                    
+                                    dna_t["regimes"][r_val]["buy_rules"] = {
+                                        "stretching": {"stable": True, "mean": avg_stretch, "min_limit": avg_stretch - 1.2, "max_limit": avg_stretch + 1.2},
+                                        "mola": {"stable": True, "mean": avg_mola, "max_limit": avg_mola * 1.2},
+                                        "disp": {"stable": True, "mean": avg_disp, "max_limit": avg_disp * 1.1},
+                                        "acceleration": {"stable": True, "mean": avg_acc},
+                                        "infil": {"rate": 80.0, "active": True},
+                                        "reteste": {"rate": 70.0, "active": True}
+                                    }
+                                    
+                                if subset_short:
+                                    import numpy as np
+                                    avg_mola = float(np.mean([t["mola"] for t in subset_short]))
+                                    avg_stretch = float(np.mean([t["stretch"] for t in subset_short]))
+                                    avg_acc = float(np.mean([t["acc"] for t in subset_short]))
+                                    avg_disp = float(np.mean([t["disp"] for t in subset_short]))
+                                    
+                                    dna_t["regimes"][r_val]["sell_rules"] = {
+                                        "stretching": {"stable": True, "mean": avg_stretch, "min_limit": avg_stretch - 1.2, "max_limit": avg_stretch + 1.2},
+                                        "mola": {"stable": True, "mean": avg_mola},
+                                        "disp": {"stable": True, "mean": avg_disp, "limit": avg_disp * 0.9},
+                                        "acceleration": {"stable": True, "mean": avg_acc}
+                                    }
+                                    
+                            dna_t["last_updated"] = pd.Timestamp.now().strftime("%Y-%m-%d %H:%M")
+                            dna_t["selected_tests"] = list(set(dna_t.get("selected_tests", []) + [f"Auto-Treino ({training_source})"]))
+                            
+                            with open("bot_consensus_dna.json", "w", encoding="utf-8") as f:
+                                json.dump(dna_t, f, indent=2, ensure_ascii=False)
+                                
+                            st.success(f"🧠 Cérebro de Consenso DNA gravado com sucesso! Sintonizado com {len(winning_t)} operações vencedoras (do total de {len(trades_t)} efetuadas).")
+                        else:
+                            st.warning(f"Treino concluído mas nenhuma operação obteve lucro positivo (Total de trades: {len(trades_t)}). Tente aumentar o volume ou mudar a fonte.")
+                    else:
+                        st.error("Erro ao obter dados para o treino!")
 
         # =========================================================================
         # MODO REVISAO: gráfico completo apos o fim do jogo
         # =========================================================================
         if st.session_state.tg_game_finished and st.session_state.tg_data is not None:
             df = st.session_state.tg_data
+            
+            # Calcular eficácia LONG/SHORT
+            long_trades = [t for t in st.session_state.tg_trades if t.get('type') == 'LONG']
+            short_trades = [t for t in st.session_state.tg_trades if t.get('type') == 'SHORT']
+            long_len = len(long_trades)
+            short_len = len(short_trades)
+            long_wr = (sum(1 for t in long_trades if t.get('pnl_pct', 0) > 0) / max(long_len, 1) * 100) if long_len > 0 else 0.0
+            short_wr = (sum(1 for t in short_trades if t.get('pnl_pct', 0) > 0) / max(short_len, 1) * 100) if short_len > 0 else 0.0
             ret_pct = st.session_state.tg_capital - 100.0
             ret_color = "#10B981" if ret_pct >= 0 else "#EF4444"
             emoji_result = "🏆" if ret_pct > 0 else ("😐" if ret_pct == 0 else "💀")
@@ -3385,9 +2381,15 @@ with tab_trader_game:
                         <div style="color:#e2e8f0; font-size:22px; font-weight:900; font-family:monospace;">{len(st.session_state.tg_trades)}</div>
                     </div>
                     <div class="review-stat" style="flex:1;">
-                        <div style="color:#64748b; font-size:11px; text-transform:uppercase;">Win Rate</div>
-                        <div style="color:#e2e8f0; font-size:22px; font-weight:900; font-family:monospace;">
-                            {(sum(1 for t in st.session_state.tg_trades if t.get('pnl_pct', 0) > 0) / max(len(st.session_state.tg_trades), 1) * 100):.0f}%
+                        <div style="color:#64748b; font-size:11px; text-transform:uppercase;">Win Rate LONG</div>
+                        <div style="color:#10B981; font-size:22px; font-weight:900; font-family:monospace;">
+                            {long_wr:.0f}% <span style='font-size:11px; color:#64748b;'>({long_len})</span>
+                        </div>
+                    </div>
+                    <div class="review-stat" style="flex:1;">
+                        <div style="color:#64748b; font-size:11px; text-transform:uppercase;">Win Rate SHORT</div>
+                        <div style="color:#EF4444; font-size:22px; font-weight:900; font-family:monospace;">
+                            {short_wr:.0f}% <span style='font-size:11px; color:#64748b;'>({short_len})</span>
                         </div>
                     </div>
                 </div>
@@ -3421,7 +2423,7 @@ with tab_trader_game:
                     title_str=f"Revisao Completa — {st.session_state.tg_trader_name} | 100 Velas Jogadas",
                     show_full_range=True
                 )
-                st.plotly_chart(fig_review, use_container_width=True)
+                st.plotly_chart(fig_review, width='stretch')
 
         # =========================================================================
         # MODO JOGO ATIVO
@@ -3534,7 +2536,7 @@ with tab_trader_game:
                     sub_df, df,
                     title_str=f"Arena Real — Batimento {progress_candles} / 100 Velas (ultimas {len(sub_df)})"
                 )
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width='stretch')
 
             with col_right:
                 st.markdown('<div class="game-control-anchor"></div>', unsafe_allow_html=True)
@@ -3602,20 +2604,20 @@ with tab_trader_game:
                     if st.session_state.tg_bot_mode == "Bot Autónomo":
                         _pos = st.session_state.tg_position
                         # Entrar em posicao se HOLD e sinal claro
-                        if _pos == "NONE" and _bot_signal == "LONG" and _bot_conf >= 67:
+                        if _pos == "NONE" and _bot_signal == "LONG" and _bot_conf >= st.session_state.get('tg_min_confidence_pct', 80.0):
                             st.session_state.tg_position = "LONG"
                             st.session_state.tg_entry_price = price_now
                             st.session_state.tg_entry_step = current_step
                             st.session_state.tg_highest_price = price_now
                             st.toast(f"🤖 Bot entrou LONG a {price_now:.2f}")
-                        elif _pos == "NONE" and _bot_signal == "SHORT" and _bot_conf >= 67:
+                        elif _pos == "NONE" and _bot_signal == "SHORT" and _bot_conf >= st.session_state.get('tg_min_confidence_pct', 80.0):
                             st.session_state.tg_position = "SHORT"
                             st.session_state.tg_entry_price = price_now
                             st.session_state.tg_entry_step = current_step
                             st.session_state.tg_lowest_price = price_now
                             st.toast(f"🤖 Bot entrou SHORT a {price_now:.2f}")
                         # Sair se sinal invertido ou HOLD com posicao aberta
-                        elif _pos == "LONG" and (_bot_signal == "SHORT" or (_bot_signal == "HOLD" and _bot_conf >= 67)):
+                        elif _pos == "LONG" and (_bot_signal == "SHORT" or (_bot_signal == "HOLD" and _bot_conf >= st.session_state.get('tg_min_confidence_pct', 80.0))):
                             entry_p = st.session_state.tg_entry_price
                             commissions = st.session_state.tg_capital * 0.0005
                             pnl_pct = (price_now - entry_p) / entry_p * 100
@@ -3629,7 +2631,7 @@ with tab_trader_game:
                             })
                             st.session_state.tg_position = "NONE"
                             st.toast(f"🤖 Bot saiu LONG a {price_now:.2f} ({pnl_pct:+.2f}%)")
-                        elif _pos == "SHORT" and (_bot_signal == "LONG" or (_bot_signal == "HOLD" and _bot_conf >= 67)):
+                        elif _pos == "SHORT" and (_bot_signal == "LONG" or (_bot_signal == "HOLD" and _bot_conf >= st.session_state.get('tg_min_confidence_pct', 80.0))):
                             entry_p = st.session_state.tg_entry_price
                             commissions = st.session_state.tg_capital * 0.0005
                             pnl_pct = (entry_p - price_now) / entry_p * 100
@@ -3735,7 +2737,7 @@ with tab_trader_game:
                     st.dataframe(th_df[list(display_cols.keys())].rename(columns={
                         "type":"Operacao","entry_price":"Entrada","exit_price":"Saida",
                         "pnl_pct":"PnL (%)","pnl_eur":"Retorno","candles":"Duracao","reason":"Motivo"
-                    }), use_container_width=True)
+                    }), width='stretch')
                 else:
                     st.info("Nenhuma ordem fechada.")
             with col_h2:
@@ -3745,6 +2747,10 @@ with tab_trader_game:
                     st.dataframe(pd.DataFrame(scores).rename(columns={
                         "name":"Nome","capital":"Banca Final","return":"Lucro",
                         "trades":"Trades","config":"Config","date":"Data"
-                    }), use_container_width=True)
+                    }), width='stretch')
                 else:
                     st.info("Ainda nao ha recordes!")
+
+# =========================================================================
+# SEPARADOR 6: CENTRAL DE VARIÁVEIS
+# =========================================================================
