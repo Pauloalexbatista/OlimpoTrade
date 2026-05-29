@@ -18,3 +18,12 @@ __pycache__/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Runtime data files
+last_game_data.csv
+last_game_state.json
+market_data.sqlite
+trader_highscores.json
+bot_consensus_dna.json
+*.sqlite
+
