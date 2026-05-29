@@ -516,7 +516,6 @@ tab_backtest, tab_simulator, tab_math_lab, tab_trader_game, tab_bot_brain = st.t
     "🧠 Cérebro do Bot (DNA)"
 ])
 
-
 # Ação do Botão Principal do Backtester
 if run_button:
     st.markdown("### 🚀 Recolhendo dados e processando simulação...")
@@ -548,8 +547,6 @@ if run_button:
         st.session_state.backtest_capital_history = capital_history
         st.session_state.backtest_df = df_ohlcv
         # st.rerun() removido para evitar loop infinito de re-execução em Streamlit pós-2025
-
-
 
 # ─── CLASSIFICADOR DE TIPO DE MERCADO (usando precos reais da Binance) ──────────
 def classify_market_type(prices_list):
@@ -1549,7 +1546,6 @@ with tab_trader_game:
     import variables_registry
     variables_registry.initialize_variables_registry()
 
-
     # =========================================================================
     # SEPARADOR 5: JOGO DO TRADER QUANTITATIVO (ARENA BLIND TRADER)
     # =========================================================================
@@ -2090,83 +2086,101 @@ with tab_trader_game:
             except Exception:
                 pass
 
-        # CSS dos botoes casino
+        # CSS dos botoes casino - ARCADE LED STYLE
         st.markdown("""
         <style>
         div[data-testid="column"]:has(div.game-control-anchor) {
-            background: rgba(255,255,255,0.45) !important;
-            backdrop-filter: blur(16px) !important;
-            border-radius: 16px !important;
-            border: 1px solid rgba(255,255,255,0.2) !important;
+            background: linear-gradient(160deg, rgba(15,23,42,0.95) 0%, rgba(30,41,59,0.98) 100%) !important;
+            backdrop-filter: blur(20px) !important;
+            border-radius: 18px !important;
+            border: 1px solid rgba(124,58,237,0.35) !important;
             padding: 16px !important;
-            box-shadow: 0 8px 32px 0 rgba(31,38,135,0.08) !important;
-            border-left: 5px solid #7c3aed !important;
+            box-shadow: 0 0 0 1px rgba(124,58,237,0.15), 0 8px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06) !important;
         }
-        @keyframes pulse-green {
-            0% { box-shadow: 0 0 15px rgba(34,197,94,0.6), inset 0 0 5px rgba(255,255,255,0.4); }
-            100% { box-shadow: 0 0 35px rgba(34,197,94,1.0), inset 0 0 10px rgba(255,255,255,0.8); }
+        @keyframes pulse-green-led {
+            0%   { box-shadow: 0 0 10px 3px #10b981, 0 0 28px 8px rgba(16,185,129,0.5), inset 0 0 16px rgba(16,185,129,0.25); }
+            50%  { box-shadow: 0 0 22px 9px #10b981, 0 0 55px 18px rgba(16,185,129,0.8), inset 0 0 28px rgba(16,185,129,0.55); }
+            100% { box-shadow: 0 0 10px 3px #10b981, 0 0 28px 8px rgba(16,185,129,0.5), inset 0 0 16px rgba(16,185,129,0.25); }
         }
-        @keyframes pulse-red {
-            0% { box-shadow: 0 0 15px rgba(239,68,68,0.6), inset 0 0 5px rgba(255,255,255,0.4); }
-            100% { box-shadow: 0 0 35px rgba(239,68,68,1.0), inset 0 0 10px rgba(255,255,255,0.8); }
+        @keyframes pulse-red-led {
+            0%   { box-shadow: 0 0 10px 3px #ef4444, 0 0 28px 8px rgba(239,68,68,0.5), inset 0 0 16px rgba(239,68,68,0.25); }
+            50%  { box-shadow: 0 0 22px 9px #ef4444, 0 0 55px 18px rgba(239,68,68,0.8), inset 0 0 28px rgba(239,68,68,0.55); }
+            100% { box-shadow: 0 0 10px 3px #ef4444, 0 0 28px 8px rgba(239,68,68,0.5), inset 0 0 16px rgba(239,68,68,0.25); }
         }
-        /* Pulsing animations and bright arcade styling */
-        .casino-long-active button {
-            background-color: #10b981 !important;
-            color: white !important;
-            border: 2px solid #059669 !important;
-            border-radius: 12px !important;
+        .casino-long-active button, .casino-long-inactive button,
+        .casino-short-active button, .casino-short-inactive button,
+        .casino-blocked button {
+            border-radius: 16px !important;
             font-weight: 900 !important;
-            text-shadow: 0 0 4px rgba(255,255,255,0.6) !important;
-            animation: pulse-green 1.5s infinite alternate !important;
+            font-size: 13px !important;
+            letter-spacing: 0.5px !important;
+            text-transform: uppercase !important;
+            transition: all 0.15s ease !important;
+            height: 72px !important;
+            min-height: 72px !important;
         }
+        .casino-long-active button {
+            background: linear-gradient(180deg, #34d399 0%, #10b981 35%, #059669 70%, #064e3b 100%) !important;
+            color: #ffffff !important;
+            border: 3px solid #6ee7b7 !important;
+            outline: 3px solid rgba(16,185,129,0.5) !important; outline-offset: 2px !important;
+            text-shadow: 0 0 10px rgba(255,255,255,0.9), 0 1px 2px rgba(0,0,0,0.6) !important;
+            animation: pulse-green-led 1.4s ease-in-out infinite !important;
+        }
+        .casino-long-active button:hover { filter: brightness(1.15) !important; transform: scale(1.02) !important; }
         .casino-long-inactive button {
-            background-color: #064e3b !important;
-            color: #34d399 !important;
-            border: 2px solid #047857 !important;
-            border-radius: 12px !important;
-            font-weight: bold !important;
-            opacity: 0.85 !important;
+            background: linear-gradient(180deg, #052e16 0%, #064e3b 40%, #065f46 100%) !important;
+            color: #6ee7b7 !important;
+            border: 3px solid #134e4a !important;
+            outline: 3px solid rgba(16,185,129,0.08) !important; outline-offset: 2px !important;
+            text-shadow: 0 0 6px rgba(110,231,183,0.35) !important;
+            box-shadow: 0 0 5px rgba(16,185,129,0.1), inset 0 2px 5px rgba(0,0,0,0.5) !important;
+        }
+        .casino-long-inactive button:hover {
+            background: linear-gradient(180deg, #065f46 0%, #059669 40%, #10b981 100%) !important;
+            color: #fff !important;
+            box-shadow: 0 0 20px rgba(16,185,129,0.55), inset 0 0 14px rgba(16,185,129,0.2) !important;
+            transform: scale(1.01) !important;
         }
         .casino-short-active button {
-            background-color: #ef4444 !important;
-            color: white !important;
-            border: 2px solid #dc2626 !important;
-            border-radius: 12px !important;
-            font-weight: 900 !important;
-            text-shadow: 0 0 4px rgba(255,255,255,0.6) !important;
-            animation: pulse-red 1.5s infinite alternate !important;
+            background: linear-gradient(180deg, #fca5a5 0%, #ef4444 35%, #dc2626 70%, #7f1d1d 100%) !important;
+            color: #ffffff !important;
+            border: 3px solid #fca5a5 !important;
+            outline: 3px solid rgba(239,68,68,0.5) !important; outline-offset: 2px !important;
+            text-shadow: 0 0 10px rgba(255,255,255,0.9), 0 1px 2px rgba(0,0,0,0.6) !important;
+            animation: pulse-red-led 1.4s ease-in-out infinite !important;
         }
+        .casino-short-active button:hover { filter: brightness(1.15) !important; transform: scale(1.02) !important; }
         .casino-short-inactive button {
-            background-color: #7f1d1d !important;
-            color: #f87171 !important;
-            border: 2px solid #b91c1c !important;
-            border-radius: 12px !important;
-            font-weight: bold !important;
-            opacity: 0.85 !important;
+            background: linear-gradient(180deg, #450a0a 0%, #7f1d1d 40%, #991b1b 100%) !important;
+            color: #fca5a5 !important;
+            border: 3px solid #7f1d1d !important;
+            outline: 3px solid rgba(239,68,68,0.08) !important; outline-offset: 2px !important;
+            text-shadow: 0 0 6px rgba(252,165,165,0.35) !important;
+            box-shadow: 0 0 5px rgba(239,68,68,0.1), inset 0 2px 5px rgba(0,0,0,0.5) !important;
+        }
+        .casino-short-inactive button:hover {
+            background: linear-gradient(180deg, #991b1b 0%, #dc2626 40%, #ef4444 100%) !important;
+            color: #fff !important;
+            box-shadow: 0 0 20px rgba(239,68,68,0.55), inset 0 0 14px rgba(239,68,68,0.2) !important;
+            transform: scale(1.01) !important;
         }
         .casino-blocked button {
-            background-color: #1e293b !important;
-            color: #475569 !important;
-            border: 2px solid #334155 !important;
-            border-radius: 12px !important;
-            font-weight: normal !important;
-            opacity: 0.55 !important;
+            background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%) !important;
+            color: #334155 !important;
+            border: 3px solid #1e293b !important;
+            opacity: 0.4 !important;
+            cursor: not-allowed !important;
         }
-        
         .review-banner {
             background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-            border-radius: 14px;
-            padding: 18px 24px;
-            margin-bottom: 14px;
+            border-radius: 14px; padding: 18px 24px; margin-bottom: 14px;
             border: 1px solid rgba(99,102,241,0.4);
             box-shadow: 0 0 40px rgba(99,102,241,0.15);
         }
         .review-stat {
-            text-align: center;
-            padding: 8px 12px;
-            background: rgba(255,255,255,0.05);
-            border-radius: 10px;
+            text-align: center; padding: 8px 12px;
+            background: rgba(255,255,255,0.05); border-radius: 10px;
             border: 1px solid rgba(255,255,255,0.08);
         }
         </style>
@@ -3021,14 +3035,32 @@ with tab_trader_game:
                 st.markdown("<hr style='margin:8px 0; border:0; border-top:1px solid rgba(0,0,0,0.08);'>", unsafe_allow_html=True)
 
                 # Operar posicoes - Estilo Maquina de Casino Arcade
-                st.markdown("##### Operações (Painel de Casino)")
+                _long_on  = st.session_state.tg_position == "LONG"
+                _short_on = st.session_state.tg_position == "SHORT"
+                _led_ld = "background:#10b981;box-shadow:0 0 8px 3px #10b981;" if _long_on else "background:#052e16;border:1px solid #134e4a;"
+                _led_sd = "background:#ef4444;box-shadow:0 0 8px 3px #ef4444;" if _short_on else "background:#450a0a;border:1px solid #991b1b;"
+                _ll = "ON &#9679; ACESO" if _long_on else "OFF &#9675; APAGADO"
+                _sl = "ON &#9679; ACESO" if _short_on else "OFF &#9675; APAGADO"
+                _lc = "#10b981" if _long_on else "#334155"
+                _sc = "#ef4444" if _short_on else "#334155"
+                st.markdown(
+                    f'<div style="display:flex;gap:0;margin-bottom:6px;">'
+                    f'<div style="flex:1;text-align:center;font-size:11px;font-weight:bold;letter-spacing:1px;color:{_lc};text-transform:uppercase;">'
+                    f'<span style="display:inline-block;width:9px;height:9px;border-radius:50%;{_led_ld}margin-right:5px;vertical-align:middle;"></span>'
+                    f'LONG &nbsp; {_ll}</div>'
+                    f'<div style="flex:1;text-align:center;font-size:11px;font-weight:bold;letter-spacing:1px;color:{_sc};text-transform:uppercase;">'
+                    f'<span style="display:inline-block;width:9px;height:9px;border-radius:50%;{_led_sd}margin-right:5px;vertical-align:middle;"></span>'
+                    f'SHORT &nbsp; {_sl}</div>'
+                    f'</div>',
+                    unsafe_allow_html=True
+                )
                 col_btn_long, col_btn_short = st.columns(2)
                 
                 with col_btn_long:
                     if st.session_state.tg_position == "LONG":
                         long_pnl = (price_now - st.session_state.tg_entry_price)/st.session_state.tg_entry_price*100
                         st.markdown('<div class="casino-long-active">', unsafe_allow_html=True)
-                        if st.button(f"LONG ATIVO 🟢\n{long_pnl:+.2f}%", width='stretch', key="tg_btn_long_act"):
+                        if st.button(f"LONG ATIVO  {long_pnl:+.2f}%", width='stretch', key="tg_btn_long_act"):
                             entry_p = st.session_state.tg_entry_price
                             commissions = st.session_state.tg_capital * 0.0005
                             trade_pnl_pct = (price_now - entry_p)/entry_p*100
@@ -3047,7 +3079,7 @@ with tab_trader_game:
                         st.markdown('</div>', unsafe_allow_html=True)
                     elif st.session_state.tg_position == "NONE":
                         st.markdown('<div class="casino-long-inactive">', unsafe_allow_html=True)
-                        if st.button("ENTRAR LONG 🟢\n[OFF]", width='stretch', key="tg_btn_long_inact"):
+                        if st.button("ENTRAR LONG  [OFF]", width='stretch', key="tg_btn_long_inact"):
                             st.session_state.tg_position = "LONG"
                             st.session_state.tg_entry_price = price_now
                             st.session_state.tg_entry_step = current_step
@@ -3057,14 +3089,14 @@ with tab_trader_game:
                         st.markdown('</div>', unsafe_allow_html=True)
                     else:
                         st.markdown('<div class="casino-blocked">', unsafe_allow_html=True)
-                        st.button("LONG BLOQUEADO 🔒", disabled=True, width='stretch', key="tg_btn_long_blk")
+                        st.button("LONG BLOQUEADO", disabled=True, width='stretch', key="tg_btn_long_blk")
                         st.markdown('</div>', unsafe_allow_html=True)
 
                 with col_btn_short:
                     if st.session_state.tg_position == "SHORT":
                         short_pnl = (st.session_state.tg_entry_price - price_now)/st.session_state.tg_entry_price*100
                         st.markdown('<div class="casino-short-active">', unsafe_allow_html=True)
-                        if st.button(f"SHORT ATIVO 🔴\n{short_pnl:+.2f}%", width='stretch', key="tg_btn_short_act"):
+                        if st.button(f"SHORT ATIVO  {short_pnl:+.2f}%", width='stretch', key="tg_btn_short_act"):
                             entry_p = st.session_state.tg_entry_price
                             commissions = st.session_state.tg_capital * 0.0005
                             trade_pnl_pct = (entry_p - price_now)/entry_p*100
@@ -3083,7 +3115,7 @@ with tab_trader_game:
                         st.markdown('</div>', unsafe_allow_html=True)
                     elif st.session_state.tg_position == "NONE":
                         st.markdown('<div class="casino-short-inactive">', unsafe_allow_html=True)
-                        if st.button("ENTRAR SHORT 🔴\n[OFF]", width='stretch', key="tg_btn_short_inact"):
+                        if st.button("ENTRAR SHORT  [OFF]", width='stretch', key="tg_btn_short_inact"):
                             st.session_state.tg_position = "SHORT"
                             st.session_state.tg_entry_price = price_now
                             st.session_state.tg_entry_step = current_step
@@ -3093,7 +3125,7 @@ with tab_trader_game:
                         st.markdown('</div>', unsafe_allow_html=True)
                     else:
                         st.markdown('<div class="casino-blocked">', unsafe_allow_html=True)
-                        st.button("SHORT BLOQUEADO 🔒", disabled=True, width='stretch', key="tg_btn_short_blk")
+                        st.button("SHORT BLOQUEADO", disabled=True, width='stretch', key="tg_btn_short_blk")
                         st.markdown('</div>', unsafe_allow_html=True)
 
             with col_right:
