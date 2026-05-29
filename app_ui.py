@@ -2717,6 +2717,135 @@ with tab_trader_game:
             </div>
             """, unsafe_allow_html=True)
 
+            col_rev_chart, col_rev_ctrl = st.columns([7, 3])
+
+            with col_rev_ctrl:
+                st.markdown('<div class="game-control-anchor"></div>', unsafe_allow_html=True)
+                st.markdown("##### Ordens Fechadas")
+                if st.session_state.tg_trades:
+                    for i, tr in enumerate(st.session_state.tg_trades, 1):
+                        clr = "#10B981" if tr.get('pnl_pct',0) >= 0 else "#EF4444"
+                        st.markdown(f"<div style='font-size:12px; padding:4px 0; border-bottom:1px solid #f1f5f9;'>"
+                                    f"<b style='color:{clr};'>#{i} {tr['type']}</b>  "
+                                    f"<span style='color:#64748b;'>{tr.get('entry_price',0):.2f}→{tr.get('exit_price',0):.2f}</span>  "
+                                    f"<b style='color:{clr};'>{tr.get('pnl_pct',0):+.2f}%</b></div>", unsafe_allow_html=True)
+                st.markdown("<hr style='margin:8px 0;'>", unsafe_allow_html=True)
+                if st.button("Novo Jogo", type="primary", width='stretch', key="rv_new_game"):
+                    start_new_game()
+                    st.rerun()
+
+            with col_rev_chart:
+                # Grafico completo: das 100 velas jogadas (step 144 a 244)
+                full_game_df = df.iloc[144:245]
+                # Checkboxes cinzentas redundantes removidas. Controlo feito diretamente por clique na legenda do Plotly!
+
+                fig_review = _build_chart(
+                    full_game_df, df,
+                    title_str=f"Revisao Completa — {st.session_state.tg_trader_name} | 100 Velas Jogadas",
+                    show_full_range=True
+                )
+                st.plotly_chart(fig_review, width='stretch')
+
+        # =========================================================================
+        # MODO JOGO ATIVO
+        # =========================================================================
+        elif st.session_state.tg_active and st.session_state.tg_data is not None:
+            df = st.session_state.tg_data
+            current_step = st.session_state.tg_step
+            progress_candles = current_step - 144
+            price_now = df['close'].iloc[current_step]
+
+            # Gatilhos de seguranca
+            if st.session_state.tg_position != "NONE":
+                entry_p = st.session_state.tg_entry_price
+                triggered = False
+                trigger_reason = ""
+                executed_price = price_now
+                if st.session_state.tg_position == "LONG":
+                    st.session_state.tg_highest_price = max(st.session_state.tg_highest_price, price_now)
+                    if st.session_state.tg_sl_active and price_now <= entry_p * (1 - st.session_state.tg_sl_pct/100.0):
+                        triggered, trigger_reason = True, "STOP LOSS"
+                        executed_price = entry_p * (1 - st.session_state.tg_sl_pct/100.0)
+                    elif st.session_state.tg_tp_active and price_now >= entry_p * (1 + st.session_state.tg_tp_pct/100.0):
+                        triggered, trigger_reason = True, "TAKE PROFIT"
+                        executed_price = entry_p * (1 + st.session_state.tg_tp_pct/100.0)
+                    elif st.session_state.tg_ts_active and price_now <= st.session_state.tg_highest_price * (1 - st.session_state.tg_ts_pct/100.0):
+                        triggered, trigger_reason = True, "TRAILING STOP"
+                        executed_price = st.session_state.tg_highest_price * (1 - st.session_state.tg_ts_pct/100.0)
+                elif st.session_state.tg_position == "SHORT":
+                    st.session_state.tg_lowest_price = min(st.session_state.tg_lowest_price, price_now)
+                    if st.session_state.tg_sl_active and price_now >= entry_p * (1 + st.session_state.tg_sl_pct/100.0):
+                        triggered, trigger_reason = True, "STOP LOSS"
+                        executed_price = entry_p * (1 + st.session_state.tg_sl_pct/100.0)
+                    elif st.session_state.tg_tp_active and price_now <= entry_p * (1 - st.session_state.tg_tp_pct/100.0):
+                        triggered, trigger_reason = True, "TAKE PROFIT"
+                        executed_price = entry_p * (1 - st.session_state.tg_tp_pct/100.0)
+                    elif st.session_state.tg_ts_active and price_now >= st.session_state.tg_lowest_price * (1 + st.session_state.tg_ts_pct/100.0):
+                        triggered, trigger_reason = True, "TRAILING STOP"
+                        executed_price = st.session_state.tg_lowest_price * (1 + st.session_state.tg_ts_pct/100.0)
+                if triggered:
+                    commissions = st.session_state.tg_capital * 0.0005
+                    if st.session_state.tg_position == "LONG":
+                        trade_pnl_pct = (executed_price - entry_p) / entry_p * 100
+                    else:
+                        trade_pnl_pct = (entry_p - executed_price) / entry_p * 100
+                    net_pnl = st.session_state.tg_capital * (trade_pnl_pct / 100.0) - commissions
+                    st.session_state.tg_capital += net_pnl
+                    st.session_state.tg_trades.append({
+                        "type": st.session_state.tg_position, "entry_price": entry_p, "exit_price": executed_price,
+                        "pnl_pct": trade_pnl_pct, "pnl_eur": net_pnl,
+                        "candles": current_step - st.session_state.tg_entry_step,
+                        "reason": trigger_reason, "entry_step": st.session_state.tg_entry_step, "exit_step": current_step
+                    })
+                    old_pos = st.session_state.tg_position
+                    st.session_state.tg_position = "NONE"
+                    st.toast(f"{trigger_reason} ativado! Posicao {old_pos} liquidada a {executed_price:.2f}")
+                    st.rerun()
+
+            # Fim do desafio (100 velas jogadas)
+            if progress_candles >= 100:
+                # Fechar posicao aberta
+                if st.session_state.tg_position != "NONE":
+                    entry_p = st.session_state.tg_entry_price
+                    commissions = st.session_state.tg_capital * 0.0005
+                    trade_pnl_pct = (price_now - entry_p)/entry_p*100 if st.session_state.tg_position == "LONG" else (entry_p - price_now)/entry_p*100
+                    net_pnl = st.session_state.tg_capital * (trade_pnl_pct/100.0) - commissions
+                    st.session_state.tg_capital += net_pnl
+                    st.session_state.tg_trades.append({
+                        "type": st.session_state.tg_position, "entry_price": entry_p, "exit_price": price_now,
+                        "pnl_pct": trade_pnl_pct, "pnl_eur": net_pnl,
+                        "candles": current_step - st.session_state.tg_entry_step,
+                        "reason": "Fim do Jogo", "entry_step": st.session_state.tg_entry_step, "exit_step": current_step
+                    })
+                    st.session_state.tg_position = "NONE"
+                save_highscore(st.session_state.tg_trader_name, st.session_state.tg_capital, len(st.session_state.tg_trades))
+                save_last_game_persistent(df)
+                # Transicao para modo revisao (nao apaga os dados!)
+                st.session_state.tg_active = False
+                st.session_state.tg_game_finished = True
+                st.session_state.tg_running = False
+                st.balloons()
+                st.rerun()
+
+            pos_str = "FORA"
+            if st.session_state.tg_position == "LONG":
+                pos_str = f"LONG ({st.session_state.tg_entry_price:.2f})"
+            elif st.session_state.tg_position == "SHORT":
+                pos_str = f"SHORT ({st.session_state.tg_entry_price:.2f})"
+
+            ret_pct = st.session_state.tg_capital - 100.0
+            ret_color = "#10B981" if ret_pct >= 0 else "#EF4444"
+            st.markdown(f"""
+            <div style="padding:10px 20px; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center;
+                 border-radius:10px; background:rgba(255,255,255,0.6); backdrop-filter:blur(12px);
+                 box-shadow:0 4px 15px rgba(0,0,0,0.05); border:1px solid rgba(255,255,255,0.3);">
+                <div>Banca: <b style="color:#10B981; font-family:monospace;">{st.session_state.tg_capital:.2f} EUR</b></div>
+                <div>Retorno: <b style="color:{ret_color}; font-family:monospace;">{ret_pct:+.2f}%</b></div>
+                <div>Posicao: <b style="color:#00B0FF;">{pos_str}</b></div>
+                <div>Progresso: <b style="font-family:monospace;">{progress_candles} / 100</b></div>
+            </div>
+            """, unsafe_allow_html=True)
+
             col_left, col_right = st.columns([4, 6])
 
             with col_left:
@@ -2726,12 +2855,12 @@ with tab_trader_game:
                 st.markdown("##### Controlo de Fluxo")
                 col_flow1, col_flow2, col_flow3 = st.columns([1, 1, 1.5])
                 with col_flow1:
-                    if st.button("Avançar ➡️", use_container_width=True, key="tg_step_btn"):
+                    if st.button("Avançar ➡️", width='stretch', key="tg_step_btn"):
                         st.session_state.tg_step += 1
                         st.rerun()
                 with col_flow2:
                     btn_label = "Pausar ⏸️" if st.session_state.tg_running else "Auto ▶️"
-                    if st.button(btn_label, use_container_width=True, key="tg_loop_btn"):
+                    if st.button(btn_label, width='stretch', key="tg_loop_btn"):
                         st.session_state.tg_running = not st.session_state.tg_running
                         st.rerun()
                 with col_flow3:
@@ -2858,7 +2987,7 @@ with tab_trader_game:
                     if st.session_state.tg_position == "LONG":
                         long_pnl = (price_now - st.session_state.tg_entry_price)/st.session_state.tg_entry_price*100
                         st.markdown('<div class="casino-long-active">', unsafe_allow_html=True)
-                        if st.button(f"LONG ATIVO 🟢\n{long_pnl:+.2f}%", use_container_width=True, key="tg_btn_long_act"):
+                        if st.button(f"LONG ATIVO 🟢\n{long_pnl:+.2f}%", width='stretch', key="tg_btn_long_act"):
                             entry_p = st.session_state.tg_entry_price
                             commissions = st.session_state.tg_capital * 0.0005
                             trade_pnl_pct = (price_now - entry_p)/entry_p*100
@@ -2877,7 +3006,7 @@ with tab_trader_game:
                         st.markdown('</div>', unsafe_allow_html=True)
                     elif st.session_state.tg_position == "NONE":
                         st.markdown('<div class="casino-long-inactive">', unsafe_allow_html=True)
-                        if st.button("ENTRAR LONG 🟢\n[OFF]", use_container_width=True, key="tg_btn_long_inact"):
+                        if st.button("ENTRAR LONG 🟢\n[OFF]", width='stretch', key="tg_btn_long_inact"):
                             st.session_state.tg_position = "LONG"
                             st.session_state.tg_entry_price = price_now
                             st.session_state.tg_entry_step = current_step
@@ -2887,14 +3016,14 @@ with tab_trader_game:
                         st.markdown('</div>', unsafe_allow_html=True)
                     else:
                         st.markdown('<div class="casino-blocked">', unsafe_allow_html=True)
-                        st.button("LONG BLOQUEADO 🔒", disabled=True, use_container_width=True, key="tg_btn_long_blk")
+                        st.button("LONG BLOQUEADO 🔒", disabled=True, width='stretch', key="tg_btn_long_blk")
                         st.markdown('</div>', unsafe_allow_html=True)
 
                 with col_btn_short:
                     if st.session_state.tg_position == "SHORT":
                         short_pnl = (st.session_state.tg_entry_price - price_now)/st.session_state.tg_entry_price*100
                         st.markdown('<div class="casino-short-active">', unsafe_allow_html=True)
-                        if st.button(f"SHORT ATIVO 🔴\n{short_pnl:+.2f}%", use_container_width=True, key="tg_btn_short_act"):
+                        if st.button(f"SHORT ATIVO 🔴\n{short_pnl:+.2f}%", width='stretch', key="tg_btn_short_act"):
                             entry_p = st.session_state.tg_entry_price
                             commissions = st.session_state.tg_capital * 0.0005
                             trade_pnl_pct = (entry_p - price_now)/entry_p*100
@@ -2913,7 +3042,7 @@ with tab_trader_game:
                         st.markdown('</div>', unsafe_allow_html=True)
                     elif st.session_state.tg_position == "NONE":
                         st.markdown('<div class="casino-short-inactive">', unsafe_allow_html=True)
-                        if st.button("ENTRAR SHORT 🔴\n[OFF]", use_container_width=True, key="tg_btn_short_inact"):
+                        if st.button("ENTRAR SHORT 🔴\n[OFF]", width='stretch', key="tg_btn_short_inact"):
                             st.session_state.tg_position = "SHORT"
                             st.session_state.tg_entry_price = price_now
                             st.session_state.tg_entry_step = current_step
@@ -2923,7 +3052,7 @@ with tab_trader_game:
                         st.markdown('</div>', unsafe_allow_html=True)
                     else:
                         st.markdown('<div class="casino-blocked">', unsafe_allow_html=True)
-                        st.button("SHORT BLOQUEADO 🔒", disabled=True, use_container_width=True, key="tg_btn_short_blk")
+                        st.button("SHORT BLOQUEADO 🔒", disabled=True, width='stretch', key="tg_btn_short_blk")
                         st.markdown('</div>', unsafe_allow_html=True)
 
             with col_right:
@@ -2934,7 +3063,7 @@ with tab_trader_game:
                     sub_df, df,
                     title_str=f"Arena Real 📈 Batimento {progress_candles} / 100 Velas (últimas {len(sub_df)})"
                 )
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width='stretch')
 # Loop automatico
             if st.session_state.tg_running and st.session_state.tg_active:
                 time.sleep(tg_delay)
@@ -3065,7 +3194,7 @@ with tab_bot_brain:
                     "Total Ameaças (Topos)": thr_cnt
                 })
             df_hist = pd.DataFrame(records)
-            st.dataframe(df_hist, use_container_width=True, hide_index=True, height=350)
+            st.dataframe(df_hist, width='stretch', hide_index=True, height=350)
         else:
             st.info("ℹ️ Nenhuma lição de treino ativa na memória do Bot. Execute simulações para treinar.")
             

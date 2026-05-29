@@ -427,7 +427,7 @@ def render_bot_brain_table():
         
     df_dna = pd.DataFrame(table_rows, columns=columns)
     
-    st.dataframe(df_dna, use_container_width=True, hide_index=True, height=550)
+    st.dataframe(df_dna, width='stretch', hide_index=True, height=550)
 
 def rebuild_consensus_dna():
     import os
