@@ -76,7 +76,7 @@ def initialize_variables_registry():
         st.session_state.allow_reentry_val = True
 
 def render_variable_widget(var):
-    # Se for toggleable (ex: Stop Loss, Take Profit), desenhar toggle e slider
+    # Se for toggleable (ex: Stop Loss, Take Profit), desenhar toggle and slider
     if var.is_toggleable:
         toggle_key = f"{var.key}_active"
         st.session_state[toggle_key] = st.toggle(
@@ -216,13 +216,16 @@ def render_variables_dashboard(compact=False):
 def render_bot_brain_table():
     import os
     import json
+    import pandas as pd
+    import numpy as np
+    import streamlit as st
     
     st.markdown("---")
-    st.markdown("##### 🧠 O Cérebro Activo do BOT (Regras de Consenso DNA)")
+    st.markdown("##### 🧠 O Cérebro Activo do BOT (Regras de Consenso DNA - 12 Variáveis Quantitativas)")
     
     dna_path = "bot_consensus_dna.json"
     if not os.path.exists(dna_path):
-        st.info("ℹ️ Nenhum DNA de Consenso Activo gravado. Vá à aba **Laboratório Matemático** para unificar lições do historial e gravar o cérebro do Bot!")
+        st.info("🧠 Nenhum DNA de Consenso Activo gravado. Vá à aba **Laboratório Matemático** ou **Arena** para treinar e gravar o cérebro!")
         return
         
     try:
@@ -232,145 +235,208 @@ def render_bot_brain_table():
         st.error(f"Erro ao carregar o cérebro do Bot: {e}")
         return
         
-    regimes = ["BULL", "BEAR", "LATERAL", "CAOTICO"]
-    table_data = []
+    vars_def = [
+        {
+            "id": 1,
+            "name": "Compressão da Mola",
+            "json": "mola_mean",
+            "math": "std(SMAs) / mean(SMAs) * 100",
+            "meaning": "Mede o quão comprimidas estão as médias. Valores baixos indicam consolidação estreita (mola comprimida pronta a explodir).",
+            "key": "mola",
+            "key_exit": "mola_exit",
+            "fmt": "{:.2f}%"
+        },
+        {
+            "id": 2,
+            "name": "Estiramento (Stretching)",
+            "json": "strt_mean",
+            "math": "mean(|SMA_i - SMA_med|) / SMA_med * 100",
+            "meaning": "Mede o afastamento médio das médias em relação à média central do feixe. Indica sobrecompra/sobrevenda local.",
+            "key": "stretching",
+            "key_exit": "stretching_exit",
+            "fmt": "{:.2f}%"
+        },
+        {
+            "id": 3,
+            "name": "Dispersão Vetorial",
+            "json": "disp_mean",
+            "math": "(SMA_5 - SMA_144) / SMA_144 * 100",
+            "meaning": "Mede a abertura máxima macro e alinhamento direcional. Positivo = alta (Bull); Negativo = baixa (Bear).",
+            "key": "disp",
+            "key_exit": "disp_exit",
+            "fmt": "{:+.2f}%"
+        },
+        {
+            "id": 4,
+            "name": "Velocidade",
+            "json": "vel_mean",
+            "math": "SMA_5 - SMA_5 (atrás 2 velas)",
+            "meaning": "Mede o momentum ou velocidade da tendência rápida de curto prazo.",
+            "key": "velocity",
+            "key_exit": "velocity_exit",
+            "fmt": "{:+.4f}"
+        },
+        {
+            "id": 5,
+            "name": "Aceleração",
+            "json": "acc_mean",
+            "math": "Velocidade - Velocidade (atrás 2 velas)",
+            "meaning": "Mede a aceleração/desaceleração rápida. Crucial para identificar a exaustão de um movimento e reversão iminente.",
+            "key": "acceleration",
+            "key_exit": "acceleration_exit",
+            "fmt": "{:+.4f}"
+        },
+        {
+            "id": 6,
+            "name": "Volatilidade",
+            "json": "vol_mean",
+            "math": "std(Fechos, 20 velas)",
+            "meaning": "Mede o ruído do mercado. Permite rejeitar operações se a volatilidade for caótica para o regime.",
+            "key": "volatility",
+            "key_exit": "volatility_exit",
+            "fmt": "{:.4f}"
+        },
+        {
+            "id": 7,
+            "name": "Taxa de Infiltração",
+            "json": "infil_rate",
+            "math": "% gatilhos com SMA 5>13>21 e 55<144",
+            "meaning": "Mede a percentagem de operações de contra-tendência profunda onde o curto prazo infiltra o longo prazo.",
+            "key": "infil",
+            "key_exit": "infil_exit",
+            "fmt": "{:.1f}%",
+            "is_rate": True
+        },
+        {
+            "id": 8,
+            "name": "Taxa de Reteste",
+            "json": "reteste_rate",
+            "math": "% fechos a menos de 0.8% da SMA 55 ou 144",
+            "meaning": "Mede a precisão das entradas em pullback nos suportes ou resistências de Fibonacci macro.",
+            "key": "reteste",
+            "key_exit": "reteste_exit",
+            "fmt": "{:.1f}%",
+            "is_rate": True
+        },
+        {
+            "id": 9,
+            "name": "Momentum de Força (RSI 14)",
+            "json": "rsi_mean",
+            "math": "100 - (100 / (1 + RS)) [14 velas]",
+            "meaning": "Oscilador clássico de força de momentum. Evita comprar topos (sobrecompra >70) e vender fundos (sobrevenda <30).",
+            "key": "rsi",
+            "key_exit": "rsi_exit",
+            "fmt": "{:.2f}"
+        },
+        {
+            "id": 10,
+            "name": "Fronteira Estatística (BB %)",
+            "json": "bb_dist_mean",
+            "math": "(Price - Lower) / (Upper - Lower) * 100",
+            "meaning": "Mede a posição do preço em relação às bandas. >100% indica rompimento de alta; <0% indica rompimento de baixa.",
+            "key": "bb",
+            "key_exit": "bb_exit",
+            "fmt": "{:.2f}%"
+        },
+        {
+            "id": 11,
+            "name": "Aceleração Macro (MACD Hist)",
+            "json": "macd_mean",
+            "math": "MACD_Line - MACD_Signal [12, 26, 9]",
+            "meaning": "Mede a força de aceleração da tendência de longo prazo. Evita operar contra marés macro fortes.",
+            "key": "macd",
+            "key_exit": "macd_exit",
+            "fmt": "{:+.4f}"
+        },
+        {
+            "id": 12,
+            "name": "Respiração do Mercado (ATR 14)",
+            "json": "atr_mean",
+            "math": "rolling_mean(True_Range, 14)",
+            "meaning": "Mede a volatilidade real de cada vela. Excelente para stop-loss dinâmico e exaustão do regime.",
+            "key": "atr",
+            "key_exit": "atr_exit",
+            "fmt": "{:.4f}"
+        }
+    ]
     
-    for reg in regimes:
-        reg_data = dna.get("regimes", {}).get(reg, {})
-        if not reg_data or not reg_data.get("active", True):
-            table_data.append({
-                "Regime (Mercado)": reg,
-                "Tipo de Gatilho": "Todos (Inativo)",
-                "Stretching": "N/A",
-                "Coesão da Mola": "N/A",
-                "Disp. Vetorial": "N/A",
-                "Aceleração Média": "N/A",
-                "Filtros Extra": "Desativado neste regime"
-            })
-            continue
-            
-        # 1. BUY Rules (Entrada LONG)
-        buy_rules = reg_data.get("buy_rules", {})
-        if buy_rules:
-            strt = buy_rules.get("stretching", {})
-            mola = buy_rules.get("mola", {})
-            disp = buy_rules.get("disp", {})
-            acc = buy_rules.get("acceleration", {})
-            infil = buy_rules.get("infil", {})
-            reteste = buy_rules.get("reteste", {})
-            
-            strt_val = "Instável/Rejeitado"
-            if strt.get("stable", False) and strt.get("mean") is not None:
-                strt_val = f"{strt['mean']:+.2f}% ({strt.get('min_limit', 0):.2f}% a {strt.get('max_limit', 0):.2f}%)"
-                
-            mola_val = "Instável/Rejeitado"
-            if mola.get("stable", False) and mola.get("mean") is not None:
-                mola_val = f"{mola['mean']:.2f}% (Max: {mola.get('max_limit', 0):.2f}%)"
-                
-            disp_val = "Instável/Rejeitado"
-            if disp.get("stable", False) and disp.get("mean") is not None:
-                disp_val = f"{disp['mean']:+.2f}% (Max: {disp.get('max_limit', 0):.2f}%)"
-                
-            acc_val = "Instável/Rejeitado"
-            if acc.get("stable", False) and acc.get("mean") is not None:
-                symbol = "🔼 Reversão Bull" if acc['mean'] > 0 else "🔽 Reversão Bear"
-                acc_val = f"{acc['mean']:+.4f} ({symbol})"
-                
-            extra_list = []
-            if infil.get("active", False):
-                extra_list.append(f"Infiltração ({infil.get('rate', 0):.1f}%)")
-            if reteste.get("active", False):
-                extra_list.append(f"Reteste Fibo ({reteste.get('rate', 0):.1f}%)")
-            extra_val = " | ".join(extra_list) if extra_list else "Sem filtros extra"
-            
-            table_data.append({
-                "Regime (Mercado)": f"🔹 {reg}",
-                "Tipo de Gatilho": "🟢 Entrada LONG (BUY)",
-                "Stretching": strt_val,
-                "Coesão da Mola": mola_val,
-                "Disp. Vetorial": disp_val,
-                "Aceleração Média": acc_val,
-                "Filtros Extra": extra_val
-            })
-        else:
-            table_data.append({
-                "Regime (Mercado)": f"🔹 {reg}",
-                "Tipo de Gatilho": "🟢 Entrada LONG (BUY)",
-                "Stretching": "Sem regras de compra",
-                "Coesão da Mola": "N/A",
-                "Disp. Vetorial": "N/A",
-                "Aceleração Média": "N/A",
-                "Filtros Extra": "N/A"
-            })
-            
-        # 2. SELL Rules (Saída LONG / Entrada SHORT)
-        sell_rules = reg_data.get("sell_rules", {})
-        if sell_rules:
-            strt = sell_rules.get("stretching", {})
-            mola = sell_rules.get("mola", {})
-            disp = sell_rules.get("disp", {})
-            acc = sell_rules.get("acceleration", {})
-            
-            strt_val = "Instável/Rejeitado"
-            if strt.get("stable", False) and strt.get("mean") is not None:
-                strt_val = f"{strt['mean']:+.2f}% ({strt.get('min_limit', 0):.2f}% a {strt.get('max_limit', 0):.2f}%)"
-                
-            mola_val = "Instável/Rejeitado"
-            if mola.get("stable", False) and mola.get("mean") is not None:
-                mola_val = f"{mola['mean']:.2f}% (Média)"
-                
-            disp_val = "Instável/Rejeitado"
-            if disp.get("stable", False) and disp.get("mean") is not None:
-                disp_val = f"{disp['mean']:+.2f}% (Limit: {disp.get('limit', 0):.2f}%)"
-                
-            acc_val = "Instável/Rejeitado"
-            if acc.get("stable", False) and acc.get("mean") is not None:
-                symbol = "🔼 Reversão Bull" if acc['mean'] > 0 else "🔽 Reversão Bear"
-                acc_val = f"{acc['mean']:+.4f} ({symbol})"
-                
-            table_data.append({
-                "Regime (Mercado)": f"🔹 {reg}",
-                "Tipo de Gatilho": "🔴 Saída LONG / Entrada SHORT (SELL)",
-                "Stretching": strt_val,
-                "Coesão da Mola": mola_val,
-                "Disp. Vetorial": disp_val,
-                "Aceleração Média": acc_val,
-                "Filtros Extra": "N/A"
-            })
-        else:
-            table_data.append({
-                "Regime (Mercado)": f"🔹 {reg}",
-                "Tipo de Gatilho": "🔴 Saída LONG / Entrada SHORT (SELL)",
-                "Stretching": "Sem regras de venda",
-                "Coesão da Mola": "N/A",
-                "Disp. Vetorial": "N/A",
-                "Aceleração Média": "N/A",
-                "Filtros Extra": "N/A"
-            })
-            
-    df_dna = pd.DataFrame(table_data)
-    
-    # Custom styling for high readability
-    def style_gatilhos(val):
-        if "Entrada" in str(val):
-            return "background-color: rgba(34, 197, 94, 0.1); color: #15803d; font-weight: bold;"
-        elif "Saída" in str(val):
-            return "background-color: rgba(239, 68, 68, 0.1); color: #b91c1c; font-weight: bold;"
-        return ""
+    columns = pd.MultiIndex.from_tuples([
+        ("#", "", ""),
+        ("Variável", "", ""),
+        ("Nome Técnico", "", ""),
+        ("Cálculo Matemático", "", ""),
+        ("Significado / Objetivo no Cérebro", "", ""),
         
-    styled_df = df_dna.style.map(style_gatilhos, subset=["Tipo de Gatilho"])
-    st.dataframe(styled_df, width='stretch', hide_index=True, height=310)
+        ("BULL (Alta)", "LONG (Compra)", "Entrada"),
+        ("BULL (Alta)", "LONG (Compra)", "Saída"),
+        ("BULL (Alta)", "SHORT (Venda)", "Entrada"),
+        ("BULL (Alta)", "SHORT (Venda)", "Saída"),
+        
+        ("BEAR (Baixa)", "LONG (Compra)", "Entrada"),
+        ("BEAR (Baixa)", "LONG (Compra)", "Saída"),
+        ("BEAR (Baixa)", "SHORT (Venda)", "Entrada"),
+        ("BEAR (Baixa)", "SHORT (Venda)", "Saída"),
+        
+        ("LATERAL (Consolidação)", "LONG (Compra)", "Entrada"),
+        ("LATERAL (Consolidação)", "LONG (Compra)", "Saída"),
+        ("LATERAL (Consolidação)", "SHORT (Venda)", "Entrada"),
+        ("LATERAL (Consolidação)", "SHORT (Venda)", "Saída"),
+        
+        ("CAÓTICO (Ruído)", "LONG (Compra)", "Entrada"),
+        ("CAÓTICO (Ruído)", "LONG (Compra)", "Saída"),
+        ("CAÓTICO (Ruído)", "SHORT (Venda)", "Entrada"),
+        ("CAÓTICO (Ruído)", "SHORT (Venda)", "Saída")
+    ])
     
-    last_up = dna.get("last_updated", "Desconhecido")
-    selected = ", ".join(dna.get("selected_tests", []))
-    st.markdown(f"<div style='font-size: 11px; color: #64748b; text-align: right; margin-top:-10px;'>🧬 <b>DNA unificado de:</b> {selected} | <b>Última Atualização:</b> {last_up}</div>", unsafe_allow_html=True)
+    table_rows = []
+    for v in vars_def:
+        row = [
+            v["id"],
+            v["name"],
+            v["json"],
+            v["math"],
+            v["meaning"]
+        ]
+        for reg in ["BULL", "BEAR", "LATERAL", "CAOTICO"]:
+            reg_rules = dna.get("regimes", {}).get(reg, {})
+            buy = reg_rules.get("buy_rules", {})
+            sell = reg_rules.get("sell_rules", {})
+            
+            if v.get("is_rate"):
+                val_long_in = buy.get(v['key'], {}).get("rate")
+                val_long_out = buy.get(v['key_exit'], {}).get("rate")
+                val_short_in = sell.get(v['key'], {}).get("rate")
+                val_short_out = sell.get(v['key_exit'], {}).get("rate")
+            else:
+                val_long_in = buy.get(v['key'], {}).get("mean")
+                val_long_out = buy.get(v['key_exit'], {}).get("mean")
+                val_short_in = sell.get(v['key'], {}).get("mean")
+                val_short_out = sell.get(v['key_exit'], {}).get("mean")
+                
+            def fmt_val(val):
+                if val is None or pd.isna(val) or val == 0.0:
+                    return "-"
+                return v['fmt'].format(val)
+                
+            row.append(fmt_val(val_long_in))
+            row.append(fmt_val(val_long_out))
+            row.append(fmt_val(val_short_in))
+            row.append(fmt_val(val_short_out))
+            
+        table_rows.append(row)
+        
+    df_dna = pd.DataFrame(table_rows, columns=columns)
+    
+    st.dataframe(df_dna, use_container_width=True, hide_index=True, height=450)
 
 def rebuild_consensus_dna():
     import os
     import json
+    import pandas as pd
+    import numpy as np
     
-    knowledge_path = "bot_knowledge_base.json"
     dna_path = "bot_consensus_dna.json"
+    knowledge_path = "bot_knowledge_base.json"
     
     if not os.path.exists(knowledge_path):
         return
@@ -378,9 +444,7 @@ def rebuild_consensus_dna():
     try:
         with open(knowledge_path, "r", encoding="utf-8") as f:
             knowledge = json.load(f)
-    except Exception as e:
-        import streamlit as st
-        st.error("Erro ao ler a base de dados de testes para fusão: " + str(e))
+    except Exception:
         return
         
     if not knowledge:
@@ -397,13 +461,35 @@ def rebuild_consensus_dna():
         opp_samples = 0
         thr_samples = 0
         
-        opp_acc_list, opp_strt_list, opp_mola_list, opp_disp_list = [], [], [], []
-        opp_weighted_acc, opp_weighted_strt, opp_weighted_mola, opp_weighted_disp = 0.0, 0.0, 0.0, 0.0
-        opp_infil_weighted, opp_reteste_weighted = 0.0, 0.0
+        opp_weighted = {
+            "stretching": 0.0, "stretching_exit": 0.0,
+            "mola": 0.0, "mola_exit": 0.0,
+            "disp": 0.0, "disp_exit": 0.0,
+            "velocity": 0.0, "velocity_exit": 0.0,
+            "acceleration": 0.0, "acceleration_exit": 0.0,
+            "volatility": 0.0, "volatility_exit": 0.0,
+            "infil": 0.0, "infil_exit": 0.0,
+            "reteste": 0.0, "reteste_exit": 0.0,
+            "rsi": 0.0, "rsi_exit": 0.0,
+            "bb": 0.0, "bb_exit": 0.0,
+            "macd": 0.0, "macd_exit": 0.0,
+            "atr": 0.0, "atr_exit": 0.0
+        }
         
-        thr_acc_list, thr_strt_list, thr_mola_list, thr_disp_list = [], [], [], []
-        thr_weighted_acc, thr_weighted_strt, thr_weighted_mola, thr_weighted_disp = 0.0, 0.0, 0.0, 0.0
-        thr_infil_weighted, thr_reteste_weighted = 0.0, 0.0
+        thr_weighted = {
+            "stretching": 0.0, "stretching_exit": 0.0,
+            "mola": 0.0, "mola_exit": 0.0,
+            "disp": 0.0, "disp_exit": 0.0,
+            "velocity": 0.0, "velocity_exit": 0.0,
+            "acceleration": 0.0, "acceleration_exit": 0.0,
+            "volatility": 0.0, "volatility_exit": 0.0,
+            "infil": 0.0, "infil_exit": 0.0,
+            "reteste": 0.0, "reteste_exit": 0.0,
+            "rsi": 0.0, "rsi_exit": 0.0,
+            "bb": 0.0, "bb_exit": 0.0,
+            "macd": 0.0, "macd_exit": 0.0,
+            "atr": 0.0, "atr_exit": 0.0
+        }
         
         for t_name, t_data in knowledge.items():
             reg_data = t_data.get("regimes", {}).get(reg, {})
@@ -416,122 +502,93 @@ def rebuild_consensus_dna():
             opp_s = reg_data.get("opp_stats", {})
             if opp_c > 0 and opp_s:
                 opp_samples += opp_c
-                if "acc_mean" in opp_s: opp_acc_list.append(opp_s["acc_mean"])
-                if "strt_mean" in opp_s: opp_strt_list.append(opp_s["strt_mean"])
-                if "mola_mean" in opp_s: opp_mola_list.append(opp_s["mola_mean"])
-                if "disp_mean" in opp_s: opp_disp_list.append(opp_s["disp_mean"])
-                
-                opp_weighted_acc += opp_s.get("acc_mean", 0.0) * opp_c
-                opp_weighted_strt += opp_s.get("strt_mean", 0.0) * opp_c
-                opp_weighted_mola += opp_s.get("mola_mean", 0.0) * opp_c
-                opp_weighted_disp += opp_s.get("disp_mean", 0.0) * opp_c
-                opp_infil_weighted += opp_s.get("infil_rate", 0.0) * opp_c
-                opp_reteste_weighted += opp_s.get("reteste_rate", 0.0) * opp_c
+                opp_weighted["stretching"] += opp_s.get("strt_mean", 0.0) * opp_c
+                opp_weighted["stretching_exit"] += opp_s.get("strt_exit_mean", opp_s.get("strt_mean", 0.0)) * opp_c
+                opp_weighted["mola"] += opp_s.get("mola_mean", 0.0) * opp_c
+                opp_weighted["mola_exit"] += opp_s.get("mola_exit_mean", opp_s.get("mola_mean", 0.0)) * opp_c
+                opp_weighted["disp"] += opp_s.get("disp_mean", 0.0) * opp_c
+                opp_weighted["disp_exit"] += opp_s.get("disp_exit_mean", opp_s.get("disp_mean", 0.0)) * opp_c
+                opp_weighted["velocity"] += opp_s.get("vel_mean", 0.0) * opp_c
+                opp_weighted["velocity_exit"] += opp_s.get("vel_exit_mean", opp_s.get("vel_mean", 0.0)) * opp_c
+                opp_weighted["acceleration"] += opp_s.get("acc_mean", 0.0) * opp_c
+                opp_weighted["acceleration_exit"] += opp_s.get("acc_exit_mean", opp_s.get("acc_mean", 0.0)) * opp_c
+                opp_weighted["volatility"] += opp_s.get("vol_mean", 0.0) * opp_c
+                opp_weighted["volatility_exit"] += opp_s.get("vol_exit_mean", opp_s.get("vol_mean", 0.0)) * opp_c
+                opp_weighted["infil"] += opp_s.get("infil_rate", 0.0) * opp_c
+                opp_weighted["infil_exit"] += opp_s.get("infil_exit_rate", opp_s.get("infil_rate", 0.0)) * opp_c
+                opp_weighted["reteste"] += opp_s.get("reteste_rate", 0.0) * opp_c
+                opp_weighted["reteste_exit"] += opp_s.get("reteste_exit_rate", opp_s.get("reteste_rate", 0.0)) * opp_c
+                opp_weighted["rsi"] += opp_s.get("rsi_mean", 50.0) * opp_c
+                opp_weighted["rsi_exit"] += opp_s.get("rsi_exit_mean", opp_s.get("rsi_mean", 50.0)) * opp_c
+                opp_weighted["bb"] += opp_s.get("bb_dist_mean", 50.0) * opp_c
+                opp_weighted["bb_exit"] += opp_s.get("bb_dist_exit_mean", opp_s.get("bb_dist_mean", 50.0)) * opp_c
+                opp_weighted["macd"] += opp_s.get("macd_mean", 0.0) * opp_c
+                opp_weighted["macd_exit"] += opp_s.get("macd_exit_mean", opp_s.get("macd_mean", 0.0)) * opp_c
+                opp_weighted["atr"] += opp_s.get("atr_mean", 0.0) * opp_c
+                opp_weighted["atr_exit"] += opp_s.get("atr_exit_mean", opp_s.get("atr_mean", 0.0)) * opp_c
                 
             thr_s = reg_data.get("thr_stats", {})
             if thr_c > 0 and thr_s:
                 thr_samples += thr_c
-                if "acc_mean" in thr_s: thr_acc_list.append(thr_s["acc_mean"])
-                if "strt_mean" in thr_s: thr_strt_list.append(thr_s["strt_mean"])
-                if "mola_mean" in thr_s: thr_mola_list.append(thr_s["mola_mean"])
-                if "disp_mean" in thr_s: thr_disp_list.append(thr_s["disp_mean"])
+                thr_weighted["stretching"] += thr_s.get("strt_mean", 0.0) * thr_c
+                thr_weighted["stretching_exit"] += thr_s.get("strt_exit_mean", thr_s.get("strt_mean", 0.0)) * thr_c
+                thr_weighted["mola"] += thr_s.get("mola_mean", 0.0) * thr_c
+                thr_weighted["mola_exit"] += thr_s.get("mola_exit_mean", thr_s.get("mola_mean", 0.0)) * thr_c
+                thr_weighted["disp"] += thr_s.get("disp_mean", 0.0) * thr_c
+                thr_weighted["disp_exit"] += thr_s.get("disp_exit_mean", thr_s.get("disp_mean", 0.0)) * thr_c
+                thr_weighted["velocity"] += thr_s.get("vel_mean", 0.0) * thr_c
+                thr_weighted["velocity_exit"] += thr_s.get("vel_exit_mean", thr_s.get("vel_mean", 0.0)) * thr_c
+                thr_weighted["acceleration"] += thr_s.get("acc_mean", 0.0) * thr_c
+                thr_weighted["acceleration_exit"] += thr_s.get("acc_exit_mean", thr_s.get("acc_mean", 0.0)) * thr_c
+                thr_weighted["volatility"] += thr_s.get("vol_mean", 0.0) * thr_c
+                thr_weighted["volatility_exit"] += thr_s.get("vol_exit_mean", thr_s.get("vol_mean", 0.0)) * thr_c
+                thr_weighted["infil"] += thr_s.get("infil_rate", 0.0) * thr_c
+                thr_weighted["infil_exit"] += thr_s.get("infil_exit_rate", thr_s.get("infil_rate", 0.0)) * thr_c
+                thr_weighted["reteste"] += thr_s.get("reteste_rate", 0.0) * thr_c
+                thr_weighted["reteste_exit"] += thr_s.get("reteste_exit_rate", thr_s.get("reteste_rate", 0.0)) * thr_c
+                thr_weighted["rsi"] += thr_s.get("rsi_mean", 50.0) * thr_c
+                thr_weighted["rsi_exit"] += thr_s.get("rsi_exit_mean", thr_s.get("rsi_mean", 50.0)) * thr_c
+                thr_weighted["bb"] += thr_s.get("bb_dist_mean", 50.0) * thr_c
+                thr_weighted["bb_exit"] += thr_s.get("bb_dist_exit_mean", thr_s.get("bb_dist_mean", 50.0)) * thr_c
+                thr_weighted["macd"] += thr_s.get("macd_mean", 0.0) * thr_c
+                thr_weighted["macd_exit"] += thr_s.get("macd_exit_mean", thr_s.get("macd_mean", 0.0)) * thr_c
+                thr_weighted["atr"] += thr_s.get("atr_mean", 0.0) * thr_c
+                thr_weighted["atr_exit"] += thr_s.get("atr_exit_mean", thr_s.get("atr_mean", 0.0)) * thr_c
                 
-                thr_weighted_acc += thr_s.get("acc_mean", 0.0) * thr_c
-                thr_weighted_strt += thr_s.get("strt_mean", 0.0) * thr_c
-                thr_weighted_mola += thr_s.get("mola_mean", 0.0) * thr_c
-                thr_weighted_disp += thr_s.get("disp_mean", 0.0) * thr_c
-                thr_infil_weighted += thr_s.get("infil_rate", 0.0) * thr_c
-                thr_reteste_weighted += thr_s.get("reteste_rate", 0.0) * thr_c
+        buy_rules = {}
+        sell_rules = {}
+        
+        keys = ["stretching", "stretching_exit", "mola", "mola_exit", "disp", "disp_exit", 
+                "velocity", "velocity_exit", "acceleration", "acceleration_exit", 
+                "volatility", "volatility_exit", "infil", "infil_exit", 
+                "reteste", "reteste_exit", "rsi", "rsi_exit", 
+                "bb", "bb_exit", "macd", "macd_exit", "atr", "atr_exit"]
                 
-        opp_final_acc = opp_weighted_acc / opp_samples if opp_samples > 0 else 0.0
-        opp_final_strt = opp_weighted_strt / opp_samples if opp_samples > 0 else 0.0
-        opp_final_mola = opp_weighted_mola / opp_samples if opp_samples > 0 else 0.0
-        opp_final_disp = opp_weighted_disp / opp_samples if opp_samples > 0 else 0.0
-        opp_final_infil = opp_infil_weighted / opp_samples if opp_samples > 0 else 0.0
-        opp_final_reteste = opp_reteste_weighted / opp_samples if opp_samples > 0 else 0.0
-        
-        thr_final_acc = thr_weighted_acc / thr_samples if thr_samples > 0 else 0.0
-        thr_final_strt = thr_weighted_strt / thr_samples if thr_samples > 0 else 0.0
-        thr_final_mola = thr_weighted_mola / thr_samples if thr_samples > 0 else 0.0
-        thr_final_disp = thr_weighted_disp / thr_samples if thr_samples > 0 else 0.0
-        thr_final_infil = thr_infil_weighted / thr_samples if thr_samples > 0 else 0.0
-        thr_final_reteste = thr_reteste_weighted / thr_samples if thr_samples > 0 else 0.0
-        
-        def check_stability(lst):
-            if not lst:
-                return True
-            has_pos = any(x > 0.0001 for x in lst)
-            has_neg = any(x < -0.0001 for x in lst)
-            return not (has_pos and has_neg)
-            
-        opp_acc_stable = check_stability(opp_acc_list)
-        opp_strt_stable = check_stability(opp_strt_list)
-        opp_mola_stable = check_stability(opp_mola_list)
-        opp_disp_stable = check_stability(opp_disp_list)
-        
-        thr_acc_stable = check_stability(thr_acc_list)
-        thr_strt_stable = check_stability(thr_strt_list)
-        thr_mola_stable = check_stability(thr_mola_list)
-        thr_disp_stable = check_stability(thr_disp_list)
-        
+        for k in keys:
+            val_buy = opp_weighted[k] / opp_samples if opp_samples > 0 else (50.0 if k in ["rsi", "rsi_exit", "bb", "bb_exit"] else 0.0)
+            if k.endswith("exit"):
+                buy_rules[k] = {"mean": float(val_buy)}
+            elif k in ["infil", "reteste"]:
+                buy_rules[k] = {"rate": float(val_buy), "active": bool(val_buy > 50.0) if opp_samples > 0 else False}
+            else:
+                buy_rules[k] = {"mean": float(val_buy)}
+                
+            val_sell = thr_weighted[k] / thr_samples if thr_samples > 0 else (50.0 if k in ["rsi", "rsi_exit", "bb", "bb_exit"] else 0.0)
+            if k.endswith("exit"):
+                sell_rules[k] = {"mean": float(val_sell)}
+            elif k in ["infil", "reteste"]:
+                sell_rules[k] = {"rate": float(val_sell), "active": bool(val_sell > 50.0) if thr_samples > 0 else False}
+            else:
+                sell_rules[k] = {"mean": float(val_sell)}
+                
         consensus_dna["regimes"][reg] = {
             "active": True,
             "opp_samples": opp_samples,
             "thr_samples": thr_samples,
-            "buy_rules": {
-                "stretching": {
-                    "stable": bool(opp_strt_stable) if opp_samples > 0 else True,
-                    "mean": float(opp_final_strt),
-                    "min_limit": float(opp_final_strt - 1.5) if opp_strt_stable and opp_samples > 0 else -1.5,
-                    "max_limit": float(opp_final_strt + 1.5) if opp_strt_stable and opp_samples > 0 else 1.5
-                },
-                "mola": {
-                    "stable": bool(opp_mola_stable) if opp_samples > 0 else True,
-                    "mean": float(opp_final_mola),
-                    "max_limit": float(opp_final_mola * 1.3) if opp_mola_stable and opp_samples > 0 else 0.0
-                },
-                "disp": {
-                    "stable": bool(opp_disp_stable) if opp_samples > 0 else True,
-                    "mean": float(opp_final_disp),
-                    "max_limit": float(opp_final_disp * 1.1) if opp_disp_stable and opp_samples > 0 else 0.0
-                },
-                "acceleration": {
-                    "stable": bool(opp_acc_stable) if opp_samples > 0 else True,
-                    "mean": float(opp_final_acc)
-                },
-                "infil": {
-                    "rate": float(opp_final_infil),
-                    "active": bool(opp_final_infil > 50.0) if opp_samples > 0 else False
-                },
-                "reteste": {
-                    "rate": float(opp_final_reteste),
-                    "active": bool(opp_final_reteste > 50.0) if opp_samples > 0 else False
-                }
-            },
-            "sell_rules": {
-                "stretching": {
-                    "stable": bool(thr_strt_stable) if thr_samples > 0 else True,
-                    "mean": float(thr_final_strt),
-                    "min_limit": float(thr_final_strt - 1.5) if thr_strt_stable and thr_samples > 0 else -1.5,
-                    "max_limit": float(thr_final_strt + 1.5) if thr_strt_stable and thr_samples > 0 else 1.5
-                },
-                "mola": {
-                    "stable": bool(thr_mola_stable) if thr_samples > 0 else True,
-                    "mean": float(thr_final_mola)
-                },
-                "disp": {
-                    "stable": bool(thr_disp_stable) if thr_samples > 0 else True,
-                    "mean": float(thr_final_disp),
-                    "limit": float(thr_final_disp * 0.9) if thr_disp_stable and thr_samples > 0 else 0.0
-                },
-                "acceleration": {
-                    "stable": bool(thr_acc_stable) if thr_samples > 0 else True,
-                    "mean": float(thr_final_acc)
-                }
-            }
+            "buy_rules": buy_rules,
+            "sell_rules": sell_rules
         }
         
-    import pandas as pd
     consensus_dna["last_updated"] = pd.Timestamp.now().strftime("%Y-%m-%d %H:%M")
     
     try:

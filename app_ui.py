@@ -2193,6 +2193,27 @@ with tab_trader_game:
                         df_train['velocity'] = df_train['sma_5'].diff(periods=2)
                         df_train['acceleration'] = df_train['velocity'].diff(periods=2)
                         df_train['volatility'] = df_train['close'].rolling(window=20, min_periods=1).std()
+
+                        # 4 novos indicadores dinâmicos
+                        delta_t = df_train['close'].diff()
+                        gain_t = delta_t.clip(lower=0).rolling(window=14).mean()
+                        loss_t = (-delta_t.clip(upper=0)).rolling(window=14).mean()
+                        rs_t = gain_t / (loss_t + 1e-9)
+                        df_train['rsi_14'] = 100 - (100 / (1 + rs_t))
+
+                        bb_std_t = df_train['close'].rolling(window=20).std()
+                        bb_mid_t = df_train['close'].rolling(window=20).mean()
+                        df_train['bb_dist'] = ((df_train['close'] - (bb_mid_t - 2 * bb_std_t)) / (4 * bb_std_t + 1e-9)) * 100
+
+                        macd_line_t = df_train['close'].ewm(span=12, adjust=False).mean() - df_train['close'].ewm(span=26, adjust=False).mean()
+                        macd_signal_t = macd_line_t.ewm(span=9, adjust=False).mean()
+                        df_train['macd_hist'] = macd_line_t - macd_signal_t
+
+                        if 'high' in df_train.columns and 'low' in df_train.columns:
+                            tr_t = np.maximum(df_train['high'] - df_train['low'], np.maximum((df_train['high'] - df_train['close'].shift()).abs(), (df_train['low'] - df_train['close'].shift()).abs()))
+                        else:
+                            tr_t = df_train['close'].diff().abs()
+                        df_train['atr_14'] = tr_t.rolling(window=14).mean()
                         
                         def classify_regime_row_t(row):
                             p = row['close']
@@ -2251,7 +2272,28 @@ with tab_trader_game:
                                         "type": "LONG", "entry_price": ent_p_t, "exit_price": price_now_t, "pnl_pct": pnl_pct_t,
                                         "regime": df_train['regime'].iloc[ent_step_t], "mola": df_train['mola_pct'].iloc[ent_step_t],
                                         "stretch": df_train['stretching'].iloc[ent_step_t], "acc": df_train['acceleration'].iloc[ent_step_t],
-                                        "disp": df_train['disp_pct'].iloc[ent_step_t]
+                                        "disp": df_train['disp_pct'].iloc[ent_step_t],
+                                        "vol": df_train['volatility'].iloc[ent_step_t],
+                                        "vel": df_train['velocity'].iloc[ent_step_t],
+                                        "infil": bool(df_train['infil_bull'].iloc[ent_step_t]),
+                                        "reteste": bool(df_train['reteste_val'].iloc[ent_step_t]),
+                                        "rsi": float(df_train['rsi_14'].iloc[ent_step_t]) if not pd.isna(df_train['rsi_14'].iloc[ent_step_t]) else 50.0,
+                                        "bb": float(df_train['bb_dist'].iloc[ent_step_t]) if not pd.isna(df_train['bb_dist'].iloc[ent_step_t]) else 50.0,
+                                        "macd": float(df_train['macd_hist'].iloc[ent_step_t]) if not pd.isna(df_train['macd_hist'].iloc[ent_step_t]) else 0.0,
+                                        "atr": float(df_train['atr_14'].iloc[ent_step_t]) if not pd.isna(df_train['atr_14'].iloc[ent_step_t]) else 0.0,
+                                        # Exits
+                                        "mola_exit": df_train['mola_pct'].iloc[step_t],
+                                        "stretch_exit": df_train['stretching'].iloc[step_t],
+                                        "acc_exit": df_train['acceleration'].iloc[step_t],
+                                        "disp_exit": df_train['disp_pct'].iloc[step_t],
+                                        "vol_exit": df_train['volatility'].iloc[step_t],
+                                        "vel_exit": df_train['velocity'].iloc[step_t],
+                                        "infil_exit": bool(df_train['infil_bull'].iloc[step_t]),
+                                        "reteste_exit": bool(df_train['reteste_val'].iloc[step_t]),
+                                        "rsi_exit": float(df_train['rsi_14'].iloc[step_t]) if not pd.isna(df_train['rsi_14'].iloc[step_t]) else 50.0,
+                                        "bb_exit": float(df_train['bb_dist'].iloc[step_t]) if not pd.isna(df_train['bb_dist'].iloc[step_t]) else 50.0,
+                                        "macd_exit": float(df_train['macd_hist'].iloc[step_t]) if not pd.isna(df_train['macd_hist'].iloc[step_t]) else 0.0,
+                                        "atr_exit": float(df_train['atr_14'].iloc[step_t]) if not pd.isna(df_train['atr_14'].iloc[step_t]) else 0.0
                                     })
                                     pos_t = "NONE"
                                     continue
@@ -2262,7 +2304,28 @@ with tab_trader_game:
                                         "type": "SHORT", "entry_price": ent_p_t, "exit_price": price_now_t, "pnl_pct": pnl_pct_t,
                                         "regime": df_train['regime'].iloc[ent_step_t], "mola": df_train['mola_pct'].iloc[ent_step_t],
                                         "stretch": df_train['stretching'].iloc[ent_step_t], "acc": df_train['acceleration'].iloc[ent_step_t],
-                                        "disp": df_train['disp_pct'].iloc[ent_step_t]
+                                        "disp": df_train['disp_pct'].iloc[ent_step_t],
+                                        "vol": df_train['volatility'].iloc[ent_step_t],
+                                        "vel": df_train['velocity'].iloc[ent_step_t],
+                                        "infil": bool(df_train['infil_bear'].iloc[ent_step_t]),
+                                        "reteste": bool(df_train['reteste_val'].iloc[ent_step_t]),
+                                        "rsi": float(df_train['rsi_14'].iloc[ent_step_t]) if not pd.isna(df_train['rsi_14'].iloc[ent_step_t]) else 50.0,
+                                        "bb": float(df_train['bb_dist'].iloc[ent_step_t]) if not pd.isna(df_train['bb_dist'].iloc[ent_step_t]) else 50.0,
+                                        "macd": float(df_train['macd_hist'].iloc[ent_step_t]) if not pd.isna(df_train['macd_hist'].iloc[ent_step_t]) else 0.0,
+                                        "atr": float(df_train['atr_14'].iloc[ent_step_t]) if not pd.isna(df_train['atr_14'].iloc[ent_step_t]) else 0.0,
+                                        # Exits
+                                        "mola_exit": df_train['mola_pct'].iloc[step_t],
+                                        "stretch_exit": df_train['stretching'].iloc[step_t],
+                                        "acc_exit": df_train['acceleration'].iloc[step_t],
+                                        "disp_exit": df_train['disp_pct'].iloc[step_t],
+                                        "vol_exit": df_train['volatility'].iloc[step_t],
+                                        "vel_exit": df_train['velocity'].iloc[step_t],
+                                        "infil_exit": bool(df_train['infil_bear'].iloc[step_t]),
+                                        "reteste_exit": bool(df_train['reteste_val'].iloc[step_t]),
+                                        "rsi_exit": float(df_train['rsi_14'].iloc[step_t]) if not pd.isna(df_train['rsi_14'].iloc[step_t]) else 50.0,
+                                        "bb_exit": float(df_train['bb_dist'].iloc[step_t]) if not pd.isna(df_train['bb_dist'].iloc[step_t]) else 50.0,
+                                        "macd_exit": float(df_train['macd_hist'].iloc[step_t]) if not pd.isna(df_train['macd_hist'].iloc[step_t]) else 0.0,
+                                        "atr_exit": float(df_train['atr_14'].iloc[step_t]) if not pd.isna(df_train['atr_14'].iloc[step_t]) else 0.0
                                     })
                                     pos_t = "NONE"
                                     continue
@@ -2286,7 +2349,28 @@ with tab_trader_game:
                                         "type": "LONG", "entry_price": ent_p_t, "exit_price": price_now_t, "pnl_pct": pnl_pct_t,
                                         "regime": df_train['regime'].iloc[ent_step_t], "mola": df_train['mola_pct'].iloc[ent_step_t],
                                         "stretch": df_train['stretching'].iloc[ent_step_t], "acc": df_train['acceleration'].iloc[ent_step_t],
-                                        "disp": df_train['disp_pct'].iloc[ent_step_t]
+                                        "disp": df_train['disp_pct'].iloc[ent_step_t],
+                                        "vol": df_train['volatility'].iloc[ent_step_t],
+                                        "vel": df_train['velocity'].iloc[ent_step_t],
+                                        "infil": bool(df_train['infil_bull'].iloc[ent_step_t]),
+                                        "reteste": bool(df_train['reteste_val'].iloc[ent_step_t]),
+                                        "rsi": float(df_train['rsi_14'].iloc[ent_step_t]) if not pd.isna(df_train['rsi_14'].iloc[ent_step_t]) else 50.0,
+                                        "bb": float(df_train['bb_dist'].iloc[ent_step_t]) if not pd.isna(df_train['bb_dist'].iloc[ent_step_t]) else 50.0,
+                                        "macd": float(df_train['macd_hist'].iloc[ent_step_t]) if not pd.isna(df_train['macd_hist'].iloc[ent_step_t]) else 0.0,
+                                        "atr": float(df_train['atr_14'].iloc[ent_step_t]) if not pd.isna(df_train['atr_14'].iloc[ent_step_t]) else 0.0,
+                                        # Exits
+                                        "mola_exit": df_train['mola_pct'].iloc[step_t],
+                                        "stretch_exit": df_train['stretching'].iloc[step_t],
+                                        "acc_exit": df_train['acceleration'].iloc[step_t],
+                                        "disp_exit": df_train['disp_pct'].iloc[step_t],
+                                        "vol_exit": df_train['volatility'].iloc[step_t],
+                                        "vel_exit": df_train['velocity'].iloc[step_t],
+                                        "infil_exit": bool(df_train['infil_bull'].iloc[step_t]),
+                                        "reteste_exit": bool(df_train['reteste_val'].iloc[step_t]),
+                                        "rsi_exit": float(df_train['rsi_14'].iloc[step_t]) if not pd.isna(df_train['rsi_14'].iloc[step_t]) else 50.0,
+                                        "bb_exit": float(df_train['bb_dist'].iloc[step_t]) if not pd.isna(df_train['bb_dist'].iloc[step_t]) else 50.0,
+                                        "macd_exit": float(df_train['macd_hist'].iloc[step_t]) if not pd.isna(df_train['macd_hist'].iloc[step_t]) else 0.0,
+                                        "atr_exit": float(df_train['atr_14'].iloc[step_t]) if not pd.isna(df_train['atr_14'].iloc[step_t]) else 0.0
                                     })
                                     pos_t = "NONE"
                                 elif pos_t == "SHORT" and (sig_t == "LONG" or (sig_t == "HOLD" and conf_t >= min_conf_t)):
@@ -2295,7 +2379,28 @@ with tab_trader_game:
                                         "type": "SHORT", "entry_price": ent_p_t, "exit_price": price_now_t, "pnl_pct": pnl_pct_t,
                                         "regime": df_train['regime'].iloc[ent_step_t], "mola": df_train['mola_pct'].iloc[ent_step_t],
                                         "stretch": df_train['stretching'].iloc[ent_step_t], "acc": df_train['acceleration'].iloc[ent_step_t],
-                                        "disp": df_train['disp_pct'].iloc[ent_step_t]
+                                        "disp": df_train['disp_pct'].iloc[ent_step_t],
+                                        "vol": df_train['volatility'].iloc[ent_step_t],
+                                        "vel": df_train['velocity'].iloc[ent_step_t],
+                                        "infil": bool(df_train['infil_bear'].iloc[ent_step_t]),
+                                        "reteste": bool(df_train['reteste_val'].iloc[ent_step_t]),
+                                        "rsi": float(df_train['rsi_14'].iloc[ent_step_t]) if not pd.isna(df_train['rsi_14'].iloc[ent_step_t]) else 50.0,
+                                        "bb": float(df_train['bb_dist'].iloc[ent_step_t]) if not pd.isna(df_train['bb_dist'].iloc[ent_step_t]) else 50.0,
+                                        "macd": float(df_train['macd_hist'].iloc[ent_step_t]) if not pd.isna(df_train['macd_hist'].iloc[ent_step_t]) else 0.0,
+                                        "atr": float(df_train['atr_14'].iloc[ent_step_t]) if not pd.isna(df_train['atr_14'].iloc[ent_step_t]) else 0.0,
+                                        # Exits
+                                        "mola_exit": df_train['mola_pct'].iloc[step_t],
+                                        "stretch_exit": df_train['stretching'].iloc[step_t],
+                                        "acc_exit": df_train['acceleration'].iloc[step_t],
+                                        "disp_exit": df_train['disp_pct'].iloc[step_t],
+                                        "vol_exit": df_train['volatility'].iloc[step_t],
+                                        "vel_exit": df_train['velocity'].iloc[step_t],
+                                        "infil_exit": bool(df_train['infil_bear'].iloc[step_t]),
+                                        "reteste_exit": bool(df_train['reteste_val'].iloc[step_t]),
+                                        "rsi_exit": float(df_train['rsi_14'].iloc[step_t]) if not pd.isna(df_train['rsi_14'].iloc[step_t]) else 50.0,
+                                        "bb_exit": float(df_train['bb_dist'].iloc[step_t]) if not pd.isna(df_train['bb_dist'].iloc[step_t]) else 50.0,
+                                        "macd_exit": float(df_train['macd_hist'].iloc[step_t]) if not pd.isna(df_train['macd_hist'].iloc[step_t]) else 0.0,
+                                        "atr_exit": float(df_train['atr_14'].iloc[step_t]) if not pd.isna(df_train['atr_14'].iloc[step_t]) else 0.0
                                     })
                                     pos_t = "NONE"
                                     
@@ -2340,14 +2445,56 @@ with tab_trader_game:
                                     avg_stretch = float(np.mean([t["stretch"] for t in subset_long]))
                                     avg_acc = float(np.mean([t["acc"] for t in subset_long]))
                                     avg_disp = float(np.mean([t["disp"] for t in subset_long]))
+                                    avg_vol = float(np.mean([t["vol"] for t in subset_long])) if "vol" in subset_long[0] else 0.0
+                                    avg_vel = float(np.mean([t["vel"] for t in subset_long])) if "vel" in subset_long[0] else 0.0
+                                    infil_rate = float(np.mean([100.0 if t["infil"] else 0.0 for t in subset_long])) if "infil" in subset_long[0] else 80.0
+                                    reteste_rate = float(np.mean([100.0 if t["reteste"] else 0.0 for t in subset_long])) if "reteste" in subset_long[0] else 70.0
+                                    avg_rsi = float(np.mean([t["rsi"] for t in subset_long])) if "rsi" in subset_long[0] else 50.0
+                                    avg_bb = float(np.mean([t["bb"] for t in subset_long])) if "bb" in subset_long[0] else 50.0
+                                    avg_macd = float(np.mean([t["macd"] for t in subset_long])) if "macd" in subset_long[0] else 0.0
+                                    avg_atr = float(np.mean([t["atr"] for t in subset_long])) if "atr" in subset_long[0] else 0.0
+                                    
+                                    avg_mola_exit = float(np.mean([t["mola_exit"] for t in subset_long])) if "mola_exit" in subset_long[0] else avg_mola
+                                    avg_stretch_exit = float(np.mean([t["stretch_exit"] for t in subset_long])) if "stretch_exit" in subset_long[0] else avg_stretch
+                                    avg_acc_exit = float(np.mean([t["acc_exit"] for t in subset_long])) if "acc_exit" in subset_long[0] else avg_acc
+                                    avg_disp_exit = float(np.mean([t["disp_exit"] for t in subset_long])) if "disp_exit" in subset_long[0] else avg_disp
+                                    avg_vol_exit = float(np.mean([t["vol_exit"] for t in subset_long])) if "vol_exit" in subset_long[0] else avg_vol
+                                    avg_vel_exit = float(np.mean([t["vel_exit"] for t in subset_long])) if "vel_exit" in subset_long[0] else avg_vel
+                                    infil_exit_rate = float(np.mean([100.0 if t["infil_exit"] else 0.0 for t in subset_long])) if "infil_exit" in subset_long[0] else 80.0
+                                    reteste_exit_rate = float(np.mean([100.0 if t["reteste_exit"] else 0.0 for t in subset_long])) if "reteste_exit" in subset_long[0] else 70.0
+                                    avg_rsi_exit = float(np.mean([t["rsi_exit"] for t in subset_long])) if "rsi_exit" in subset_long[0] else avg_rsi
+                                    avg_bb_exit = float(np.mean([t["bb_exit"] for t in subset_long])) if "bb_exit" in subset_long[0] else avg_bb
+                                    avg_macd_exit = float(np.mean([t["macd_exit"] for t in subset_long])) if "macd_exit" in subset_long[0] else avg_macd
+                                    avg_atr_exit = float(np.mean([t["atr_exit"] for t in subset_long])) if "atr_exit" in subset_long[0] else avg_atr
                                     
                                     reg_data["opp_stats"] = {
                                         "acc_mean": avg_acc,
+                                        "acc_std": float(np.std([t["acc"] for t in subset_long])) if len(subset_long) > 1 else 0.0,
                                         "strt_mean": avg_stretch,
+                                        "strt_std": float(np.std([t["stretch"] for t in subset_long])) if len(subset_long) > 1 else 0.0,
                                         "mola_mean": avg_mola,
                                         "disp_mean": avg_disp,
-                                        "infil_rate": 80.0,
-                                        "reteste_rate": 70.0
+                                        "vel_mean": avg_vel,
+                                        "vol_mean": avg_vol,
+                                        "infil_rate": infil_rate,
+                                        "reteste_rate": reteste_rate,
+                                        "rsi_mean": avg_rsi,
+                                        "bb_dist_mean": avg_bb,
+                                        "macd_mean": avg_macd,
+                                        "atr_mean": avg_atr,
+                                        # Exits
+                                        "acc_exit_mean": avg_acc_exit,
+                                        "strt_exit_mean": avg_stretch_exit,
+                                        "mola_exit_mean": avg_mola_exit,
+                                        "disp_exit_mean": avg_disp_exit,
+                                        "vel_exit_mean": avg_vel_exit,
+                                        "vol_exit_mean": avg_vol_exit,
+                                        "infil_exit_rate": infil_exit_rate,
+                                        "reteste_exit_rate": reteste_exit_rate,
+                                        "rsi_exit_mean": avg_rsi_exit,
+                                        "bb_dist_exit_mean": avg_bb_exit,
+                                        "macd_exit_mean": avg_macd_exit,
+                                        "atr_exit_mean": avg_atr_exit
                                     }
                                     
                                 if subset_short:
@@ -2355,14 +2502,56 @@ with tab_trader_game:
                                     avg_stretch = float(np.mean([t["stretch"] for t in subset_short]))
                                     avg_acc = float(np.mean([t["acc"] for t in subset_short]))
                                     avg_disp = float(np.mean([t["disp"] for t in subset_short]))
+                                    avg_vol = float(np.mean([t["vol"] for t in subset_short])) if "vol" in subset_short[0] else 0.0
+                                    avg_vel = float(np.mean([t["vel"] for t in subset_short])) if "vel" in subset_short[0] else 0.0
+                                    infil_rate = float(np.mean([100.0 if t["infil"] else 0.0 for t in subset_short])) if "infil" in subset_short[0] else 80.0
+                                    reteste_rate = float(np.mean([100.0 if t["reteste"] else 0.0 for t in subset_short])) if "reteste" in subset_short[0] else 70.0
+                                    avg_rsi = float(np.mean([t["rsi"] for t in subset_short])) if "rsi" in subset_short[0] else 50.0
+                                    avg_bb = float(np.mean([t["bb"] for t in subset_short])) if "bb" in subset_short[0] else 50.0
+                                    avg_macd = float(np.mean([t["macd"] for t in subset_short])) if "macd" in subset_short[0] else 0.0
+                                    avg_atr = float(np.mean([t["atr"] for t in subset_short])) if "atr" in subset_short[0] else 0.0
+                                    
+                                    avg_mola_exit = float(np.mean([t["mola_exit"] for t in subset_short])) if "mola_exit" in subset_short[0] else avg_mola
+                                    avg_stretch_exit = float(np.mean([t["stretch_exit"] for t in subset_short])) if "stretch_exit" in subset_short[0] else avg_stretch
+                                    avg_acc_exit = float(np.mean([t["acc_exit"] for t in subset_short])) if "acc_exit" in subset_short[0] else avg_acc
+                                    avg_disp_exit = float(np.mean([t["disp_exit"] for t in subset_short])) if "disp_exit" in subset_short[0] else avg_disp
+                                    avg_vol_exit = float(np.mean([t["vol_exit"] for t in subset_short])) if "vol_exit" in subset_short[0] else avg_vol
+                                    avg_vel_exit = float(np.mean([t["vel_exit"] for t in subset_short])) if "vel_exit" in subset_short[0] else avg_vel
+                                    infil_exit_rate = float(np.mean([100.0 if t["infil_exit"] else 0.0 for t in subset_short])) if "infil_exit" in subset_short[0] else 80.0
+                                    reteste_exit_rate = float(np.mean([100.0 if t["reteste_exit"] else 0.0 for t in subset_short])) if "reteste_exit" in subset_short[0] else 70.0
+                                    avg_rsi_exit = float(np.mean([t["rsi_exit"] for t in subset_short])) if "rsi_exit" in subset_short[0] else avg_rsi
+                                    avg_bb_exit = float(np.mean([t["bb_exit"] for t in subset_short])) if "bb_exit" in subset_short[0] else avg_bb
+                                    avg_macd_exit = float(np.mean([t["macd_exit"] for t in subset_short])) if "macd_exit" in subset_short[0] else avg_macd
+                                    avg_atr_exit = float(np.mean([t["atr_exit"] for t in subset_short])) if "atr_exit" in subset_short[0] else avg_atr
                                     
                                     reg_data["thr_stats"] = {
                                         "acc_mean": avg_acc,
+                                        "acc_std": float(np.std([t["acc"] for t in subset_short])) if len(subset_short) > 1 else 0.0,
                                         "strt_mean": avg_stretch,
+                                        "strt_std": float(np.std([t["stretch"] for t in subset_short])) if len(subset_short) > 1 else 0.0,
                                         "mola_mean": avg_mola,
                                         "disp_mean": avg_disp,
-                                        "infil_rate": 0.0,
-                                        "reteste_rate": 0.0
+                                        "vel_mean": avg_vel,
+                                        "vol_mean": avg_vol,
+                                        "infil_rate": infil_rate,
+                                        "reteste_rate": reteste_rate,
+                                        "rsi_mean": avg_rsi,
+                                        "bb_dist_mean": avg_bb,
+                                        "macd_mean": avg_macd,
+                                        "atr_mean": avg_atr,
+                                        # Exits
+                                        "acc_exit_mean": avg_acc_exit,
+                                        "strt_exit_mean": avg_stretch_exit,
+                                        "mola_exit_mean": avg_mola_exit,
+                                        "disp_exit_mean": avg_disp_exit,
+                                        "vel_exit_mean": avg_vel_exit,
+                                        "vol_exit_mean": avg_vol_exit,
+                                        "infil_exit_rate": infil_exit_rate,
+                                        "reteste_exit_rate": reteste_exit_rate,
+                                        "rsi_exit_mean": avg_rsi_exit,
+                                        "bb_dist_exit_mean": avg_bb_exit,
+                                        "macd_exit_mean": avg_macd_exit,
+                                        "atr_exit_mean": avg_atr_exit
                                     }
                                     
                                 test_data["regimes"][r_val] = reg_data
@@ -2880,7 +3069,7 @@ with tab_bot_brain:
                     "Total Ameaças (Topos)": thr_cnt
                 })
             df_hist = pd.DataFrame(records)
-            st.dataframe(df_hist, width='stretch', hide_index=True, height=180)
+            st.dataframe(df_hist, use_container_width=True, hide_index=True, height=350)
         else:
             st.info("ℹ️ Nenhuma lição de treino ativa na memória do Bot. Execute simulações para treinar.")
             

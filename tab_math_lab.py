@@ -1,4 +1,4 @@
-﻿import streamlit as st
+import streamlit as st
 import json
 import pandas as pd
 import numpy as np
@@ -90,6 +90,27 @@ def recalculate_math_df():
     smas = [f'sma_{p2}', f'sma_{p3}', f'sma_{p4}', f'sma_{p5}', f'sma_{p6}']
     avg_sma = df[smas].mean(axis=1)
     df['stretching'] = df[smas].sub(avg_sma, axis=0).abs().mean(axis=1).div(avg_sma).mul(100)
+
+    # 4 novos indicadores dinâmicos didáticos e robustos
+    delta = df['price'].diff()
+    gain = delta.clip(lower=0).rolling(window=14).mean()
+    loss = (-delta.clip(upper=0)).rolling(window=14).mean()
+    rs = gain / (loss + 1e-9)
+    df['rsi_14'] = 100 - (100 / (1 + rs))
+
+    bb_std = df['price'].rolling(window=20).std()
+    bb_mid = df['price'].rolling(window=20).mean()
+    df['bb_dist'] = ((df['price'] - (bb_mid - 2 * bb_std)) / (4 * bb_std + 1e-9)) * 100
+
+    macd_line = df['price'].ewm(span=12, adjust=False).mean() - df['price'].ewm(span=26, adjust=False).mean()
+    macd_signal = macd_line.ewm(span=9, adjust=False).mean()
+    df['macd_hist'] = macd_line - macd_signal
+
+    if 'high' in df.columns and 'low' in df.columns:
+        tr = np.maximum(df['high'] - df['low'], np.maximum((df['high'] - df['price'].shift()).abs(), (df['low'] - df['price'].shift()).abs()))
+    else:
+        tr = df['price'].diff().abs()
+    df['atr_14'] = tr.rolling(window=14).mean()
     
     # Pre-calculate regimes
     regimes = []
@@ -223,6 +244,48 @@ def get_pattern_stats(points_list, df, regime_filter=None):
             reteste_val = "Não"
             vel_spread = np.nan
         
+        # Exit variables extraction
+        idx_exit = pt.get("idx_topo") if is_fundo else pt.get("idx_fundo")
+        if idx_exit is not None and idx_exit < len(df):
+            p2_val_exit = sma_p2[idx_exit]
+            p3_val_exit = sma_p3[idx_exit]
+            p4_val_exit = sma_p4[idx_exit]
+            p5_val_exit = sma_p5[idx_exit]
+            p6_val_exit = sma_p6[idx_exit]
+            
+            disp_pct_exit = ((p2_val_exit - p6_val_exit) / p6_val_exit * 100) if not pd.isna(p6_val_exit) and p6_val_exit != 0 else 0.0
+            smas_exit = [p2_val_exit, p3_val_exit, p4_val_exit, p5_val_exit, p6_val_exit]
+            if not any(pd.isna(x) for x in smas_exit):
+                std_val_exit = np.std(smas_exit)
+                mean_val_exit = np.mean(smas_exit)
+                mola_pct_exit = (std_val_exit / mean_val_exit * 100) if mean_val_exit != 0 else 0.0
+                
+                infil_bull_exit = "Sim" if (p2_val_exit > p3_val_exit > p4_val_exit and p5_val_exit < p6_val_exit) else "Não"
+                infil_bear_exit = "Sim" if (p2_val_exit < p3_val_exit < p4_val_exit and p5_val_exit > p6_val_exit) else "Não"
+                infil_val_exit = infil_bull_exit if is_fundo else infil_bear_exit
+                
+                dist_p5_exit = (abs(prices[idx_exit] - p5_val_exit) / p5_val_exit * 100) if p5_val_exit != 0 else 999.0
+                dist_p6_exit = (abs(prices[idx_exit] - p6_val_exit) / p6_val_exit * 100) if p6_val_exit != 0 else 999.0
+                reteste_val_exit = "Sim" if (dist_p5_exit < 0.8 or dist_p6_exit < 0.8) else "Não"
+            else:
+                mola_pct_exit = 0.0
+                infil_val_exit = "Não"
+                reteste_val_exit = "Não"
+            
+            vel_exit = velocity_list[idx_exit] if not pd.isna(velocity_list[idx_exit]) else 0.0
+            acc_exit = acceleration_list[idx_exit] if not pd.isna(acceleration_list[idx_exit]) else 0.0
+            strt_exit = stretching_list[idx_exit] if not pd.isna(stretching_list[idx_exit]) else 0.0
+            vol_exit = df['volatility'].iloc[idx_exit] if 'volatility' in df.columns and not pd.isna(df['volatility'].iloc[idx_exit]) else 0.0
+        else:
+            disp_pct_exit = 0.0
+            mola_pct_exit = 0.0
+            infil_val_exit = "Não"
+            reteste_val_exit = "Não"
+            vel_exit = 0.0
+            acc_exit = 0.0
+            strt_exit = 0.0
+            vol_exit = 0.0
+
         records.append({
             "Batimento Inicial": idx,
             "Preço Inicial": f"{prices[idx]:.2f}",
@@ -243,7 +306,25 @@ def get_pattern_stats(points_list, df, regime_filter=None):
             "Compressão Mola %": f"{mola_pct:.2f}%" if not pd.isna(mola_pct) else "",
             "Infiltração": infil_val,
             "Reteste Gravitacional": reteste_val,
-            "Velocidade Spread": f"{vel_spread:+.4f}" if not pd.isna(vel_spread) else ""
+            "Velocidade Spread": f"{vel_spread:+.4f}" if not pd.isna(vel_spread) else "",
+            "rsi": df['rsi_14'].iloc[idx] if 'rsi_14' in df.columns and not pd.isna(df['rsi_14'].iloc[idx]) else 50.0,
+            "bb": df['bb_dist'].iloc[idx] if 'bb_dist' in df.columns and not pd.isna(df['bb_dist'].iloc[idx]) else 50.0,
+            "macd": df['macd_hist'].iloc[idx] if 'macd_hist' in df.columns and not pd.isna(df['macd_hist'].iloc[idx]) else 0.0,
+            "atr": df['atr_14'].iloc[idx] if 'atr_14' in df.columns and not pd.isna(df['atr_14'].iloc[idx]) else 0.0,
+            "Volatilidade": df['volatility'].iloc[idx] if 'volatility' in df.columns and not pd.isna(df['volatility'].iloc[idx]) else 0.0,
+            # Exit values
+            "Velocidade Saída": vel_exit,
+            "Aceleração Saída": acc_exit,
+            "Stretching Saída": strt_exit,
+            "Compressão Mola Saída %": mola_pct_exit,
+            "Disp. Vetorial Saída %": disp_pct_exit,
+            "Volatilidade Saída": vol_exit,
+            "Infiltração Saída": infil_val_exit,
+            "Reteste Gravitacional Saída": reteste_val_exit,
+            "rsi_exit": df['rsi_14'].iloc[idx_exit] if idx_exit is not None and idx_exit < len(df) and 'rsi_14' in df.columns and not pd.isna(df['rsi_14'].iloc[idx_exit]) else 50.0,
+            "bb_exit": df['bb_dist'].iloc[idx_exit] if idx_exit is not None and idx_exit < len(df) and 'bb_dist' in df.columns and not pd.isna(df['bb_dist'].iloc[idx_exit]) else 50.0,
+            "macd_exit": df['macd_hist'].iloc[idx_exit] if idx_exit is not None and idx_exit < len(df) and 'macd_hist' in df.columns and not pd.isna(df['macd_hist'].iloc[idx_exit]) else 0.0,
+            "atr_exit": df['atr_14'].iloc[idx_exit] if idx_exit is not None and idx_exit < len(df) and 'atr_14' in df.columns and not pd.isna(df['atr_14'].iloc[idx_exit]) else 0.0
         })
         
     if not records:
@@ -1067,66 +1148,146 @@ def save_current_test_rules(test_name, df, fundos_list, topos_list):
             "thr_stats": {}
         }
         
-        # BUY Stats
+                # BUY Stats
         if not opp_df.empty:
             mola_mean = 0.0
-            if "Compressão Mola %" in opp_df.columns:
-                mola_vals = opp_df["Compressão Mola %"].str.rstrip("%").replace('', '0').astype(float)
+            mola_col = [c for c in opp_df.columns if "Compress" in c and "Mola" in c]
+            if mola_col:
+                mola_vals = opp_df[mola_col[0]].astype(str).str.rstrip("%").replace('', '0').astype(float)
                 mola_mean = float(mola_vals.mean())
                 
+            disp_col = [c for c in opp_df.columns if "Disp" in c and "Vetorial" in c]
             disp_mean = 0.0
-            if "Disp. Vetorial %" in opp_df.columns:
-                disp_vals = opp_df["Disp. Vetorial %"].str.rstrip("%").replace('', '0').astype(float)
+            if disp_col:
+                disp_vals = opp_df[disp_col[0]].astype(str).str.rstrip("%").replace('', '0').astype(float)
                 disp_mean = float(disp_vals.mean())
                 
+            infil_col = [c for c in opp_df.columns if "Infiltra" in c]
             infil_rate = 0.0
-            if "Infiltração" in opp_df.columns:
-                infil_rate = float((opp_df["Infiltração"] == "Sim").mean() * 100)
+            if infil_col:
+                infil_rate = float((opp_df[infil_col[0]] == "Sim").mean() * 100)
                 
+            reteste_col = [c for c in opp_df.columns if "Reteste" in c]
             reteste_rate = 0.0
-            if "Reteste Gravitacional" in opp_df.columns:
-                reteste_rate = float((opp_df["Reteste Gravitacional"] == "Sim").mean() * 100)
+            if reteste_col:
+                reteste_rate = float((opp_df[reteste_col[0]] == "Sim").mean() * 100)
                 
+            # Exits stats
+            mola_exit_mean = 0.0
+            if "Compressão Mola Saída %" in opp_df.columns:
+                mola_exit_mean = float(opp_df["Compressão Mola Saída %"].astype(float).mean())
+            disp_exit_mean = 0.0
+            if "Disp. Vetorial Saída %" in opp_df.columns:
+                disp_exit_mean = float(opp_df["Disp. Vetorial Saída %"].astype(float).mean())
+            infil_exit_rate = 0.0
+            if "Infiltração Saída" in opp_df.columns:
+                infil_exit_rate = float((opp_df["Infiltração Saída"] == "Sim").mean() * 100)
+            reteste_exit_rate = 0.0
+            if "Reteste Gravitacional Saída" in opp_df.columns:
+                reteste_exit_rate = float((opp_df["Reteste Gravitacional Saída"] == "Sim").mean() * 100)
+                
+            acc_col = [c for c in opp_df.columns if "Acelera" in c and "Sa" not in c][0]
+            strt_col = [c for c in opp_df.columns if "Stretching" in c and "Sa" not in c][0]
+            
             reg_data["opp_stats"] = {
-                "acc_mean": float(opp_df["Aceleração"].astype(float).mean()),
-                "acc_std": float(opp_df["Aceleração"].astype(float).std()) if len(opp_df) > 1 else 0.0,
-                "strt_mean": float(opp_df["Stretching"].astype(float).mean()),
-                "strt_std": float(opp_df["Stretching"].astype(float).std()) if len(opp_df) > 1 else 0.0,
+                "acc_mean": float(opp_df[acc_col].astype(float).mean()),
+                "acc_std": float(opp_df[acc_col].astype(float).std()) if len(opp_df) > 1 else 0.0,
+                "strt_mean": float(opp_df[strt_col].astype(float).mean()),
+                "strt_std": float(opp_df[strt_col].astype(float).std()) if len(opp_df) > 1 else 0.0,
                 "mola_mean": mola_mean,
                 "disp_mean": disp_mean,
+                "vel_mean": float(opp_df["Velocidade"].astype(float).mean()) if "Velocidade" in opp_df.columns else 0.0,
+                "vol_mean": float(opp_df["Volatilidade"].astype(float).mean()) if "Volatilidade" in opp_df.columns else 0.0,
                 "infil_rate": infil_rate,
-                "reteste_rate": reteste_rate
+                "reteste_rate": reteste_rate,
+                "rsi_mean": float(opp_df["rsi"].astype(float).mean()) if "rsi" in opp_df.columns else 50.0,
+                "bb_dist_mean": float(opp_df["bb"].astype(float).mean()) if "bb" in opp_df.columns else 50.0,
+                "macd_mean": float(opp_df["macd"].astype(float).mean()) if "macd" in opp_df.columns else 0.0,
+                "atr_mean": float(opp_df["atr"].astype(float).mean()) if "atr" in opp_df.columns else 0.0,
+                # Exit values
+                "acc_exit_mean": float(opp_df["Aceleração Saída"].astype(float).mean()) if "Aceleração Saída" in opp_df.columns else 0.0,
+                "strt_exit_mean": float(opp_df["Stretching Saída"].astype(float).mean()) if "Stretching Saída" in opp_df.columns else 0.0,
+                "mola_exit_mean": mola_exit_mean,
+                "disp_exit_mean": disp_exit_mean,
+                "vel_exit_mean": float(opp_df["Velocidade Saída"].astype(float).mean()) if "Velocidade Saída" in opp_df.columns else 0.0,
+                "vol_exit_mean": float(opp_df["Volatilidade Saída"].astype(float).mean()) if "Volatilidade Saída" in opp_df.columns else 0.0,
+                "infil_exit_rate": infil_exit_rate,
+                "reteste_exit_rate": reteste_exit_rate,
+                "rsi_exit_mean": float(opp_df["rsi_exit"].astype(float).mean()) if "rsi_exit" in opp_df.columns else 50.0,
+                "bb_dist_exit_mean": float(opp_df["bb_exit"].astype(float).mean()) if "bb_exit" in opp_df.columns else 50.0,
+                "macd_exit_mean": float(opp_df["macd_exit"].astype(float).mean()) if "macd_exit" in opp_df.columns else 0.0,
+                "atr_exit_mean": float(opp_df["atr_exit"].astype(float).mean()) if "atr_exit" in opp_df.columns else 0.0
             }
             
         # SELL Stats
         if not thr_df.empty:
             mola_mean = 0.0
-            if "Compressão Mola %" in thr_df.columns:
-                mola_vals = thr_df["Compressão Mola %"].str.rstrip("%").replace('', '0').astype(float)
+            mola_col = [c for c in thr_df.columns if "Compress" in c and "Mola" in c]
+            if mola_col:
+                mola_vals = thr_df[mola_col[0]].astype(str).str.rstrip("%").replace('', '0').astype(float)
                 mola_mean = float(mola_vals.mean())
                 
+            disp_col = [c for c in thr_df.columns if "Disp" in c and "Vetorial" in c]
             disp_mean = 0.0
-            if "Disp. Vetorial %" in thr_df.columns:
-                disp_vals = thr_df["Disp. Vetorial %"].str.rstrip("%").replace('', '0').astype(float)
+            if disp_col:
+                disp_vals = thr_df[disp_col[0]].astype(str).str.rstrip("%").replace('', '0').astype(float)
                 disp_mean = float(disp_vals.mean())
                 
+            infil_col = [c for c in thr_df.columns if "Infiltra" in c]
             infil_rate = 0.0
-            if "Infiltração" in thr_df.columns:
-                infil_rate = float((thr_df["Infiltração"] == "Sim").mean() * 100)
+            if infil_col:
+                infil_rate = float((thr_df[infil_col[0]] == "Sim").mean() * 100)
                 
+            reteste_col = [c for c in thr_df.columns if "Reteste" in c]
             reteste_rate = 0.0
-            if "Reteste Gravitacional" in thr_df.columns:
-                reteste_rate = float((thr_df["Reteste Gravitacional"] == "Sim").mean() * 100)
+            if reteste_col:
+                reteste_rate = float((thr_df[reteste_col[0]] == "Sim").mean() * 100)
                 
+            # Exits stats
+            mola_exit_mean = 0.0
+            if "Compressão Mola Saída %" in thr_df.columns:
+                mola_exit_mean = float(thr_df["Compressão Mola Saída %"].astype(float).mean())
+            disp_exit_mean = 0.0
+            if "Disp. Vetorial Saída %" in thr_df.columns:
+                disp_exit_mean = float(thr_df["Disp. Vetorial Saída %"].astype(float).mean())
+            infil_exit_rate = 0.0
+            if "Infiltração Saída" in thr_df.columns:
+                infil_exit_rate = float((thr_df["Infiltração Saída"] == "Sim").mean() * 100)
+            reteste_exit_rate = 0.0
+            if "Reteste Gravitacional Saída" in thr_df.columns:
+                reteste_exit_rate = float((thr_df["Reteste Gravitacional Saída"] == "Sim").mean() * 100)
+                
+            acc_col = [c for c in thr_df.columns if "Acelera" in c and "Sa" not in c][0]
+            strt_col = [c for c in thr_df.columns if "Stretching" in c and "Sa" not in c][0]
+            
             reg_data["thr_stats"] = {
-                "acc_mean": float(thr_df["Aceleração"].astype(float).mean()),
-                "acc_std": float(thr_df["Aceleração"].astype(float).std()) if len(thr_df) > 1 else 0.0,
-                "strt_mean": float(thr_df["Stretching"].astype(float).mean()),
-                "strt_std": float(thr_df["Stretching"].astype(float).std()) if len(thr_df) > 1 else 0.0,
+                "acc_mean": float(thr_df[acc_col].astype(float).mean()),
+                "acc_std": float(thr_df[acc_col].astype(float).std()) if len(thr_df) > 1 else 0.0,
+                "strt_mean": float(thr_df[strt_col].astype(float).mean()),
+                "strt_std": float(thr_df[strt_col].astype(float).std()) if len(thr_df) > 1 else 0.0,
                 "mola_mean": mola_mean,
                 "disp_mean": disp_mean,
+                "vel_mean": float(thr_df["Velocidade"].astype(float).mean()) if "Velocidade" in thr_df.columns else 0.0,
+                "vol_mean": float(thr_df["Volatilidade"].astype(float).mean()) if "Volatilidade" in thr_df.columns else 0.0,
                 "infil_rate": infil_rate,
-                "reteste_rate": reteste_rate
+                "reteste_rate": reteste_rate,
+                "rsi_mean": float(thr_df["rsi"].astype(float).mean()) if "rsi" in thr_df.columns else 50.0,
+                "bb_dist_mean": float(thr_df["bb"].astype(float).mean()) if "bb" in thr_df.columns else 50.0,
+                "macd_mean": float(thr_df["macd"].astype(float).mean()) if "macd" in thr_df.columns else 0.0,
+                "atr_mean": float(thr_df["atr"].astype(float).mean()) if "atr" in thr_df.columns else 0.0,
+                # Exit values
+                "acc_exit_mean": float(thr_df["Aceleração Saída"].astype(float).mean()) if "Aceleração Saída" in thr_df.columns else 0.0,
+                "strt_exit_mean": float(thr_df["Stretching Saída"].astype(float).mean()) if "Stretching Saída" in thr_df.columns else 0.0,
+                "mola_exit_mean": mola_exit_mean,
+                "disp_exit_mean": disp_exit_mean,
+                "vel_exit_mean": float(thr_df["Velocidade Saída"].astype(float).mean()) if "Velocidade Saída" in thr_df.columns else 0.0,
+                "vol_exit_mean": float(thr_df["Volatilidade Saída"].astype(float).mean()) if "Volatilidade Saída" in thr_df.columns else 0.0,
+                "infil_exit_rate": infil_exit_rate,
+                "reteste_exit_rate": reteste_exit_rate,
+                "rsi_exit_mean": float(thr_df["rsi_exit"].astype(float).mean()) if "rsi_exit" in thr_df.columns else 50.0,
+                "bb_dist_exit_mean": float(thr_df["bb_exit"].astype(float).mean()) if "bb_exit" in thr_df.columns else 50.0,
+                "macd_exit_mean": float(thr_df["macd_exit"].astype(float).mean()) if "macd_exit" in thr_df.columns else 0.0,
+                "atr_exit_mean": float(thr_df["atr_exit"].astype(float).mean()) if "atr_exit" in thr_df.columns else 0.0
             }
             
         test_data["regimes"][reg] = reg_data

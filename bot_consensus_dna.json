@@ -9,235 +9,640 @@
   "regimes": {
     "BULL": {
       "active": true,
-      "opp_samples": 0,
-      "thr_samples": 124,
+      "opp_samples": 46,
+      "thr_samples": 14,
       "buy_rules": {
         "stretching": {
-          "stable": true,
-          "mean": 0.0,
-          "min_limit": -1.5,
-          "max_limit": 1.5
+          "mean": 2.6629344385639873
+        },
+        "stretching_exit": {
+          "mean": 3.8218665584044578
         },
         "mola": {
-          "stable": true,
-          "mean": 0.0,
-          "max_limit": 0.0
+          "mean": 3.1920407144322476
+        },
+        "mola_exit": {
+          "mean": 4.556388310888166
         },
         "disp": {
-          "stable": true,
-          "mean": 0.0,
-          "max_limit": 0.0
+          "mean": 5.794814365360012
+        },
+        "disp_exit": {
+          "mean": 8.187163578665063
+        },
+        "velocity": {
+          "mean": 2.361261443724261
+        },
+        "velocity_exit": {
+          "mean": -1.824301936804007
         },
         "acceleration": {
-          "stable": true,
+          "mean": 0.7753999689948649
+        },
+        "acceleration_exit": {
+          "mean": -0.5804829327879996
+        },
+        "volatility": {
+          "mean": 4.811718132288935
+        },
+        "volatility_exit": {
+          "mean": 4.505044629734163
+        },
+        "infil": {
+          "rate": 82.6086956521739,
+          "active": true
+        },
+        "infil_exit": {
           "mean": 0.0
+        },
+        "reteste": {
+          "rate": 2.1739130434782608,
+          "active": false
+        },
+        "reteste_exit": {
+          "mean": 2.1739130434782608
+        },
+        "rsi": {
+          "mean": 61.21754304478977
+        },
+        "rsi_exit": {
+          "mean": 42.731989227923684
+        },
+        "bb": {
+          "mean": 82.77646495010185
+        },
+        "bb_exit": {
+          "mean": 29.351342150211003
+        },
+        "macd": {
+          "mean": 0.5542199805176847
+        },
+        "macd_exit": {
+          "mean": -1.451174470091999
+        },
+        "atr": {
+          "mean": 2.717706694296925
+        },
+        "atr_exit": {
+          "mean": 2.878682672171154
+        }
+      },
+      "sell_rules": {
+        "stretching": {
+          "mean": 2.533707713441696
+        },
+        "stretching_exit": {
+          "mean": 2.0260602608128253
+        },
+        "mola": {
+          "mean": 2.9221428571428567
+        },
+        "mola_exit": {
+          "mean": 2.453112961648512
+        },
+        "disp": {
+          "mean": 6.295714285714285
+        },
+        "disp_exit": {
+          "mean": 1.5013529580941376
+        },
+        "velocity": {
+          "mean": 4.20871103142157
+        },
+        "velocity_exit": {
+          "mean": -3.8302909044937428
+        },
+        "acceleration": {
+          "mean": 1.0716946258297153
+        },
+        "acceleration_exit": {
+          "mean": -0.8679563188873699
+        },
+        "volatility": {
+          "mean": 13.613812272046376
+        },
+        "volatility_exit": {
+          "mean": 12.725802009669044
         },
         "infil": {
           "rate": 0.0,
           "active": false
         },
+        "infil_exit": {
+          "mean": 50.0
+        },
         "reteste": {
           "rate": 0.0,
           "active": false
-        }
-      },
-      "sell_rules": {
-        "stretching": {
-          "stable": true,
-          "mean": 3.9921213488082157,
-          "min_limit": 2.4921213488082157,
-          "max_limit": 5.492121348808215
         },
-        "mola": {
-          "stable": true,
-          "mean": 4.688145161290323
+        "reteste_exit": {
+          "mean": 42.857142857142854
         },
-        "disp": {
-          "stable": true,
-          "mean": 12.818225806451613,
-          "limit": 11.536403225806453
+        "rsi": {
+          "mean": 75.62374164583946
         },
-        "acceleration": {
-          "stable": true,
-          "mean": 1.3536891434549063
+        "rsi_exit": {
+          "mean": 34.0015307576668
+        },
+        "bb": {
+          "mean": 95.42422982759044
+        },
+        "bb_exit": {
+          "mean": 10.290397475851858
+        },
+        "macd": {
+          "mean": 1.634003466437584
+        },
+        "macd_exit": {
+          "mean": -3.2994095096840517
+        },
+        "atr": {
+          "mean": 5.448169639424185
+        },
+        "atr_exit": {
+          "mean": 5.429916752446776
         }
       }
     },
     "BEAR": {
       "active": true,
-      "opp_samples": 96,
-      "thr_samples": 0,
+      "opp_samples": 10,
+      "thr_samples": 21,
       "buy_rules": {
         "stretching": {
-          "stable": true,
-          "mean": 10.319276171845663,
-          "min_limit": 8.819276171845663,
-          "max_limit": 11.819276171845663
+          "mean": 3.071818673132231
+        },
+        "stretching_exit": {
+          "mean": 2.510777273505649
         },
         "mola": {
-          "stable": true,
-          "mean": 12.1875,
-          "max_limit": 15.84375
+          "mean": 3.739
+        },
+        "mola_exit": {
+          "mean": 3.0817416270293636
         },
         "disp": {
-          "stable": true,
-          "mean": -16.58385416666667,
-          "max_limit": -18.242239583333337
+          "mean": -8.672999999999998
+        },
+        "disp_exit": {
+          "mean": -2.6672879537024157
+        },
+        "velocity": {
+          "mean": -3.0330723461252775
+        },
+        "velocity_exit": {
+          "mean": 4.7868195963432525
         },
         "acceleration": {
-          "stable": true,
-          "mean": -1.9687783893372481
+          "mean": -0.377326061036581
+        },
+        "acceleration_exit": {
+          "mean": 1.3374788442314525
+        },
+        "volatility": {
+          "mean": 15.676634296904973
+        },
+        "volatility_exit": {
+          "mean": 12.766130565554002
         },
         "infil": {
           "rate": 0.0,
           "active": false
         },
+        "infil_exit": {
+          "mean": 40.0
+        },
         "reteste": {
-          "rate": 3.125,
+          "rate": 9.999999999999998,
           "active": false
+        },
+        "reteste_exit": {
+          "mean": 19.999999999999996
+        },
+        "rsi": {
+          "mean": 22.74318423111
+        },
+        "rsi_exit": {
+          "mean": 69.58888049140111
+        },
+        "bb": {
+          "mean": 9.858263232500008
+        },
+        "bb_exit": {
+          "mean": 98.07517974503756
+        },
+        "macd": {
+          "mean": -1.8197878064504192
+        },
+        "macd_exit": {
+          "mean": 3.8104512137801976
+        },
+        "atr": {
+          "mean": 4.854083799860139
+        },
+        "atr_exit": {
+          "mean": 5.785782899517563
         }
       },
       "sell_rules": {
         "stretching": {
-          "stable": true,
-          "mean": 0.0,
-          "min_limit": -1.5,
-          "max_limit": 1.5
+          "mean": 2.6240291395359114
+        },
+        "stretching_exit": {
+          "mean": 4.460152146484823
         },
         "mola": {
-          "stable": true,
-          "mean": 0.0
+          "mean": 3.1359454695073095
+        },
+        "mola_exit": {
+          "mean": 5.285737857965561
         },
         "disp": {
-          "stable": true,
-          "mean": 0.0,
-          "limit": 0.0
+          "mean": -5.224249952564506
+        },
+        "disp_exit": {
+          "mean": -8.206498203140784
+        },
+        "velocity": {
+          "mean": -2.0938666936870214
+        },
+        "velocity_exit": {
+          "mean": 2.6013657843713585
         },
         "acceleration": {
-          "stable": true,
+          "mean": 0.1120407317899416
+        },
+        "acceleration_exit": {
+          "mean": 0.9058242808262905
+        },
+        "volatility": {
+          "mean": 5.484941231402684
+        },
+        "volatility_exit": {
+          "mean": 5.3283802615908336
+        },
+        "infil": {
+          "rate": 71.42857142857143,
+          "active": true
+        },
+        "infil_exit": {
           "mean": 0.0
+        },
+        "reteste": {
+          "rate": 4.761904761904762,
+          "active": false
+        },
+        "reteste_exit": {
+          "mean": 0.0
+        },
+        "rsi": {
+          "mean": 43.188636617239894
+        },
+        "rsi_exit": {
+          "mean": 63.7142255856747
+        },
+        "bb": {
+          "mean": 28.438206788323626
+        },
+        "bb_exit": {
+          "mean": 83.09723332113444
+        },
+        "macd": {
+          "mean": -0.3272489342454599
+        },
+        "macd_exit": {
+          "mean": 1.9532913967435486
+        },
+        "atr": {
+          "mean": 3.358461512952936
+        },
+        "atr_exit": {
+          "mean": 2.796933306270405
         }
       }
     },
     "LATERAL": {
       "active": true,
-      "opp_samples": 79,
-      "thr_samples": 55,
+      "opp_samples": 106,
+      "thr_samples": 180,
       "buy_rules": {
         "stretching": {
-          "stable": true,
-          "mean": 1.2053160074540556,
-          "min_limit": -0.29468399254594435,
-          "max_limit": 2.705316007454056
+          "mean": 0.692689757081943
+        },
+        "stretching_exit": {
+          "mean": 1.148623959409532
         },
         "mola": {
-          "stable": true,
-          "mean": 1.4656962025316458,
-          "max_limit": 1.9054050632911397
+          "mean": 0.868124002724202
+        },
+        "mola_exit": {
+          "mean": 1.4028935613302924
         },
         "disp": {
-          "stable": true,
-          "mean": 2.1359493670886076,
-          "max_limit": 2.3495443037974684
+          "mean": 0.25853756826855956
+        },
+        "disp_exit": {
+          "mean": 2.3596153989847104
+        },
+        "velocity": {
+          "mean": 0.044129367939540705
+        },
+        "velocity_exit": {
+          "mean": -0.10867602801301274
         },
         "acceleration": {
-          "stable": true,
-          "mean": -1.3515042419061807
+          "mean": -0.1741627336513415
+        },
+        "acceleration_exit": {
+          "mean": -0.06875280973440868
+        },
+        "volatility": {
+          "mean": 2.90350748338375
+        },
+        "volatility_exit": {
+          "mean": 3.526601546385084
         },
         "infil": {
-          "rate": 2.531645569620253,
+          "rate": 10.377358490566039,
           "active": false
         },
+        "infil_exit": {
+          "mean": 8.49056603773585
+        },
         "reteste": {
-          "rate": 45.56962025316456,
-          "active": false
+          "rate": 77.35849056603773,
+          "active": true
+        },
+        "reteste_exit": {
+          "mean": 53.77358490566038
+        },
+        "rsi": {
+          "mean": 52.66997996003309
+        },
+        "rsi_exit": {
+          "mean": 51.512865037591965
+        },
+        "bb": {
+          "mean": 56.20771470372813
+        },
+        "bb_exit": {
+          "mean": 46.666652263122835
+        },
+        "macd": {
+          "mean": 0.011079324972348772
+        },
+        "macd_exit": {
+          "mean": -0.11023702629909513
+        },
+        "atr": {
+          "mean": 1.8891550273857238
+        },
+        "atr_exit": {
+          "mean": 2.020049943524005
         }
       },
       "sell_rules": {
         "stretching": {
-          "stable": true,
-          "mean": 1.110143290708637,
-          "min_limit": -0.38985670929136296,
-          "max_limit": 2.610143290708637
+          "mean": 1.1416869518386623
+        },
+        "stretching_exit": {
+          "mean": 1.3010747919699328
         },
         "mola": {
-          "stable": true,
-          "mean": 1.3416363636363635
+          "mean": 1.4007942895211116
+        },
+        "mola_exit": {
+          "mean": 1.5784351651678248
         },
         "disp": {
-          "stable": true,
-          "mean": 2.122181818181818,
-          "limit": 1.9099636363636363
+          "mean": 1.2995840854784857
+        },
+        "disp_exit": {
+          "mean": -1.0476629636594745
+        },
+        "velocity": {
+          "mean": -1.7253251051634337
+        },
+        "velocity_exit": {
+          "mean": 4.047951361328316
         },
         "acceleration": {
-          "stable": true,
-          "mean": 1.9860168339198667
+          "mean": 0.17999759181150018
+        },
+        "acceleration_exit": {
+          "mean": 1.302288128241354
+        },
+        "volatility": {
+          "mean": 7.510327870404197
+        },
+        "volatility_exit": {
+          "mean": 9.145948058484388
+        },
+        "infil": {
+          "rate": 7.777777777777778,
+          "active": false
+        },
+        "infil_exit": {
+          "mean": 8.333333333333334
+        },
+        "reteste": {
+          "rate": 36.666666666666664,
+          "active": false
+        },
+        "reteste_exit": {
+          "mean": 59.44444444444444
+        },
+        "rsi": {
+          "mean": 46.91356851043623
+        },
+        "rsi_exit": {
+          "mean": 53.41014096238537
+        },
+        "bb": {
+          "mean": 36.46850474661836
+        },
+        "bb_exit": {
+          "mean": 63.552097353195634
+        },
+        "macd": {
+          "mean": -1.2195485591731634
+        },
+        "macd_exit": {
+          "mean": 2.3495905870026492
+        },
+        "atr": {
+          "mean": 6.107329394204401
+        },
+        "atr_exit": {
+          "mean": 6.4909887139658045
         }
       }
     },
     "CAOTICO": {
       "active": true,
-      "opp_samples": 115,
-      "thr_samples": 95,
+      "opp_samples": 135,
+      "thr_samples": 90,
       "buy_rules": {
         "stretching": {
-          "stable": true,
-          "mean": 13.827390098353305,
-          "min_limit": 12.327390098353305,
-          "max_limit": 15.327390098353305
+          "mean": 2.4019473997548952
+        },
+        "stretching_exit": {
+          "mean": 2.3781655261523493
         },
         "mola": {
-          "stable": true,
-          "mean": 16.39773913043478,
-          "max_limit": 21.317060869565214
+          "mean": 2.925852151195864
+        },
+        "mola_exit": {
+          "mean": 2.907071429415757
         },
         "disp": {
-          "stable": false,
-          "mean": -9.35034782608696,
-          "max_limit": 0.0
+          "mean": -1.4905093234730253
+        },
+        "disp_exit": {
+          "mean": 2.1487748462743563
+        },
+        "velocity": {
+          "mean": 0.5066231653554291
+        },
+        "velocity_exit": {
+          "mean": -1.4633459850168358
         },
         "acceleration": {
-          "stable": true,
-          "mean": -1.66314555588261
+          "mean": -1.0408492869100576
+        },
+        "acceleration_exit": {
+          "mean": -0.07699573025186465
+        },
+        "volatility": {
+          "mean": 6.691979799538423
+        },
+        "volatility_exit": {
+          "mean": 5.8929591632096905
         },
         "infil": {
-          "rate": 5.217391304347826,
+          "rate": 13.333333333333334,
           "active": false
         },
+        "infil_exit": {
+          "mean": 2.2222222222222223
+        },
         "reteste": {
-          "rate": 16.52173913043478,
+          "rate": 17.037037037037038,
           "active": false
+        },
+        "reteste_exit": {
+          "mean": 14.074074074074074
+        },
+        "rsi": {
+          "mean": 57.800303498958364
+        },
+        "rsi_exit": {
+          "mean": 45.778581057752156
+        },
+        "bb": {
+          "mean": 60.88924422849764
+        },
+        "bb_exit": {
+          "mean": 36.25767743488331
+        },
+        "macd": {
+          "mean": 0.45837260265886653
+        },
+        "macd_exit": {
+          "mean": -0.860082235413481
+        },
+        "atr": {
+          "mean": 3.4115392619762552
+        },
+        "atr_exit": {
+          "mean": 3.3138786291944458
         }
       },
       "sell_rules": {
         "stretching": {
-          "stable": true,
-          "mean": 6.224492583390068,
-          "min_limit": 4.724492583390068,
-          "max_limit": 7.724492583390068
+          "mean": 2.5190868344699604
+        },
+        "stretching_exit": {
+          "mean": 2.397861554982651
         },
         "mola": {
-          "stable": true,
-          "mean": 7.447473684210528
+          "mean": 3.062027700261346
+        },
+        "mola_exit": {
+          "mean": 2.9215966202890202
         },
         "disp": {
-          "stable": false,
-          "mean": -6.895052631578948,
-          "limit": 0.0
+          "mean": 1.077480364649349
+        },
+        "disp_exit": {
+          "mean": -2.6778089205915685
+        },
+        "velocity": {
+          "mean": -0.8136321594005131
+        },
+        "velocity_exit": {
+          "mean": 0.7887155688945913
         },
         "acceleration": {
-          "stable": true,
-          "mean": 2.7606936060092817
+          "mean": 0.5612355385402362
+        },
+        "acceleration_exit": {
+          "mean": 0.10483733648330826
+        },
+        "volatility": {
+          "mean": 8.238955058339883
+        },
+        "volatility_exit": {
+          "mean": 6.863866409950349
+        },
+        "infil": {
+          "rate": 2.2222222222222223,
+          "active": false
+        },
+        "infil_exit": {
+          "mean": 1.1111111111111112
+        },
+        "reteste": {
+          "rate": 12.222222222222221,
+          "active": false
+        },
+        "reteste_exit": {
+          "mean": 41.111111111111114
+        },
+        "rsi": {
+          "mean": 42.46142871194057
+        },
+        "rsi_exit": {
+          "mean": 53.2825190623071
+        },
+        "bb": {
+          "mean": 36.446316644347434
+        },
+        "bb_exit": {
+          "mean": 56.557080005893376
+        },
+        "macd": {
+          "mean": -0.42367717005915057
+        },
+        "macd_exit": {
+          "mean": 0.5897034277126793
+        },
+        "atr": {
+          "mean": 4.0756717859212355
+        },
+        "atr_exit": {
+          "mean": 3.7995772947455873
         }
       }
     }
   },
-  "last_updated": "2026-05-29 16:37",
+  "last_updated": "2026-05-29 18:24",
   "selected_tests": [
-    "Didatico classico ruido5",
-    "Didatico Classico (2026-05-28 20:58:15)",
-    "Didatico Classico (2026-05-28 21:07:22)",
-    "Montanha Russa (2026-05-28 21:11:46)",
-    "Flash Crash (2026-05-28 21:17:28)"
+    "Auto-Treino Sintético (Aleatório) (2026-05-29 18:22:31)",
+    "Auto-Treino Sintético (Aleatório) (2026-05-29 18:22:43)",
+    "Auto-Treino Real Binance (BTC/USDT) (2026-05-29 18:23:24)",
+    "Auto-Treino Real Binance (ETH/USDT) (2026-05-29 18:23:38)",
+    "Didatico Classico (2026-05-29 18:24:20)",
+    "Tendencia Saudavel (Bull) (2026-05-29 18:24:44)"
   ]
 }
