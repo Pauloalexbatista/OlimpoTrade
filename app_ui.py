@@ -2883,158 +2883,170 @@ with tab_trader_game:
                 st.rerun()
 
             pos_str = "FORA"
+            pos_color = "#94a3b8"
             if st.session_state.tg_position == "LONG":
                 pos_str = f"LONG ({st.session_state.tg_entry_price:.2f})"
+                pos_color = "#10B981"
             elif st.session_state.tg_position == "SHORT":
                 pos_str = f"SHORT ({st.session_state.tg_entry_price:.2f})"
+                pos_color = "#EF4444"
 
             ret_pct = st.session_state.tg_capital - 100.0
             ret_color = "#10B981" if ret_pct >= 0 else "#EF4444"
+
+            # --- Calcular eficacia para o header ---
+            _all_trades = st.session_state.get("tg_trades", [])
+            _l_trades = [t for t in _all_trades if t["type"] == "LONG"]
+            _s_trades = [t for t in _all_trades if t["type"] == "SHORT"]
+            _l_wins = sum(1 for t in _l_trades if t.get("pnl_pct", 0) > 0)
+            _s_wins = sum(1 for t in _s_trades if t.get("pnl_pct", 0) > 0)
+            _l_eff = (_l_wins / len(_l_trades) * 100) if _l_trades else 0.0
+            _s_eff = (_s_wins / len(_s_trades) * 100) if _s_trades else 0.0
+
+            # =========================================================
+            # BARRA DE ESTADO TOPO - dark header bar
+            # =========================================================
             st.markdown(f"""
-            <div style="padding:10px 20px; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center;
-                 border-radius:10px; background:rgba(255,255,255,0.6); backdrop-filter:blur(12px);
-                 box-shadow:0 4px 15px rgba(0,0,0,0.05); border:1px solid rgba(255,255,255,0.3);">
-                <div>Banca: <b style="color:#10B981; font-family:monospace;">{st.session_state.tg_capital:.2f} EUR</b></div>
-                <div>Retorno: <b style="color:{ret_color}; font-family:monospace;">{ret_pct:+.2f}%</b></div>
-                <div>Posicao: <b style="color:#00B0FF;">{pos_str}</b></div>
-                <div>Progresso: <b style="font-family:monospace;">{progress_candles} / 100</b></div>
+            <div style="background:linear-gradient(90deg,#0f172a,#1e293b,#0f172a);
+                        border-radius:12px; padding:14px 24px; margin-bottom:14px;
+                        display:flex; justify-content:space-between; align-items:center;
+                        border:1px solid rgba(124,58,237,0.3);
+                        box-shadow:0 4px 24px rgba(0,0,0,0.4);">
+                <div style="text-align:center;">
+                    <div style="color:#64748b;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:3px;">Banca Final</div>
+                    <div style="color:#10B981;font-size:20px;font-weight:900;font-family:monospace;">{st.session_state.tg_capital:.2f} EUR</div>
+                </div>
+                <div style="text-align:center;">
+                    <div style="color:#64748b;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:3px;">Retorno Total</div>
+                    <div style="color:{ret_color};font-size:20px;font-weight:900;font-family:monospace;">{ret_pct:+.2f}%</div>
+                </div>
+                <div style="text-align:center;">
+                    <div style="color:#64748b;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:3px;">Eficiencia de Sessao</div>
+                    <div style="font-size:13px;font-weight:700;font-family:monospace;">
+                        <span style="color:#10B981;">LONG {_l_eff:.0f}% ({_l_wins}/{len(_l_trades)})</span>
+                        &nbsp;&nbsp;|&nbsp;&nbsp;
+                        <span style="color:#EF4444;">SHORT {_s_eff:.0f}% ({_s_wins}/{len(_s_trades)})</span>
+                    </div>
+                </div>
+                <div style="text-align:center;">
+                    <div style="color:#64748b;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:3px;">Posicao</div>
+                    <div style="color:{pos_color};font-size:16px;font-weight:900;font-family:monospace;">{pos_str}</div>
+                </div>
+                <div style="text-align:center;">
+                    <div style="color:#64748b;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:3px;">Progresso</div>
+                    <div style="color:#e2e8f0;font-size:18px;font-weight:900;font-family:monospace;">{progress_candles} <span style="font-size:11px;color:#64748b;">/ 100</span></div>
+                </div>
             </div>
             """, unsafe_allow_html=True)
 
-            col_left, col_right = st.columns([4, 6])
+            # =========================================================
+            # LAYOUT PRINCIPAL: 3 colunas
+            # col_chart | col_ctrl | col_advisor
+            # =========================================================
+            col_chart, col_ctrl, col_advisor = st.columns([5, 2.5, 3.5])
 
-            with col_left:
-                st.markdown('<div class="game-control-anchor"></div>', unsafe_allow_html=True)
+            # =========================================================
+            # COL CHART - Grafico
+            # =========================================================
+            with col_chart:
+                start_idx_c = max(50, current_step - 49)
+                sub_df = df.iloc[start_idx_c:current_step+1]
+                fig = _build_chart(
+                    sub_df, df,
+                    title_str=f"Arena Real \U0001f4c8 Batimento {progress_candles} / 100 Velas (ultimas {len(sub_df)})"
+                )
+                st.plotly_chart(fig, width="stretch")
 
-                # Controlo de fluxo
-                st.markdown("##### Controlo de Fluxo")
-                col_flow1, col_flow2, col_flow3 = st.columns([1, 1, 1.5])
+            # =========================================================
+            # COL CTRL - Controlo de fluxo + Botoes casino
+            # =========================================================
+            with col_ctrl:
+                st.markdown("<div class='game-control-anchor'></div>", unsafe_allow_html=True)
+
+                # --- Fluxo ---
+                col_flow1, col_flow2 = st.columns([1, 1])
                 with col_flow1:
-                    if st.button("Avançar ➡️", width='stretch', key="tg_step_btn"):
+                    if st.button("Avancar", width="stretch", key="tg_step_btn"):
                         st.session_state.tg_step += 1
                         st.rerun()
                 with col_flow2:
-                    btn_label = "Pausar ⏸️" if st.session_state.tg_running else "Auto ▶️"
-                    if st.button(btn_label, width='stretch', key="tg_loop_btn"):
+                    btn_label = "Pausar" if st.session_state.tg_running else "Auto"
+                    if st.button(btn_label, width="stretch", key="tg_loop_btn"):
                         st.session_state.tg_running = not st.session_state.tg_running
                         st.rerun()
-                with col_flow3:
-                    tg_speed_select = st.selectbox(
-                        "Velocidade:", ["Lento (1.0s)", "Médio (0.3s)", "Rápido (0.05s)"],
-                        index=1, label_visibility="collapsed", key="tg_speed_widget"
-                    )
-                tg_delay = 1.0 if "Lento" in tg_speed_select else (0.3 if "Médio" in tg_speed_select else 0.05)
+                tg_speed_select = st.selectbox(
+                    "Velocidade:", ["Lento (1.0s)", "Medio (0.3s)", "Rapido (0.05s)"],
+                    index=1, label_visibility="collapsed", key="tg_speed_widget"
+                )
+                tg_delay = 1.0 if "Lento" in tg_speed_select else (0.3 if "Medio" in tg_speed_select else 0.05)
 
-                st.markdown("<hr style='margin:8px 0; border:0; border-top:1px solid rgba(0,0,0,0.08);'>", unsafe_allow_html=True)
+                st.markdown("<hr style='margin:8px 0;border:0;border-top:1px solid rgba(255,255,255,0.08);'>", unsafe_allow_html=True)
 
-                # --- PAINEL DO BOT ---
-                col_bot_lbl, col_bot_radio = st.columns([1.5, 3.5])
-                with col_bot_lbl:
-                    st.markdown("<h6 style='margin-top:6px; font-weight:bold;'>🧠 Co-piloto:</h6>", unsafe_allow_html=True)
-                with col_bot_radio:
+                # --- Co-piloto radio ---
+                col_bl, col_br = st.columns([1.2, 2.8])
+                with col_bl:
+                    st.markdown("<h6 style='margin-top:6px;font-weight:bold;color:#a78bfa;'>Co-piloto:</h6>", unsafe_allow_html=True)
+                with col_br:
                     bot_mode_choice = st.radio(
-                        "Modo:", ["Manual", "Co-piloto", "Bot Autónomo"],
-                        horizontal=True, index=["Manual","Co-piloto","Bot Autónomo"].index(st.session_state.tg_bot_mode),
+                        "Modo:", ["Manual", "Co-piloto", "Bot Autonomo"],
+                        horizontal=True,
+                        index=["Manual","Co-piloto","Bot Autonomo"].index(st.session_state.tg_bot_mode) if st.session_state.tg_bot_mode in ["Manual","Co-piloto","Bot Autonomo"] else 0,
                         key="tg_bot_mode_radio", label_visibility="collapsed"
                     )
                 if bot_mode_choice != st.session_state.tg_bot_mode:
                     st.session_state.tg_bot_mode = bot_mode_choice
 
-                # Compute signal always (needed for co-pilot display and bot mode)
+                st.markdown("<hr style='margin:8px 0;border:0;border-top:1px solid rgba(255,255,255,0.08);'>", unsafe_allow_html=True)
+
+                # --- Compute signal ---
                 _bot_signal, _bot_conf, _bot_conds = compute_bot_signal(df, current_step)
                 _sig_color = {"LONG": "#10B981", "SHORT": "#EF4444", "HOLD": "#94a3b8"}[_bot_signal]
-                _sig_emoji = {"LONG": "🟢", "SHORT": "🔴", "HOLD": "⚪"}[_bot_signal]
 
-                # Signal display (always visible in manual, co-pilot and autonomous to guide operations)
-                if True:
-                    # Mapeamento do nome do DNA e regime detetado
-                    dna_active = st.session_state.get("tg_strategy_type", "Default") == "Cérebro de Consenso (Lab)"
-                    regime_label = ""
-                    if dna_active:
-                        regime_name = df['regime'].iloc[current_step]
-                        regime_emoji = {"BULL": "🟢 BULL", "BEAR": "🔴 BEAR", "LATERAL": "🟡 LATERAL", "CAOTICO": "🟣 CAÓTICO"}.get(regime_name, "🟡 LATERAL")
-                        regime_label = f'<div style="font-size:11px; margin-bottom:4px; font-weight:bold; color:#7c3aed;">🧠 DNA ATIVO | REGIME DETETADO: {regime_emoji}</div>'
-                    
-                    # Calcular eficácia na sessão
-                    trades = st.session_state.get("tg_trades", [])
-                    long_trades = [t for t in trades if t['type'] == 'LONG']
-                    short_trades = [t for t in trades if t['type'] == 'SHORT']
-                    long_wins = [t for t in long_trades if t['pnl_pct'] > 0]
-                    short_wins = [t for t in short_trades if t['pnl_pct'] > 0]
-                    long_eff = (len(long_wins) / len(long_trades) * 100) if long_trades else 0.0
-                    short_eff = (len(short_wins) / len(short_trades) * 100) if short_trades else 0.0
-                    
-                    efficacy_html = f"""
-                    <div style="margin-top:8px; padding-top:8px; border-top:1px solid rgba(0,0,0,0.08); font-size:11px; color:#475569; font-family:sans-serif;">
-                        🎰 <b>Eficácia da Sessão:</b><br>
-                        🟢 LONG: <b>{long_eff:.1f}%</b> ({len(long_wins)}/{len(long_trades)}) | 
-                        🔴 SHORT: <b>{short_eff:.1f}%</b> ({len(short_wins)}/{len(short_trades)})
-                    </div>
-                    """
-                    
-                    st.markdown(f"""
-                    <div style="background:rgba(255,255,255,0.45); border-radius:10px; padding:10px 14px; margin:6px 0;
-                         border-left:4px solid {_sig_color}; box-shadow:0 4px 15px rgba(0,0,0,0.02); border:1px solid rgba(255,255,255,0.25);">
-                        {regime_label}
-                        <div style="font-size:18px; font-weight:900; color:{_sig_color};">
-                            {_sig_emoji} {_bot_signal} &nbsp;<span style="font-size:13px; color:#64748b;">confiança {_bot_conf}%</span>
-                        </div>
-                        <div style="margin-top:6px; font-size:11px; line-height:1.7;">
-                            {"".join(f"<span style=\'color:{"#10B981" if v else "#EF4444"};\'>{"✅" if v else "❌"} {k}</span><br>" for k, v in _bot_conds.items())}
-                        </div>
-                        {efficacy_html}
-                    </div>
-                    """, unsafe_allow_html=True)
+                # --- BOT AUTONOMO ---
+                if st.session_state.tg_bot_mode == "Bot Autonomo":
+                    _pos = st.session_state.tg_position
+                    if _pos == "NONE" and _bot_signal == "LONG" and _bot_conf >= st.session_state.get("tg_min_confidence_pct", 80.0):
+                        st.session_state.tg_position = "LONG"
+                        st.session_state.tg_entry_price = price_now
+                        st.session_state.tg_entry_step = current_step
+                        st.session_state.tg_highest_price = price_now
+                        st.toast(f"Bot entrou LONG a {price_now:.2f}")
+                    elif _pos == "NONE" and _bot_signal == "SHORT" and _bot_conf >= st.session_state.get("tg_min_confidence_pct", 80.0):
+                        st.session_state.tg_position = "SHORT"
+                        st.session_state.tg_entry_price = price_now
+                        st.session_state.tg_entry_step = current_step
+                        st.session_state.tg_lowest_price = price_now
+                        st.toast(f"Bot entrou SHORT a {price_now:.2f}")
+                    elif _pos == "LONG" and (_bot_signal == "SHORT" or (_bot_signal == "HOLD" and _bot_conf >= st.session_state.get("tg_min_confidence_pct", 80.0))):
+                        entry_p = st.session_state.tg_entry_price
+                        commissions = st.session_state.tg_capital * 0.0005
+                        pnl_pct = (price_now - entry_p) / entry_p * 100
+                        net_pnl = st.session_state.tg_capital * (pnl_pct/100.0) - commissions
+                        st.session_state.tg_capital += net_pnl
+                        st.session_state.tg_trades.append({
+                            "type": "LONG", "entry_price": entry_p, "exit_price": price_now,
+                            "pnl_pct": pnl_pct, "pnl_eur": net_pnl,
+                            "candles": current_step - st.session_state.tg_entry_step,
+                            "reason": f"Bot Exit ({_bot_signal})", "entry_step": st.session_state.tg_entry_step, "exit_step": current_step
+                        })
+                        st.session_state.tg_position = "NONE"
+                        st.toast(f"Bot saiu LONG a {price_now:.2f} ({pnl_pct:+.2f}%)")
+                    elif _pos == "SHORT" and (_bot_signal == "LONG" or (_bot_signal == "HOLD" and _bot_conf >= st.session_state.get("tg_min_confidence_pct", 80.0))):
+                        entry_p = st.session_state.tg_entry_price
+                        commissions = st.session_state.tg_capital * 0.0005
+                        pnl_pct = (entry_p - price_now) / entry_p * 100
+                        net_pnl = st.session_state.tg_capital * (pnl_pct/100.0) - commissions
+                        st.session_state.tg_capital += net_pnl
+                        st.session_state.tg_trades.append({
+                            "type": "SHORT", "entry_price": entry_p, "exit_price": price_now,
+                            "pnl_pct": pnl_pct, "pnl_eur": net_pnl,
+                            "candles": current_step - st.session_state.tg_entry_step,
+                            "reason": f"Bot Exit ({_bot_signal})", "entry_step": st.session_state.tg_entry_step, "exit_step": current_step
+                        })
+                        st.session_state.tg_position = "NONE"
+                        st.toast(f"Bot saiu SHORT a {price_now:.2f} ({pnl_pct:+.2f}%)")
 
-                    # BOT AUTONOMO: executa posicoes automaticamente
-                    if st.session_state.tg_bot_mode == "Bot Autónomo":
-                        _pos = st.session_state.tg_position
-                        # Entrar em posicao se HOLD e sinal claro
-                        if _pos == "NONE" and _bot_signal == "LONG" and _bot_conf >= st.session_state.get('tg_min_confidence_pct', 80.0):
-                            st.session_state.tg_position = "LONG"
-                            st.session_state.tg_entry_price = price_now
-                            st.session_state.tg_entry_step = current_step
-                            st.session_state.tg_highest_price = price_now
-                            st.toast(f"🤖 Bot entrou LONG a {price_now:.2f}")
-                        elif _pos == "NONE" and _bot_signal == "SHORT" and _bot_conf >= st.session_state.get('tg_min_confidence_pct', 80.0):
-                            st.session_state.tg_position = "SHORT"
-                            st.session_state.tg_entry_price = price_now
-                            st.session_state.tg_entry_step = current_step
-                            st.session_state.tg_lowest_price = price_now
-                            st.toast(f"🤖 Bot entrou SHORT a {price_now:.2f}")
-                        # Sair se sinal invertido ou HOLD com posicao aberta
-                        elif _pos == "LONG" and (_bot_signal == "SHORT" or (_bot_signal == "HOLD" and _bot_conf >= st.session_state.get('tg_min_confidence_pct', 80.0))):
-                            entry_p = st.session_state.tg_entry_price
-                            commissions = st.session_state.tg_capital * 0.0005
-                            pnl_pct = (price_now - entry_p) / entry_p * 100
-                            net_pnl = st.session_state.tg_capital * (pnl_pct/100.0) - commissions
-                            st.session_state.tg_capital += net_pnl
-                            st.session_state.tg_trades.append({
-                                "type": "LONG", "entry_price": entry_p, "exit_price": price_now,
-                                "pnl_pct": pnl_pct, "pnl_eur": net_pnl,
-                                "candles": current_step - st.session_state.tg_entry_step,
-                                "reason": f"Bot Exit ({_bot_signal})", "entry_step": st.session_state.tg_entry_step, "exit_step": current_step
-                            })
-                            st.session_state.tg_position = "NONE"
-                            st.toast(f"🤖 Bot saiu LONG a {price_now:.2f} ({pnl_pct:+.2f}%)")
-                        elif _pos == "SHORT" and (_bot_signal == "LONG" or (_bot_signal == "HOLD" and _bot_conf >= st.session_state.get('tg_min_confidence_pct', 80.0))):
-                            entry_p = st.session_state.tg_entry_price
-                            commissions = st.session_state.tg_capital * 0.0005
-                            pnl_pct = (entry_p - price_now) / entry_p * 100
-                            net_pnl = st.session_state.tg_capital * (pnl_pct/100.0) - commissions
-                            st.session_state.tg_capital += net_pnl
-                            st.session_state.tg_trades.append({
-                                "type": "SHORT", "entry_price": entry_p, "exit_price": price_now,
-                                "pnl_pct": pnl_pct, "pnl_eur": net_pnl,
-                                "candles": current_step - st.session_state.tg_entry_step,
-                                "reason": f"Bot Exit ({_bot_signal})", "entry_step": st.session_state.tg_entry_step, "exit_step": current_step
-                            })
-                            st.session_state.tg_position = "NONE"
-                            st.toast(f"🤖 Bot saiu SHORT a {price_now:.2f} ({pnl_pct:+.2f}%)")
-
-                st.markdown("<hr style='margin:8px 0; border:0; border-top:1px solid rgba(0,0,0,0.08);'>", unsafe_allow_html=True)
-
-                # Operar posicoes - Estilo Maquina de Casino Arcade
+                # --- CASINO BUTTONS ---
                 _long_on  = st.session_state.tg_position == "LONG"
                 _short_on = st.session_state.tg_position == "SHORT"
                 _led_ld = "background:#10b981;box-shadow:0 0 8px 3px #10b981;" if _long_on else "background:#052e16;border:1px solid #134e4a;"
@@ -3045,22 +3057,22 @@ with tab_trader_game:
                 _sc = "#ef4444" if _short_on else "#334155"
                 st.markdown(
                     f'<div style="display:flex;gap:0;margin-bottom:6px;">'
-                    f'<div style="flex:1;text-align:center;font-size:11px;font-weight:bold;letter-spacing:1px;color:{_lc};text-transform:uppercase;">'
-                    f'<span style="display:inline-block;width:9px;height:9px;border-radius:50%;{_led_ld}margin-right:5px;vertical-align:middle;"></span>'
+                    f'<div style="flex:1;text-align:center;font-size:10px;font-weight:bold;letter-spacing:1px;color:{_lc};text-transform:uppercase;">'
+                    f'<span style="display:inline-block;width:8px;height:8px;border-radius:50%;{_led_ld}margin-right:4px;vertical-align:middle;"></span>'
                     f'LONG &nbsp; {_ll}</div>'
-                    f'<div style="flex:1;text-align:center;font-size:11px;font-weight:bold;letter-spacing:1px;color:{_sc};text-transform:uppercase;">'
-                    f'<span style="display:inline-block;width:9px;height:9px;border-radius:50%;{_led_sd}margin-right:5px;vertical-align:middle;"></span>'
+                    f'<div style="flex:1;text-align:center;font-size:10px;font-weight:bold;letter-spacing:1px;color:{_sc};text-transform:uppercase;">'
+                    f'<span style="display:inline-block;width:8px;height:8px;border-radius:50%;{_led_sd}margin-right:4px;vertical-align:middle;"></span>'
                     f'SHORT &nbsp; {_sl}</div>'
                     f'</div>',
                     unsafe_allow_html=True
                 )
                 col_btn_long, col_btn_short = st.columns(2)
-                
+
                 with col_btn_long:
                     if st.session_state.tg_position == "LONG":
                         long_pnl = (price_now - st.session_state.tg_entry_price)/st.session_state.tg_entry_price*100
                         st.markdown('<div class="casino-long-active">', unsafe_allow_html=True)
-                        if st.button(f"LONG ATIVO  {long_pnl:+.2f}%", width='stretch', key="tg_btn_long_act"):
+                        if st.button(f"LONG ATIVO  {long_pnl:+.2f}%", width="stretch", key="tg_btn_long_act"):
                             entry_p = st.session_state.tg_entry_price
                             commissions = st.session_state.tg_capital * 0.0005
                             trade_pnl_pct = (price_now - entry_p)/entry_p*100
@@ -3076,27 +3088,27 @@ with tab_trader_game:
                             save_last_game_persistent(df)
                             st.toast(f"LONG fechado a {price_now:.2f}")
                             st.rerun()
-                        st.markdown('</div>', unsafe_allow_html=True)
+                        st.markdown("</div>", unsafe_allow_html=True)
                     elif st.session_state.tg_position == "NONE":
                         st.markdown('<div class="casino-long-inactive">', unsafe_allow_html=True)
-                        if st.button("ENTRAR LONG  [OFF]", width='stretch', key="tg_btn_long_inact"):
+                        if st.button("ENTRAR LONG  [OFF]", width="stretch", key="tg_btn_long_inact"):
                             st.session_state.tg_position = "LONG"
                             st.session_state.tg_entry_price = price_now
                             st.session_state.tg_entry_step = current_step
                             st.session_state.tg_highest_price = price_now
                             st.toast(f"LONG ativado a {price_now:.2f}")
                             st.rerun()
-                        st.markdown('</div>', unsafe_allow_html=True)
+                        st.markdown("</div>", unsafe_allow_html=True)
                     else:
                         st.markdown('<div class="casino-blocked">', unsafe_allow_html=True)
-                        st.button("LONG BLOQUEADO", disabled=True, width='stretch', key="tg_btn_long_blk")
-                        st.markdown('</div>', unsafe_allow_html=True)
+                        st.button("LONG BLOQUEADO", disabled=True, width="stretch", key="tg_btn_long_blk")
+                        st.markdown("</div>", unsafe_allow_html=True)
 
                 with col_btn_short:
                     if st.session_state.tg_position == "SHORT":
                         short_pnl = (st.session_state.tg_entry_price - price_now)/st.session_state.tg_entry_price*100
                         st.markdown('<div class="casino-short-active">', unsafe_allow_html=True)
-                        if st.button(f"SHORT ATIVO  {short_pnl:+.2f}%", width='stretch', key="tg_btn_short_act"):
+                        if st.button(f"SHORT ATIVO  {short_pnl:+.2f}%", width="stretch", key="tg_btn_short_act"):
                             entry_p = st.session_state.tg_entry_price
                             commissions = st.session_state.tg_capital * 0.0005
                             trade_pnl_pct = (entry_p - price_now)/entry_p*100
@@ -3112,31 +3124,63 @@ with tab_trader_game:
                             save_last_game_persistent(df)
                             st.toast(f"SHORT fechado a {price_now:.2f}")
                             st.rerun()
-                        st.markdown('</div>', unsafe_allow_html=True)
+                        st.markdown("</div>", unsafe_allow_html=True)
                     elif st.session_state.tg_position == "NONE":
                         st.markdown('<div class="casino-short-inactive">', unsafe_allow_html=True)
-                        if st.button("ENTRAR SHORT  [OFF]", width='stretch', key="tg_btn_short_inact"):
+                        if st.button("ENTRAR SHORT  [OFF]", width="stretch", key="tg_btn_short_inact"):
                             st.session_state.tg_position = "SHORT"
                             st.session_state.tg_entry_price = price_now
                             st.session_state.tg_entry_step = current_step
                             st.session_state.tg_lowest_price = price_now
                             st.toast(f"SHORT ativado a {price_now:.2f}")
                             st.rerun()
-                        st.markdown('</div>', unsafe_allow_html=True)
+                        st.markdown("</div>", unsafe_allow_html=True)
                     else:
-                        st.markdown('<div class="casino-blocked">', unsafe_allow_html=True)
-                        st.button("SHORT BLOQUEADO", disabled=True, width='stretch', key="tg_btn_short_blk")
-                        st.markdown('</div>', unsafe_allow_html=True)
+                        st.markdown('<div class="casino-short-inactive">', unsafe_allow_html=True)
+                        st.button("SHORT BLOQUEADO", disabled=True, width="stretch", key="tg_btn_short_blk")
+                        st.markdown("</div>", unsafe_allow_html=True)
 
-            with col_right:
-                start_idx = max(50, current_step - 49)
-                sub_df = df.iloc[start_idx:current_step+1]
+            # =========================================================
+            # COL ADVISOR - Sinal do co-piloto + 12 variaveis
+            # =========================================================
+            with col_advisor:
+                dna_active = st.session_state.get("tg_strategy_type", "Default") == "Cerebro de Consenso (Lab)"
+                regime_label = ""
+                if dna_active:
+                    regime_name = df["regime"].iloc[current_step]
+                    regime_emoji = {"BULL": "BULL", "BEAR": "BEAR", "LATERAL": "LATERAL", "CAOTICO": "CAOTICO"}.get(regime_name, regime_name)
+                    regime_color = {"BULL": "#10B981", "BEAR": "#EF4444", "LATERAL": "#F59E0B", "CAOTICO": "#8B5CF6"}.get(regime_name, "#94a3b8")
+                    regime_label = f'<div style="font-size:11px;margin-bottom:6px;font-weight:bold;color:#7c3aed;">DNA ATIVO | REGIME DETETADO: <span style="color:{regime_color};">{regime_emoji}</span></div>'
 
-                fig = _build_chart(
-                    sub_df, df,
-                    title_str=f"Arena Real 📈 Batimento {progress_candles} / 100 Velas (últimas {len(sub_df)})"
-                )
-                st.plotly_chart(fig, width='stretch')
+                _sig_emoji = {"LONG": "GREEN", "SHORT": "RED", "HOLD": "GREY"}[_bot_signal]
+                _cg = "#10B981"
+                _cr = "#EF4444"
+                _conds_parts = []
+                for _ck, _cv in _bot_conds.items():
+                    _ccolor = _cg if _cv else _cr
+                    _cmark = "OK" if _cv else "X"
+                    _conds_parts.append(f"<div><span style='color:{_ccolor};'>{_cmark}</span> <span style='color:#cbd5e1;'>{_ck}</span></div>")
+                _conds_html = "".join(_conds_parts)
+                st.markdown(f"""
+                <div style="background:rgba(15,23,42,0.9);border-radius:12px;padding:12px 16px;
+                     border-left:4px solid {_sig_color};border:1px solid rgba(124,58,237,0.2);
+                     box-shadow:0 4px 20px rgba(0,0,0,0.3);">
+                    {regime_label}
+                    <div style="font-size:22px;font-weight:900;color:{_sig_color};margin-bottom:6px;">
+                        {_bot_signal} <span style="font-size:13px;color:#64748b;">confianca {_bot_conf}%</span>
+                    </div>
+                    <div style="font-size:11px;line-height:1.8;">
+                        {_conds_html}
+                    </div>
+                    <div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.06);font-size:11px;">
+                        <b style="color:#94a3b8;">Eficiencia:</b><br>
+                        <span style="color:#10B981;">LONG: {_l_eff:.1f}% ({_l_wins}/{len(_l_trades)})</span> &nbsp;|&nbsp;
+                        <span style="color:#EF4444;">SHORT: {_s_eff:.1f}% ({_s_wins}/{len(_s_trades)})</span>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+
 # Loop automatico
             if st.session_state.tg_running and st.session_state.tg_active:
                 time.sleep(tg_delay)
