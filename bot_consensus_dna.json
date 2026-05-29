@@ -1,0 +1,166 @@
+{
+  "smas": [
+    5,
+    13,
+    21,
+    55,
+    144
+  ],
+  "last_updated": "2026-05-29 14:53:51",
+  "selected_tests": [
+    "Auto-Treino Demo Live"
+  ],
+  "regimes": {
+    "BULL": {
+      "active": true,
+      "opp_samples": 0,
+      "thr_samples": 0,
+      "buy_rules": {},
+      "sell_rules": {}
+    },
+    "BEAR": {
+      "active": true,
+      "opp_samples": 4,
+      "thr_samples": 5,
+      "buy_rules": {
+        "stretching": {
+          "stable": true,
+          "mean": 6.988077070041472,
+          "min_limit": 5.788077070041472,
+          "max_limit": 8.188077070041471
+        },
+        "mola": {
+          "stable": true,
+          "mean": 8.023485913904569,
+          "max_limit": 10.02935739238071
+        },
+        "disp": {
+          "stable": true,
+          "mean": -17.52732038016365,
+          "max_limit": -20.156418437188197
+        },
+        "acceleration": {
+          "stable": true,
+          "mean": 0.4138013016250035
+        }
+      },
+      "sell_rules": {
+        "stretching": {
+          "stable": true,
+          "mean": 4.537758564460141,
+          "min_limit": 3.337758564460141,
+          "max_limit": 5.737758564460141
+        },
+        "mola": {
+          "stable": true,
+          "mean": 4.822168794742944
+        },
+        "disp": {
+          "stable": true,
+          "mean": -9.46017378127734,
+          "limit": -8.041147714085739
+        },
+        "acceleration": {
+          "stable": true,
+          "mean": -0.1434780363678044
+        }
+      }
+    },
+    "LATERAL": {
+      "active": true,
+      "opp_samples": 3,
+      "thr_samples": 2,
+      "buy_rules": {
+        "stretching": {
+          "stable": true,
+          "mean": 10.33449408706891,
+          "min_limit": 9.13449408706891,
+          "max_limit": 11.534494087068909
+        },
+        "mola": {
+          "stable": true,
+          "mean": 11.28195517648453,
+          "max_limit": 14.102443970605663
+        },
+        "disp": {
+          "stable": true,
+          "mean": -22.511268856257235,
+          "max_limit": -25.88795918469582
+        },
+        "acceleration": {
+          "stable": true,
+          "mean": 0.23927287025907637
+        }
+      },
+      "sell_rules": {
+        "stretching": {
+          "stable": true,
+          "mean": 9.171629612233268,
+          "min_limit": 7.971629612233268,
+          "max_limit": 10.371629612233267
+        },
+        "mola": {
+          "stable": true,
+          "mean": 9.834310400909663
+        },
+        "disp": {
+          "stable": true,
+          "mean": -16.38633524832526,
+          "limit": -13.928384961076471
+        },
+        "acceleration": {
+          "stable": true,
+          "mean": 0.00900688707861974
+        }
+      }
+    },
+    "CAOTICO": {
+      "active": true,
+      "opp_samples": 4,
+      "thr_samples": 3,
+      "buy_rules": {
+        "stretching": {
+          "stable": true,
+          "mean": 4.2174631933014455,
+          "min_limit": 3.0174631933014453,
+          "max_limit": 5.417463193301446
+        },
+        "mola": {
+          "stable": true,
+          "mean": 4.573304806683092,
+          "max_limit": 5.716631008353865
+        },
+        "disp": {
+          "stable": true,
+          "mean": -2.277425142317891,
+          "max_limit": -2.619038913665574
+        },
+        "acceleration": {
+          "stable": true,
+          "mean": 0.26554994775322527
+        }
+      },
+      "sell_rules": {
+        "stretching": {
+          "stable": true,
+          "mean": 3.9572782014147383,
+          "min_limit": 2.7572782014147386,
+          "max_limit": 5.157278201414738
+        },
+        "mola": {
+          "stable": true,
+          "mean": 4.234357704647601
+        },
+        "disp": {
+          "stable": true,
+          "mean": 9.287472930255612,
+          "limit": 7.89435199071727
+        },
+        "acceleration": {
+          "stable": true,
+          "mean": 0.7614513854327877
+        }
+      }
+    }
+  }
+}

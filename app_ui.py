@@ -2046,23 +2046,23 @@ with tab_trader_game:
                 <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px;">
                     <div style="background: rgba(14, 165, 233, 0.1); border: 1px solid rgba(14, 165, 233, 0.3); border-radius: 6px; padding: 6px 12px; text-align: center; flex: 1; min-width: 60px;">
                         <div style="font-size: 10px; color: #0ea5e9; text-transform: uppercase; font-weight: bold;">Rápida (P2)</div>
-                        <div style="font-size: 18px; font-weight: 900; color: #e2e8f0;">{st.session_state.tg_p2}</div>
+                        <div style="font-size: 18px; font-weight: 900; color: var(--text-color);">{st.session_state.tg_p2}</div>
                     </div>
                     <div style="background: rgba(249, 115, 22, 0.1); border: 1px solid rgba(249, 115, 22, 0.3); border-radius: 6px; padding: 6px 12px; text-align: center; flex: 1; min-width: 60px;">
                         <div style="font-size: 10px; color: #f97316; text-transform: uppercase; font-weight: bold;">Confirm (P3)</div>
-                        <div style="font-size: 18px; font-weight: 900; color: #e2e8f0;">{st.session_state.tg_p3}</div>
+                        <div style="font-size: 18px; font-weight: 900; color: var(--text-color);">{st.session_state.tg_p3}</div>
                     </div>
                     <div style="background: rgba(168, 85, 247, 0.1); border: 1px solid rgba(168, 85, 247, 0.3); border-radius: 6px; padding: 6px 12px; text-align: center; flex: 1; min-width: 60px;">
                         <div style="font-size: 10px; color: #a855f7; text-transform: uppercase; font-weight: bold;">Média (P4)</div>
-                        <div style="font-size: 18px; font-weight: 900; color: #e2e8f0;">{st.session_state.tg_p4}</div>
+                        <div style="font-size: 18px; font-weight: 900; color: var(--text-color);">{st.session_state.tg_p4}</div>
                     </div>
                     <div style="background: rgba(236, 72, 153, 0.1); border: 1px solid rgba(236, 72, 153, 0.3); border-radius: 6px; padding: 6px 12px; text-align: center; flex: 1; min-width: 60px;">
                         <div style="font-size: 10px; color: #ec4899; text-transform: uppercase; font-weight: bold;">Longa (P5)</div>
-                        <div style="font-size: 18px; font-weight: 900; color: #e2e8f0;">{st.session_state.tg_p5}</div>
+                        <div style="font-size: 18px; font-weight: 900; color: var(--text-color);">{st.session_state.tg_p5}</div>
                     </div>
                     <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 6px; padding: 6px 12px; text-align: center; flex: 1; min-width: 60px;">
                         <div style="font-size: 10px; color: #10b981; text-transform: uppercase; font-weight: bold;">Mestra (P6)</div>
-                        <div style="font-size: 18px; font-weight: 900; color: #e2e8f0;">{st.session_state.tg_p6}</div>
+                        <div style="font-size: 18px; font-weight: 900; color: var(--text-color);">{st.session_state.tg_p6}</div>
                     </div>
                 </div>
                 <div style="font-size: 11px; color: #64748b; margin-top: 10px; font-style: italic; text-align: center;">
@@ -2378,7 +2378,7 @@ with tab_trader_game:
                     </div>
                     <div class="review-stat" style="flex:1;">
                         <div style="color:#64748b; font-size:11px; text-transform:uppercase;">Operacoes</div>
-                        <div style="color:#e2e8f0; font-size:22px; font-weight:900; font-family:monospace;">{len(st.session_state.tg_trades)}</div>
+                        <div style="color: var(--text-color); font-size:22px; font-weight:900; font-family:monospace;">{len(st.session_state.tg_trades)}</div>
                     </div>
                     <div class="review-stat" style="flex:1;">
                         <div style="color:#64748b; font-size:11px; text-transform:uppercase;">Win Rate LONG</div>

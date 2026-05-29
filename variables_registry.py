@@ -75,118 +75,108 @@ def initialize_variables_registry():
     if "allow_reentry_val" not in st.session_state:
         st.session_state.allow_reentry_val = True
 
+def render_variable_widget(var):
+    # Se for toggleable (ex: Stop Loss, Take Profit), desenhar toggle e slider
+    if var.is_toggleable:
+        toggle_key = f"{var.key}_active"
+        st.session_state[toggle_key] = st.toggle(
+            f"Ativar {var.name.split(' ')[0]}", 
+            value=st.session_state.get(toggle_key, True), 
+            key=f"tg_toggle_{var.key}"
+        )
+        # Sincronizar com variáveis antigas do jogo
+        if var.key == "tg_sl_pct":
+            st.session_state.tg_sl_active = st.session_state[toggle_key]
+        elif var.key == "tg_tp_pct":
+            st.session_state.tg_tp_active = st.session_state[toggle_key]
+        elif var.key == "tg_ts_pct":
+            st.session_state.tg_ts_active = st.session_state[toggle_key]
+            
+        if st.session_state[toggle_key]:
+            st.session_state[var.key] = st.slider(
+                var.name, 
+                min_value=var.min_val, 
+                max_value=var.max_val, 
+                value=float(st.session_state.get(var.key, var.default_value)), 
+                step=var.step,
+                key=f"tg_slide_{var.key}"
+            )
+            # Sincronizar valor com jogo
+            if var.key == "tg_sl_pct": st.session_state.tg_sl_pct = st.session_state[var.key]
+            elif var.key == "tg_tp_pct": st.session_state.tg_tp_pct = st.session_state[var.key]
+            elif var.key == "tg_ts_pct": st.session_state.tg_ts_pct = st.session_state[var.key]
+        else:
+            st.markdown(f"<p style='color:#64748b; font-style:italic; font-size:12px;'>{var.name} desativado.</p>", unsafe_allow_html=True)
+    else:
+        # Variável numérica padrão
+        if var.step is not None:
+            st.session_state[var.key] = st.slider(
+                var.name, 
+                min_value=var.min_val, 
+                max_value=var.max_val, 
+                value=float(st.session_state.get(var.key, var.default_value)) if isinstance(var.default_value, float) else int(st.session_state.get(var.key, var.default_value)), 
+                step=var.step,
+                key=f"tg_slide_{var.key}"
+            )
+        else:
+            st.session_state[var.key] = st.number_input(
+                var.name,
+                value=st.session_state.get(var.key, var.default_value),
+                key=f"tg_num_{var.key}"
+            )
+
 def render_variables_dashboard(compact=False):
     """Desenha a Central & Dicionário de Variáveis. Suporta compact=True para ecrãs de topo."""
     initialize_variables_registry()
     
     if not compact:
-        st.markdown("<h2 style='text-align: center; color: #7c3aed;'>📖 Central & Dicionário de Variáveis</h2>", unsafe_allow_html=True)
+        st.markdown("<h2 style='text-align: center; color: #7c3aed;'>🔧 Central & Dicionário de Variáveis</h2>", unsafe_allow_html=True)
         st.markdown("<p style='text-align: center; color: #64748b;'>A fonte única de verdade e painel de comando quantitativo do OlimpoTrade.</p>", unsafe_allow_html=True)
         st.markdown("---")
 
-    # Separar em duas colunas: 1) Dicionário de Consulta, 2) Ajustes Globais
-    col_left, col_right = st.columns([1, 1])
-
-    with col_left:
-        st.markdown("##### 📚 Dicionário de Conceitos & Fórmulas")
-        
-        table_data = []
-        for var in VARIABLES:
-            status = "Ativo"
-            if var.is_toggleable:
-                status = "LIGADO" if st.session_state.get(f"{var.key}_active", True) else "DESLIGADO"
+    # Renderizar os ajustadores divididos em 4 Colunas horizontais
+    col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
+    
+    with col1:
+        st.markdown("##### 📏 Médias Móveis")
+        mavg_vars = [v for v in VARIABLES if v.category == "Médias Móveis (Lab/Jogo)"]
+        for var in mavg_vars:
+            render_variable_widget(var)
             
-            table_data.append({
-                "Categoria": var.category,
-                "Nome": var.name,
-                "Conceito/Fórmula": var.formula,
-                "Descrição": var.description,
-                "Estado/Valor": f"{st.session_state.get(var.key)} ({status})"
-            })
+    with col2:
+        st.markdown("##### ⚙️ Estratégias & Cockpit")
+        # Checkboxes extras para Estratégias Clássicas
+        st.session_state.paulo_gold_trend_filter_val = st.checkbox(
+            "PG: Filtro Macro", 
+            value=st.session_state.paulo_gold_trend_filter_val,
+            key="tg_chk_pg_filter"
+        )
+        st.session_state.allow_reentry_val = st.checkbox(
+            "Re-Entrada Tendência", 
+            value=st.session_state.allow_reentry_val,
+            key="tg_chk_reentry"
+        )
+        
+        # Variáveis de Estratégias Clássicas e Indicadores Cockpit
+        class_vars = [v for v in VARIABLES if v.category in ["Estratégias Clássicas", "Indicadores Cockpit"]]
+        for var in class_vars:
+            render_variable_widget(var)
             
-        df_vars = pd.DataFrame(table_data)
-        st.dataframe(df_vars, width='stretch', hide_index=True, height=520)
-
-    with col_right:
-        st.markdown("##### ⚙️ Ajustadores Rápidos do Cérebro")
-        
-        # Agrupar ajustes por categorias
-        categories = ["Médias Móveis (Lab/Jogo)", "Estratégias Clássicas", "Indicadores Cockpit", "Filtros e Decisão", "Gestão de Risco", "Custos de Mercado"]
-        
-        for cat in categories:
-            cat_vars = [v for v in VARIABLES if v.category == cat]
-            if not cat_vars:
-                continue
-                
-            with st.expander(f"🔹 {cat}", expanded=(cat in ["Médias Móveis (Lab/Jogo)", "Filtros e Decisão", "Gestão de Risco"])):
-                
-                # Renderizar filtros manuais extras para estratégias clássicas
-                if cat == "Estratégias Clássicas":
-                    col_b1, col_b2 = st.columns(2)
-                    with col_b1:
-                        st.session_state.paulo_gold_trend_filter_val = st.checkbox(
-                            "PG: Filtro Macro (Rápida > Lenta)", 
-                            value=st.session_state.paulo_gold_trend_filter_val,
-                            key="tg_chk_pg_filter"
-                        )
-                    with col_b2:
-                        st.session_state.allow_reentry_val = st.checkbox(
-                            "Cruzamentos: Re-Entrada em Tendência", 
-                            value=st.session_state.allow_reentry_val,
-                            key="tg_chk_reentry"
-                        )
-                        
-                for var in cat_vars:
-                    # Se for toggleable (ex: Stop Loss, Take Profit), desenhar toggle e input na mesma linha
-                    if var.is_toggleable:
-                        toggle_key = f"{var.key}_active"
-                        
-                        col_t1, col_t2 = st.columns([1, 2])
-                        with col_t1:
-                            st.session_state[toggle_key] = st.toggle(f"Ativar {var.name.split(' ')[0]}", value=st.session_state.get(toggle_key, True), key=f"tg_toggle_{var.key}")
-                            # Sincronizar com variáveis antigas do jogo
-                            if var.key == "tg_sl_pct":
-                                st.session_state.tg_sl_active = st.session_state[toggle_key]
-                            elif var.key == "tg_tp_pct":
-                                st.session_state.tg_tp_active = st.session_state[toggle_key]
-                            elif var.key == "tg_ts_pct":
-                                st.session_state.tg_ts_active = st.session_state[toggle_key]
-                        with col_t2:
-                            if st.session_state[toggle_key]:
-                                st.session_state[var.key] = st.slider(
-                                    var.name, 
-                                    min_value=var.min_val, 
-                                    max_value=var.max_val, 
-                                    value=float(st.session_state.get(var.key, var.default_value)), 
-                                    step=var.step,
-                                    key=f"tg_slide_{var.key}"
-                                )
-                                # Sincronizar valor com jogo
-                                if var.key == "tg_sl_pct": st.session_state.tg_sl_pct = st.session_state[var.key]
-                                elif var.key == "tg_tp_pct": st.session_state.tg_tp_pct = st.session_state[var.key]
-                                elif var.key == "tg_ts_pct": st.session_state.tg_ts_pct = st.session_state[var.key]
-                            else:
-                                st.markdown(f"<p style='color:#94a3b8; font-style:italic; margin-top:28px;'>{var.name} desativado.</p>", unsafe_allow_html=True)
-                    else:
-                        # Variável numérica padrão
-                        if var.step is not None:
-                            st.session_state[var.key] = st.slider(
-                                var.name, 
-                                min_value=var.min_val, 
-                                max_value=var.max_val, 
-                                value=float(st.session_state.get(var.key, var.default_value)) if isinstance(var.default_value, float) else int(st.session_state.get(var.key, var.default_value)), 
-                                step=var.step,
-                                key=f"tg_slide_{var.key}"
-                            )
-                        else:
-                            st.session_state[var.key] = st.number_input(
-                                var.name,
-                                value=st.session_state.get(var.key, var.default_value),
-                                key=f"tg_num_{var.key}"
-                            )
-        
+    with col3:
+        st.markdown("##### 🛡️ Decisão & Risco")
+        risk_vars = [v for v in VARIABLES if v.category in ["Filtros e Decisão", "Gestão de Risco"]]
+        for var in risk_vars:
+            render_variable_widget(var)
+            
+    with col4:
+        st.markdown("##### 💸 Custos & Operações")
+        cost_vars = [v for v in VARIABLES if v.category == "Custos de Mercado"]
+        for var in cost_vars:
+            render_variable_widget(var)
+            
+        st.markdown("<div style='height:25px;'></div>", unsafe_allow_html=True)
         # Botão para repor padrões
-        if st.button("🔄 Repor Todos os Valores Padrão (Reset)", width='stretch', type="secondary", key="tg_btn_reset_global"):
+        if st.button("🔄 Repor Padrões (Reset)", width='stretch', type="secondary", key="tg_btn_reset_global"):
             for var in VARIABLES:
                 st.session_state[var.key] = var.default_value
                 if var.is_toggleable:
@@ -198,3 +188,24 @@ def render_variables_dashboard(compact=False):
             st.session_state.allow_reentry_val = True
             st.toast("Valores de fábrica repostos com sucesso!")
             st.rerun()
+
+    # Segunda Linha: O Dicionário de Conceitos a ocupar toda a largura (100% de ecrã)
+    st.markdown("---")
+    st.markdown("##### 📖 Dicionário de Conceitos & Fórmulas (Consulta)")
+    
+    table_data = []
+    for var in VARIABLES:
+        status = "Ativo"
+        if var.is_toggleable:
+            status = "LIGADO" if st.session_state.get(f"{var.key}_active", True) else "DESLIGADO"
+        
+        table_data.append({
+            "Categoria": var.category,
+            "Nome": var.name,
+            "Conceito/Fórmula": var.formula,
+            "Descrição/Finalidade": var.description,
+            "Valor Ativo (Estado)": f"{st.session_state.get(var.key)} ({status})"
+        })
+        
+    df_vars = pd.DataFrame(table_data)
+    st.dataframe(df_vars, width='stretch', hide_index=True, height=350)

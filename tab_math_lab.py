@@ -1,4 +1,5 @@
 ﻿import streamlit as st
+import json
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
@@ -1160,8 +1161,10 @@ def render_consensus_engine():
     try:
         with open(filepath, "r", encoding="utf-8") as f:
             knowledge = json.load(f)
-    except Exception:
-        st.error("Erro ao ler a base de dados de testes. O ficheiro pode estar corrompido.")
+    except Exception as e:
+        import traceback
+        st.error(f"Erro ao ler a base de dados de testes: {e}")
+        st.code(traceback.format_exc())
         return
         
     if not knowledge:

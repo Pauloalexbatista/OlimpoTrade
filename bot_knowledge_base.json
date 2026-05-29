@@ -1,0 +1,577 @@
+{
+  "Didatico classico ruido5": {
+    "test_name": "Didatico classico ruido5",
+    "timestamp": "2026-05-28 15:49",
+    "smas": [
+      5,
+      13,
+      21,
+      55,
+      144
+    ],
+    "regimes": {
+      "Todos": {
+        "opp_count": 50,
+        "thr_count": 60,
+        "opp_stats": {
+          "acc_mean": -1.5791401842559822,
+          "acc_std": 2.746522005649701,
+          "strt_mean": 2.541413126083535,
+          "strt_std": 1.682866030961207,
+          "mola_mean": 3.061200000000001,
+          "disp_mean": -0.9502000000000002,
+          "infil_rate": 0.0,
+          "reteste_rate": 14.000000000000002
+        },
+        "thr_stats": {
+          "acc_mean": 1.565615863195713,
+          "acc_std": 2.864785742243419,
+          "strt_mean": 2.476162964236813,
+          "strt_std": 1.5573363628654902,
+          "mola_mean": 2.981,
+          "disp_mean": 3.120833333333333,
+          "infil_rate": 3.3333333333333335,
+          "reteste_rate": 11.666666666666666
+        }
+      },
+      "BULL": {
+        "opp_count": 0,
+        "thr_count": 24,
+        "opp_stats": {},
+        "thr_stats": {
+          "acc_mean": 1.7546707083286748,
+          "acc_std": 2.722845955416893,
+          "strt_mean": 2.6154615527907015,
+          "strt_std": 1.4464446842393095,
+          "mola_mean": 3.0416666666666665,
+          "disp_mean": 8.67,
+          "infil_rate": 0.0,
+          "reteste_rate": 0.0
+        }
+      },
+      "BEAR": {
+        "opp_count": 16,
+        "thr_count": 0,
+        "opp_stats": {
+          "acc_mean": -1.7915709476584212,
+          "acc_std": 2.9910623427468397,
+          "strt_mean": 3.730977710909409,
+          "strt_std": 2.0123482448308794,
+          "mola_mean": 4.3925,
+          "disp_mean": -10.305625,
+          "infil_rate": 0.0,
+          "reteste_rate": 0.0
+        },
+        "thr_stats": {}
+      },
+      "LATERAL": {
+        "opp_count": 15,
+        "thr_count": 12,
+        "opp_stats": {
+          "acc_mean": -1.7081239045898806,
+          "acc_std": 2.1981726960036667,
+          "strt_mean": 1.5725630237596009,
+          "strt_std": 0.9476710184860112,
+          "mola_mean": 1.9273333333333336,
+          "disp_mean": 3.5193333333333334,
+          "infil_rate": 0.0,
+          "reteste_rate": 26.666666666666668
+        },
+        "thr_stats": {
+          "acc_mean": 2.8066650369853128,
+          "acc_std": 2.4640266571459266,
+          "strt_mean": 1.4563100965154498,
+          "strt_std": 0.8346819288169955,
+          "mola_mean": 1.7916666666666667,
+          "disp_mean": 4.395833333333333,
+          "infil_rate": 16.666666666666664,
+          "reteste_rate": 25.0
+        }
+      },
+      "CAOTICO": {
+        "opp_count": 19,
+        "thr_count": 24,
+        "opp_stats": {
+          "acc_mean": -1.2984218674429557,
+          "acc_std": 3.0305174236518235,
+          "strt_mean": 2.3045561880648533,
+          "strt_std": 1.2397704920933315,
+          "mola_mean": 2.8352631578947367,
+          "disp_mean": 3.3994736842105264,
+          "infil_rate": 0.0,
+          "reteste_rate": 15.789473684210526
+        },
+        "thr_stats": {
+          "acc_mean": 0.7560364311679516,
+          "acc_std": 3.0348510421882247,
+          "strt_mean": 2.8467908095436063,
+          "strt_std": 1.7577722461106384,
+          "mola_mean": 3.515,
+          "disp_mean": -3.0658333333333334,
+          "infil_rate": 0.0,
+          "reteste_rate": 16.666666666666664
+        }
+      }
+    }
+  },
+  "Didatico Classico (2026-05-28 20:58:15)": {
+    "test_name": "Didatico Classico (2026-05-28 20:58:15)",
+    "timestamp": "2026-05-28 20:58",
+    "smas": [
+      5,
+      13,
+      21,
+      55,
+      144
+    ],
+    "regimes": {
+      "Todos": {
+        "opp_count": 81,
+        "thr_count": 64,
+        "opp_stats": {
+          "acc_mean": -1.3998201764613922,
+          "acc_std": 4.565416588004715,
+          "strt_mean": 26.44446681869134,
+          "strt_std": 31.593646392080604,
+          "mola_mean": 31.247283950617287,
+          "disp_mean": -29.491358024691355,
+          "infil_rate": 3.7037037037037033,
+          "reteste_rate": 12.345679012345679
+        },
+        "thr_stats": {
+          "acc_mean": 2.728038482329885,
+          "acc_std": 4.988819171666847,
+          "strt_mean": 10.199261541068788,
+          "strt_std": 16.279113266242426,
+          "mola_mean": 12.0609375,
+          "disp_mean": 4.875781249999999,
+          "infil_rate": 4.6875,
+          "reteste_rate": 12.5
+        }
+      },
+      "BULL": {
+        "opp_count": 0,
+        "thr_count": 29,
+        "opp_stats": {},
+        "thr_stats": {
+          "acc_mean": 1.1933408651179935,
+          "acc_std": 4.07348930165357,
+          "strt_mean": 8.47689269038871,
+          "strt_std": 10.113572379401585,
+          "mola_mean": 9.948275862068966,
+          "disp_mean": 28.06586206896552,
+          "infil_rate": 0.0,
+          "reteste_rate": 0.0
+        }
+      },
+      "BEAR": {
+        "opp_count": 27,
+        "thr_count": 0,
+        "opp_stats": {
+          "acc_mean": -1.072330590739108,
+          "acc_std": 5.195272706967573,
+          "strt_mean": 27.63583305467787,
+          "strt_std": 31.54049143614564,
+          "mola_mean": 32.54259259259259,
+          "disp_mean": -40.10407407407408,
+          "infil_rate": 0.0,
+          "reteste_rate": 0.0
+        },
+        "thr_stats": {}
+      },
+      "LATERAL": {
+        "opp_count": 12,
+        "thr_count": 8,
+        "opp_stats": {
+          "acc_mean": -2.0731969222512228,
+          "acc_std": 2.531931882622769,
+          "strt_mean": 1.1519171737476466,
+          "strt_std": 0.7474373576148873,
+          "mola_mean": 1.3575000000000002,
+          "disp_mean": 0.8266666666666667,
+          "infil_rate": 8.333333333333332,
+          "reteste_rate": 41.66666666666667
+        },
+        "thr_stats": {
+          "acc_mean": 1.0687879563815272,
+          "acc_std": 1.2820252437581119,
+          "strt_mean": 0.5578403947738246,
+          "strt_std": 0.15171770050770156,
+          "mola_mean": 0.6912499999999999,
+          "disp_mean": 0.7862499999999999,
+          "infil_rate": 12.5,
+          "reteste_rate": 25.0
+        }
+      },
+      "CAOTICO": {
+        "opp_count": 42,
+        "thr_count": 27,
+        "opp_stats": {
+          "acc_mean": -1.4179558399143375,
+          "acc_std": 4.650758437371338,
+          "strt_mean": 32.90503127982678,
+          "strt_std": 32.94998191291397,
+          "mola_mean": 38.954523809523806,
+          "disp_mean": -31.331190476190482,
+          "infil_rate": 4.761904761904762,
+          "reteste_rate": 11.904761904761903
+        },
+        "thr_stats": {
+          "acc_mean": 4.868047189986616,
+          "acc_std": 5.810690740701189,
+          "strt_mean": 14.905930646257012,
+          "strt_std": 21.841797944821206,
+          "mola_mean": 17.698888888888888,
+          "disp_mean": -18.82037037037037,
+          "infil_rate": 7.4074074074074066,
+          "reteste_rate": 22.22222222222222
+        }
+      }
+    }
+  },
+  "Didatico Classico (2026-05-28 21:07:22)": {
+    "test_name": "Didatico Classico (2026-05-28 21:07:22)",
+    "timestamp": "2026-05-28 21:07",
+    "smas": [
+      5,
+      13,
+      21,
+      55,
+      144
+    ],
+    "regimes": {
+      "Todos": {
+        "opp_count": 52,
+        "thr_count": 50,
+        "opp_stats": {
+          "acc_mean": -2.133127036348941,
+          "acc_std": 4.204374017715435,
+          "strt_mean": 2.046299986788872,
+          "strt_std": 1.5185124327697792,
+          "mola_mean": 2.3874999999999997,
+          "disp_mean": 0.8628846153846153,
+          "infil_rate": 3.8461538461538463,
+          "reteste_rate": 36.53846153846153
+        },
+        "thr_stats": {
+          "acc_mean": 2.3824053304894117,
+          "acc_std": 4.309728817579203,
+          "strt_mean": 2.3290504918591215,
+          "strt_std": 1.423999780744061,
+          "mola_mean": 2.7329999999999997,
+          "disp_mean": 4.4756,
+          "infil_rate": 4.0,
+          "reteste_rate": 10.0
+        }
+      },
+      "BULL": {
+        "opp_count": 0,
+        "thr_count": 25,
+        "opp_stats": {},
+        "thr_stats": {
+          "acc_mean": 1.7253398778263362,
+          "acc_std": 4.222886800817612,
+          "strt_mean": 2.612708412730925,
+          "strt_std": 1.3949746100645477,
+          "mola_mean": 3.0579999999999994,
+          "disp_mean": 7.8564,
+          "infil_rate": 0.0,
+          "reteste_rate": 0.0
+        }
+      },
+      "BEAR": {
+        "opp_count": 15,
+        "thr_count": 0,
+        "opp_stats": {
+          "acc_mean": -2.936333060973842,
+          "acc_std": 5.100517770244325,
+          "strt_mean": 2.4806521177771708,
+          "strt_std": 1.772442146885852,
+          "mola_mean": 2.844666666666667,
+          "disp_mean": -4.591333333333333,
+          "infil_rate": 0.0,
+          "reteste_rate": 20.0
+        },
+        "thr_stats": {}
+      },
+      "LATERAL": {
+        "opp_count": 22,
+        "thr_count": 11,
+        "opp_stats": {
+          "acc_mean": -0.7369427435804297,
+          "acc_std": 0.9814800163728837,
+          "strt_mean": 1.2685915859915682,
+          "strt_std": 0.8697703945154869,
+          "mola_mean": 1.5399999999999998,
+          "disp_mean": 2.916363636363636,
+          "infil_rate": 0.0,
+          "reteste_rate": 59.09090909090909
+        },
+        "thr_stats": {
+          "acc_mean": 2.50203254921435,
+          "acc_std": 2.3128525353639438,
+          "strt_mean": 1.0819974159701968,
+          "strt_std": 0.5553761704298007,
+          "mola_mean": 1.290909090909091,
+          "disp_mean": 2.1999999999999997,
+          "infil_rate": 18.181818181818183,
+          "reteste_rate": 27.27272727272727
+        }
+      },
+      "CAOTICO": {
+        "opp_count": 15,
+        "thr_count": 14,
+        "opp_stats": {
+          "acc_mean": -3.3776579744511914,
+          "acc_std": 5.6142438096004925,
+          "strt_mean": 2.752586843636619,
+          "strt_std": 1.5609713436168227,
+          "mola_mean": 3.173333333333333,
+          "disp_mean": 3.305333333333333,
+          "infil_rate": 13.333333333333334,
+          "reteste_rate": 20.0
+        },
+        "thr_stats": {
+          "acc_mean": 3.4617436812467384,
+          "acc_std": 5.556524593247495,
+          "strt_mean": 2.8023459070722,
+          "strt_std": 1.4496537085845946,
+          "mola_mean": 3.2857142857142856,
+          "disp_mean": 0.2264285714285717,
+          "infil_rate": 0.0,
+          "reteste_rate": 14.285714285714285
+        }
+      }
+    }
+  },
+  "Montanha Russa (2026-05-28 21:11:46)": {
+    "test_name": "Montanha Russa (2026-05-28 21:11:46)",
+    "timestamp": "2026-05-28 21:11",
+    "smas": [
+      5,
+      13,
+      21,
+      55,
+      144
+    ],
+    "regimes": {
+      "Todos": {
+        "opp_count": 55,
+        "thr_count": 56,
+        "opp_stats": {
+          "acc_mean": -2.163692267006013,
+          "acc_std": 2.534089198897119,
+          "strt_mean": 1.926216588873984,
+          "strt_std": 1.0591489020317635,
+          "mola_mean": 2.2932727272727274,
+          "disp_mean": -2.6016363636363637,
+          "infil_rate": 5.454545454545454,
+          "reteste_rate": 12.727272727272727
+        },
+        "thr_stats": {
+          "acc_mean": 1.424514800470009,
+          "acc_std": 2.488658413370383,
+          "strt_mean": 1.8606874969421343,
+          "strt_std": 0.9634408855522736,
+          "mola_mean": 2.1887499999999998,
+          "disp_mean": 1.4903571428571427,
+          "infil_rate": 1.7857142857142856,
+          "reteste_rate": 21.428571428571427
+        }
+      },
+      "BULL": {
+        "opp_count": 0,
+        "thr_count": 19,
+        "opp_stats": {},
+        "thr_stats": {
+          "acc_mean": 1.0216718515907097,
+          "acc_std": 1.9913531636904378,
+          "strt_mean": 2.3984393226826706,
+          "strt_std": 1.040607080973023,
+          "mola_mean": 2.811052631578947,
+          "disp_mean": 7.001052631578948,
+          "infil_rate": 0.0,
+          "reteste_rate": 15.789473684210526
+        }
+      },
+      "BEAR": {
+        "opp_count": 23,
+        "thr_count": 0,
+        "opp_stats": {
+          "acc_mean": -2.9032517791145476,
+          "acc_std": 2.2685445512455225,
+          "strt_mean": 2.5842748498859,
+          "strt_std": 1.0160696599219334,
+          "mola_mean": 3.0195652173913046,
+          "disp_mean": -6.532173913043478,
+          "infil_rate": 0.0,
+          "reteste_rate": 0.0
+        },
+        "thr_stats": {}
+      },
+      "LATERAL": {
+        "opp_count": 12,
+        "thr_count": 14,
+        "opp_stats": {
+          "acc_mean": -2.204163696298167,
+          "acc_std": 1.9364879947246159,
+          "strt_mean": 1.1600892099954554,
+          "strt_std": 0.8925114516809864,
+          "mola_mean": 1.4458333333333335,
+          "disp_mean": 0.9600000000000001,
+          "infil_rate": 8.333333333333332,
+          "reteste_rate": 25.0
+        },
+        "thr_stats": {
+          "acc_mean": 1.367569923930286,
+          "acc_std": 2.5804595137346524,
+          "strt_mean": 1.3592377355685894,
+          "strt_std": 0.8395432822198111,
+          "mola_mean": 1.6121428571428569,
+          "disp_mean": 0.8864285714285716,
+          "infil_rate": 7.142857142857142,
+          "reteste_rate": 14.285714285714285
+        }
+      },
+      "CAOTICO": {
+        "opp_count": 20,
+        "thr_count": 23,
+        "opp_stats": {
+          "acc_mean": -1.2889159705059057,
+          "acc_std": 2.941485295465939,
+          "strt_mean": 1.629126016037398,
+          "strt_std": 0.7374675732959551,
+          "mola_mean": 1.9665000000000004,
+          "disp_mean": -0.21849999999999978,
+          "infil_rate": 10.0,
+          "reteste_rate": 20.0
+        },
+        "thr_stats": {
+          "acc_mean": 1.7919602048292618,
+          "acc_std": 2.832130602965716,
+          "strt_mean": 1.7216880173838491,
+          "strt_std": 0.7668879171426579,
+          "mola_mean": 2.0256521739130435,
+          "disp_mean": -2.694347826086956,
+          "infil_rate": 0.0,
+          "reteste_rate": 30.434782608695656
+        }
+      }
+    }
+  },
+  "Flash Crash (2026-05-28 21:17:28)": {
+    "test_name": "Flash Crash (2026-05-28 21:17:28)",
+    "timestamp": "2026-05-28 21:17",
+    "smas": [
+      5,
+      13,
+      21,
+      55,
+      144
+    ],
+    "regimes": {
+      "Todos": {
+        "opp_count": 52,
+        "thr_count": 44,
+        "opp_stats": {
+          "acc_mean": -1.2454841409964748,
+          "acc_std": 1.8645013930003007,
+          "strt_mean": 3.7422761168734238,
+          "strt_std": 6.8080500013411696,
+          "mola_mean": 4.560769230769231,
+          "disp_mean": 0.6909615384615388,
+          "infil_rate": 0.0,
+          "reteste_rate": 28.846153846153843
+        },
+        "thr_stats": {
+          "acc_mean": 1.6347673230280977,
+          "acc_std": 2.39269324624572,
+          "strt_mean": 2.8507768808846263,
+          "strt_std": 4.473159249051304,
+          "mola_mean": 3.4693181818181817,
+          "disp_mean": 5.559318181818181,
+          "infil_rate": 2.272727272727273,
+          "reteste_rate": 18.181818181818183
+        }
+      },
+      "BULL": {
+        "opp_count": 0,
+        "thr_count": 27,
+        "opp_stats": {},
+        "thr_stats": {
+          "acc_mean": 1.0590077620080176,
+          "acc_std": 1.7333849256132523,
+          "strt_mean": 2.7975564635083536,
+          "strt_std": 2.3588279418866978,
+          "mola_mean": 3.332222222222222,
+          "disp_mean": 8.816296296296295,
+          "infil_rate": 0.0,
+          "reteste_rate": 7.4074074074074066
+        }
+      },
+      "BEAR": {
+        "opp_count": 15,
+        "thr_count": 0,
+        "opp_stats": {
+          "acc_mean": -1.3709918286428622,
+          "acc_std": 2.1226812036086313,
+          "strt_mean": 5.875951555486492,
+          "strt_std": 10.579470450763479,
+          "mola_mean": 7.263333333333334,
+          "disp_mean": -8.349333333333334,
+          "infil_rate": 0.0,
+          "reteste_rate": 0.0
+        },
+        "thr_stats": {}
+      },
+      "LATERAL": {
+        "opp_count": 18,
+        "thr_count": 10,
+        "opp_stats": {
+          "acc_mean": -0.7558838200209961,
+          "acc_std": 1.631504014309864,
+          "strt_mean": 0.8876904297635929,
+          "strt_std": 0.6431383767270136,
+          "mola_mean": 1.0755555555555558,
+          "disp_mean": 1.6861111111111111,
+          "infil_rate": 0.0,
+          "reteste_rate": 61.111111111111114
+        },
+        "thr_stats": {
+          "acc_mean": 2.0332304794334846,
+          "acc_std": 2.200103985053693,
+          "strt_mean": 0.8188136798966635,
+          "strt_std": 0.7620649677317024,
+          "mola_mean": 0.999,
+          "disp_mean": 2.107,
+          "infil_rate": 10.0,
+          "reteste_rate": 40.0
+        }
+      },
+      "CAOTICO": {
+        "opp_count": 19,
+        "thr_count": 7,
+        "opp_stats": {
+          "acc_mean": -1.6102310074629385,
+          "acc_std": 1.854188791833416,
+          "strt_mean": 4.762139842598733,
+          "strt_std": 5.553355569924559,
+          "mola_mean": 5.7289473684210535,
+          "disp_mean": 6.8852631578947365,
+          "infil_rate": 0.0,
+          "reteste_rate": 21.052631578947366
+        },
+        "thr_stats": {
+          "acc_mean": 3.286321120669283,
+          "acc_std": 3.9761422799033155,
+          "strt_mean": 5.958860206461627,
+          "strt_std": 10.012613931582313,
+          "mola_mean": 7.527142857142858,
+          "disp_mean": -2.071428571428572,
+          "infil_rate": 0.0,
+          "reteste_rate": 28.57142857142857
+        }
+      }
+    }
+  }
+}
