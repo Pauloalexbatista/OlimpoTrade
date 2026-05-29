@@ -1,4 +1,4 @@
-﻿import streamlit as st
+import streamlit as st
 import pandas as pd
 
 class QuantVariable:
@@ -189,6 +189,9 @@ def render_variables_dashboard(compact=False):
             st.toast("Valores de fábrica repostos com sucesso!")
             st.rerun()
 
+    # Terceira Linha: O Cérebro Activo do BOT (Regras de Consenso DNA)
+    render_bot_brain_table()
+
     # Segunda Linha: O Dicionário de Conceitos a ocupar toda a largura (100% de ecrã)
     st.markdown("---")
     st.markdown("##### 📖 Dicionário de Conceitos & Fórmulas (Consulta)")
@@ -209,3 +212,155 @@ def render_variables_dashboard(compact=False):
         
     df_vars = pd.DataFrame(table_data)
     st.dataframe(df_vars, width='stretch', hide_index=True, height=350)
+
+def render_bot_brain_table():
+    import os
+    import json
+    
+    st.markdown("---")
+    st.markdown("##### 🧠 O Cérebro Activo do BOT (Regras de Consenso DNA)")
+    
+    dna_path = "bot_consensus_dna.json"
+    if not os.path.exists(dna_path):
+        st.info("ℹ️ Nenhum DNA de Consenso Activo gravado. Vá à aba **Laboratório Matemático** para unificar lições do historial e gravar o cérebro do Bot!")
+        return
+        
+    try:
+        with open(dna_path, "r", encoding="utf-8") as f:
+            dna = json.load(f)
+    except Exception as e:
+        st.error(f"Erro ao carregar o cérebro do Bot: {e}")
+        return
+        
+    regimes = ["BULL", "BEAR", "LATERAL", "CAOTICO"]
+    table_data = []
+    
+    for reg in regimes:
+        reg_data = dna.get("regimes", {}).get(reg, {})
+        if not reg_data or not reg_data.get("active", True):
+            table_data.append({
+                "Regime (Mercado)": reg,
+                "Tipo de Gatilho": "Todos (Inativo)",
+                "Stretching": "N/A",
+                "Coesão da Mola": "N/A",
+                "Disp. Vetorial": "N/A",
+                "Aceleração Média": "N/A",
+                "Filtros Extra": "Desativado neste regime"
+            })
+            continue
+            
+        # 1. BUY Rules (Entrada LONG)
+        buy_rules = reg_data.get("buy_rules", {})
+        if buy_rules:
+            strt = buy_rules.get("stretching", {})
+            mola = buy_rules.get("mola", {})
+            disp = buy_rules.get("disp", {})
+            acc = buy_rules.get("acceleration", {})
+            infil = buy_rules.get("infil", {})
+            reteste = buy_rules.get("reteste", {})
+            
+            strt_val = "Instável/Rejeitado"
+            if strt.get("stable", False) and strt.get("mean") is not None:
+                strt_val = f"{strt['mean']:+.2f}% ({strt.get('min_limit', 0):.2f}% a {strt.get('max_limit', 0):.2f}%)"
+                
+            mola_val = "Instável/Rejeitado"
+            if mola.get("stable", False) and mola.get("mean") is not None:
+                mola_val = f"{mola['mean']:.2f}% (Max: {mola.get('max_limit', 0):.2f}%)"
+                
+            disp_val = "Instável/Rejeitado"
+            if disp.get("stable", False) and disp.get("mean") is not None:
+                disp_val = f"{disp['mean']:+.2f}% (Max: {disp.get('max_limit', 0):.2f}%)"
+                
+            acc_val = "Instável/Rejeitado"
+            if acc.get("stable", False) and acc.get("mean") is not None:
+                symbol = "🔼 Reversão Bull" if acc['mean'] > 0 else "🔽 Reversão Bear"
+                acc_val = f"{acc['mean']:+.4f} ({symbol})"
+                
+            extra_list = []
+            if infil.get("active", False):
+                extra_list.append(f"Infiltração ({infil.get('rate', 0):.1f}%)")
+            if reteste.get("active", False):
+                extra_list.append(f"Reteste Fibo ({reteste.get('rate', 0):.1f}%)")
+            extra_val = " | ".join(extra_list) if extra_list else "Sem filtros extra"
+            
+            table_data.append({
+                "Regime (Mercado)": f"🔹 {reg}",
+                "Tipo de Gatilho": "🟢 Entrada LONG (BUY)",
+                "Stretching": strt_val,
+                "Coesão da Mola": mola_val,
+                "Disp. Vetorial": disp_val,
+                "Aceleração Média": acc_val,
+                "Filtros Extra": extra_val
+            })
+        else:
+            table_data.append({
+                "Regime (Mercado)": f"🔹 {reg}",
+                "Tipo de Gatilho": "🟢 Entrada LONG (BUY)",
+                "Stretching": "Sem regras de compra",
+                "Coesão da Mola": "N/A",
+                "Disp. Vetorial": "N/A",
+                "Aceleração Média": "N/A",
+                "Filtros Extra": "N/A"
+            })
+            
+        # 2. SELL Rules (Saída LONG / Entrada SHORT)
+        sell_rules = reg_data.get("sell_rules", {})
+        if sell_rules:
+            strt = sell_rules.get("stretching", {})
+            mola = sell_rules.get("mola", {})
+            disp = sell_rules.get("disp", {})
+            acc = sell_rules.get("acceleration", {})
+            
+            strt_val = "Instável/Rejeitado"
+            if strt.get("stable", False) and strt.get("mean") is not None:
+                strt_val = f"{strt['mean']:+.2f}% ({strt.get('min_limit', 0):.2f}% a {strt.get('max_limit', 0):.2f}%)"
+                
+            mola_val = "Instável/Rejeitado"
+            if mola.get("stable", False) and mola.get("mean") is not None:
+                mola_val = f"{mola['mean']:.2f}% (Média)"
+                
+            disp_val = "Instável/Rejeitado"
+            if disp.get("stable", False) and disp.get("mean") is not None:
+                disp_val = f"{disp['mean']:+.2f}% (Limit: {disp.get('limit', 0):.2f}%)"
+                
+            acc_val = "Instável/Rejeitado"
+            if acc.get("stable", False) and acc.get("mean") is not None:
+                symbol = "🔼 Reversão Bull" if acc['mean'] > 0 else "🔽 Reversão Bear"
+                acc_val = f"{acc['mean']:+.4f} ({symbol})"
+                
+            table_data.append({
+                "Regime (Mercado)": f"🔹 {reg}",
+                "Tipo de Gatilho": "🔴 Saída LONG / Entrada SHORT (SELL)",
+                "Stretching": strt_val,
+                "Coesão da Mola": mola_val,
+                "Disp. Vetorial": disp_val,
+                "Aceleração Média": acc_val,
+                "Filtros Extra": "N/A"
+            })
+        else:
+            table_data.append({
+                "Regime (Mercado)": f"🔹 {reg}",
+                "Tipo de Gatilho": "🔴 Saída LONG / Entrada SHORT (SELL)",
+                "Stretching": "Sem regras de venda",
+                "Coesão da Mola": "N/A",
+                "Disp. Vetorial": "N/A",
+                "Aceleração Média": "N/A",
+                "Filtros Extra": "N/A"
+            })
+            
+    df_dna = pd.DataFrame(table_data)
+    
+    # Custom styling for high readability
+    def style_gatilhos(val):
+        if "Entrada" in str(val):
+            return "background-color: rgba(34, 197, 94, 0.1); color: #15803d; font-weight: bold;"
+        elif "Saída" in str(val):
+            return "background-color: rgba(239, 68, 68, 0.1); color: #b91c1c; font-weight: bold;"
+        return ""
+        
+    styled_df = df_dna.style.map(style_gatilhos, subset=["Tipo de Gatilho"])
+    st.dataframe(styled_df, width='stretch', hide_index=True, height=310)
+    
+    last_up = dna.get("last_updated", "Desconhecido")
+    selected = ", ".join(dna.get("selected_tests", []))
+    st.markdown(f"<div style='font-size: 11px; color: #64748b; text-align: right; margin-top:-10px;'>🧬 <b>DNA unificado de:</b> {selected} | <b>Última Atualização:</b> {last_up}</div>", unsafe_allow_html=True)
