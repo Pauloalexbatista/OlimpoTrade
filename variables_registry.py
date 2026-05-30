@@ -17,15 +17,15 @@ class QuantVariable:
 # Registo central das variáveis do sistema
 VARIABLES = [
     # Médias Móveis (Fibonacci & Clássicas)
-    QuantVariable("tg_p2", "Período SMA Rápida (P2)", "Médias Móveis (Lab/Jogo)", "Média móvel rápida imediata (cabeça do feixe). Representa a velocidade do momentum curto.", "SMA(Close, P2)", 5, 2, 20, 1),
-    QuantVariable("tg_p3", "Período SMA Sinal (P3)", "Médias Móveis (Lab/Jogo)", "Média móvel usada para cruzamentos rápidos com P2 para gatilho.", "SMA(Close, P3)", 13, 3, 50, 1),
-    QuantVariable("tg_p4", "Período SMA Intermédia (P4)", "Médias Móveis (Lab/Jogo)", "Média intermédia que define o alinhamento de curto/médio prazo.", "SMA(Close, P4)", 21, 5, 100, 1),
-    QuantVariable("tg_p5", "Período SMA Lenta 1 (P5)", "Médias Móveis (Lab/Jogo)", "Média institucional lenta. Atua como primeiro trampolim de suporte.", "SMA(Close, P5)", 55, 10, 200, 1),
-    QuantVariable("tg_p6", "Período SMA Lenta 2 (P6)", "Médias Móveis (Lab/Jogo)", "Média institucional profunda. Atua como o suporte gravitacional final.", "SMA(Close, P6)", 144, 20, 500, 1),
+    QuantVariable("tg_p2", "Período SMA Rápida (P2)", "Médias Móveis (Lab/Jogo)", "Média móvel rápida imediata (cabeça do feixe). Representa a velocidade do momentum curto.", "SMA(Close, P2)", 5, 1, 999, 1),
+    QuantVariable("tg_p3", "Período SMA Sinal (P3)", "Médias Móveis (Lab/Jogo)", "Média móvel usada para cruzamentos rápidos com P2 para gatilho.", "SMA(Close, P3)", 13, 1, 999, 1),
+    QuantVariable("tg_p4", "Período SMA Intermédia (P4)", "Médias Móveis (Lab/Jogo)", "Média intermédia que define o alinhamento de curto/médio prazo.", "SMA(Close, P4)", 21, 1, 999, 1),
+    QuantVariable("tg_p5", "Período SMA Lenta 1 (P5)", "Médias Móveis (Lab/Jogo)", "Média institucional lenta. Atua como primeiro trampolim de suporte.", "SMA(Close, P5)", 55, 1, 999, 1),
+    QuantVariable("tg_p6", "Período SMA Lenta 2 (P6)", "Médias Móveis (Lab/Jogo)", "Média institucional profunda. Atua como o suporte gravitacional final.", "SMA(Close, P6)", 144, 1, 999, 1),
     
     # Médias Móveis Clássicas (PAULO_GOLD & Cruzamentos)
-    QuantVariable("short_window_val", "Janela Curta Clássica (Rápida)", "Estratégias Clássicas", "Número de candles para a média curta móvel das estratégias clássicas.", "SMA(Close, Short)", 9, 2, 100, 1),
-    QuantVariable("long_window_val", "Janela Longa Clássica (Lenta)", "Estratégias Clássicas", "Número de candles para a média longa móvel das estratégias clássicas.", "SMA(Close, Long)", 21, 5, 200, 1),
+    QuantVariable("short_window_val", "Janela Curta Clássica (Rápida)", "Estratégias Clássicas", "Número de candles para a média curta móvel das estratégias clássicas.", "SMA(Close, Short)", 9, 1, 999, 1),
+    QuantVariable("long_window_val", "Janela Longa Clássica (Lenta)", "Estratégias Clássicas", "Número de candles para a média longa móvel das estratégias clássicas.", "SMA(Close, Long)", 21, 1, 999, 1),
     QuantVariable("paulo_gold_min_dist_pct_val", "PG: Distância Mínima de Médias (%)", "Estratégias Clássicas", "Distância mínima exigida em % entre as médias rápidas/lentas na estratégia PAULO_GOLD.", "SMA_Rápida > SMA_Lenta * (1 + Dist%)", 0.0, 0.0, 2.0, 0.05),
     
     # Indicadores do Cockpit e Gatilhos
@@ -300,7 +300,7 @@ def render_bot_brain_table():
             "id": 7,
             "name": "Taxa de Infiltração",
             "json": "infil_rate",
-            "math": "% gatilhos com SMA 5>13>21 e 55<144",
+            "math": "% gatilhos cruzamento P2>P3>P4 e P5<P6",
             "meaning": "Mede a percentagem de operações de contra-tendência profunda onde o curto prazo infiltra o longo prazo.",
             "key": "infil",
             "key_exit": "infil_exit",
@@ -311,7 +311,7 @@ def render_bot_brain_table():
             "id": 8,
             "name": "Taxa de Reteste",
             "json": "reteste_rate",
-            "math": "% fechos a menos de 0.8% da SMA 55 ou 144",
+            "math": "% fechos a menos de 0.8% da SMA P5 ou P6",
             "meaning": "Mede a precisão das entradas em pullback nos suportes ou resistências de Fibonacci macro.",
             "key": "reteste",
             "key_exit": "reteste_exit",
@@ -566,18 +566,18 @@ def rebuild_consensus_dna():
                 
         for k in keys:
             val_buy = opp_weighted[k] / opp_samples if opp_samples > 0 else (50.0 if k in ["rsi", "rsi_exit", "bb", "bb_exit"] else 0.0)
-            if k.endswith("exit"):
-                buy_rules[k] = {"mean": float(val_buy)}
-            elif k in ["infil", "reteste"]:
+            if k in ["infil", "reteste", "infil_exit", "reteste_exit"]:
                 buy_rules[k] = {"rate": float(val_buy), "active": bool(val_buy > 50.0) if opp_samples > 0 else False}
+            elif k.endswith("exit"):
+                buy_rules[k] = {"mean": float(val_buy)}
             else:
                 buy_rules[k] = {"mean": float(val_buy)}
                 
             val_sell = thr_weighted[k] / thr_samples if thr_samples > 0 else (50.0 if k in ["rsi", "rsi_exit", "bb", "bb_exit"] else 0.0)
-            if k.endswith("exit"):
-                sell_rules[k] = {"mean": float(val_sell)}
-            elif k in ["infil", "reteste"]:
+            if k in ["infil", "reteste", "infil_exit", "reteste_exit"]:
                 sell_rules[k] = {"rate": float(val_sell), "active": bool(val_sell > 50.0) if thr_samples > 0 else False}
+            elif k.endswith("exit"):
+                sell_rules[k] = {"mean": float(val_sell)}
             else:
                 sell_rules[k] = {"mean": float(val_sell)}
                 

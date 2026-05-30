@@ -161,7 +161,7 @@ def find_structural_points(df):
             max_future = max(future_prices)
             future_idx = future_prices.index(max_future) + i
             gain_pct = (max_future - p_curr) / p_curr * 100
-            if gain_pct >= 2.0:
+            if gain_pct >= 0.8:
                 fundos.append({"idx_fundo": i, "price_fundo": p_curr, "idx_topo": future_idx, "price_topo": max_future, "gain_pct": gain_pct})
         is_max = all(p_curr >= prices[j] for j in range(i-10, i+11))
         if is_max:
@@ -169,7 +169,7 @@ def find_structural_points(df):
             min_future = min(future_prices)
             future_idx = future_prices.index(min_future) + i
             loss_pct = (p_curr - min_future) / p_curr * 100
-            if loss_pct >= 2.0:
+            if loss_pct >= 0.8:
                 topos.append({"idx_topo": i, "price_topo": p_curr, "idx_fundo": future_idx, "price_fundo": min_future, "loss_pct": loss_pct})
     fundos = sorted(fundos, key=lambda x: x["gain_pct"], reverse=True)
     topos = sorted(topos, key=lambda x: x["loss_pct"], reverse=True)
@@ -511,19 +511,19 @@ def render():
         
 
                     
-        p2_val = st.number_input("Média Rápida (P2)", min_value=2, max_value=500, value=int(st.session_state.math_sma_p2), step=1)
+        p2_val = st.number_input("Média Rápida (P2)", value=int(st.session_state.math_sma_p2), step=1)
 
                     
-        p3_val = st.number_input("Média Curta (P3)", min_value=2, max_value=500, value=int(st.session_state.math_sma_p3), step=1)
+        p3_val = st.number_input("Média Curta (P3)", value=int(st.session_state.math_sma_p3), step=1)
 
                     
-        p4_val = st.number_input("Média Média (P4)", min_value=2, max_value=500, value=int(st.session_state.math_sma_p4), step=1)
+        p4_val = st.number_input("Média Média (P4)", value=int(st.session_state.math_sma_p4), step=1)
 
                     
-        p5_val = st.number_input("Média Longa (P5)", min_value=2, max_value=500, value=int(st.session_state.math_sma_p5), step=1)
+        p5_val = st.number_input("Média Longa (P5)", value=int(st.session_state.math_sma_p5), step=1)
 
                     
-        p6_val = st.number_input("Super Longa (P6)", min_value=2, max_value=500, value=int(st.session_state.math_sma_p6), step=1)
+        p6_val = st.number_input("Super Longa (P6)", value=int(st.session_state.math_sma_p6), step=1)
 
                     
         
