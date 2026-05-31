@@ -688,6 +688,13 @@ def render():
     p5 = st.session_state.math_active_sma_p5
     p6 = st.session_state.math_active_sma_p6
     
+    # Protecao defensiva: se as colunas sma nao existirem (ex: periodo mudou), recalcular
+    _needed = [f"sma_{p2}", f"sma_{p3}", f"sma_{p4}", f"sma_{p5}", f"sma_{p6}"]
+    if not all(c in df.columns for c in _needed):
+        recalculate_math_df()
+        df = st.session_state.math_df
+        sub_df = df.iloc[:step+1]
+    
     fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.08, row_heights=[0.7, 0.3])
     
     # Subplot 1: Price and SMAs

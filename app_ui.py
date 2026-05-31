@@ -420,6 +420,8 @@ tax_pct = st.session_state.get('tax_pct_val', 28.0)
 slippage_pct = st.session_state.get('slippage_pct_val', 0.05)
 # Inicializar logger
 logger = setup_logging()
+import variables_registry as _vr_global
+_vr_global.initialize_variables_registry()
 # 7. Abas Principais do Laboratório (TABS SIMPLIFICADAS)
 tab_backtest, tab_simulator, tab_math_lab, tab_trader_game, tab_bot_brain = st.tabs([
     "📈 Simulação & Gráficos Real",
@@ -1731,9 +1733,9 @@ with tab_trader_game:
                 return "HOLD", 0.0, {}
             # --- ESTRATÉGIA CUSTOMIZADA: ESTRATÉGIA MÉDIA CAMADAS (DUAS LINHAS) ---
             if "Camadas" in st.session_state.get("tg_strategy_type", "Default") or "Esmigalhador" in st.session_state.get("tg_strategy_type", "Default"):
-                p2_per = st.session_state.get("tg_p2", 1)
-                p3_per = st.session_state.get("tg_p3", 5)
-                p4_per = st.session_state.get("tg_p4", 15)
+                p2_per = st.session_state.get("tg_p2", 5)
+                p3_per = st.session_state.get("tg_p3", 13)
+                p4_per = st.session_state.get("tg_p4", 21)
                 
                 col_p2 = "sma_5" if p2_per > 1 else "close"
                 col_p3 = "sma_13"
@@ -2296,173 +2298,7 @@ with tab_trader_game:
                     💡 Ajuste os parâmetros de risco na Central de Variáveis no topo.
                 </div>
                 """, unsafe_allow_html=True)
-        # --- NOVO EXPANDER: AUTO-TREINO (MACHINE LEARNING AUTÓNOMO) ---
-        with st.expander("🧠 Otimizador de Auto-Treino (Machine Learning Autónomo)", expanded=False):
-            col_t1, col_t2 = st.columns([1, 1])
-            with col_t1:
-                training_source = st.selectbox(
-                    "Fonte de Aprendizagem:",
-                    ["Sintético (Aleatório)", "Real Binance (BTC/USDT)", "Real Binance (ETH/USDT)"],
-                    key="tg_train_source"
-                )
-                training_candles = st.number_input(
-                    "Volume de Treino (Velas):",
-                    min_value=100, max_value=20000, value=1000, step=100,
-                    key="tg_train_candles"
-                )
-            with col_t2:
-                st.markdown("<div style='height:28px;'></div>", unsafe_allow_html=True)
-                if st.button("🚀 Iniciar Auto-Treino Estatístico", width='stretch', type="primary", key="tg_btn_train"):
-                    st.toast("A inicializar motor de aprendizagem...")
-                    
-                    # 1. Obter dados
-                    df_train = None
-                    if "Sintético" in training_source:
-                        st.toast("A gerar mercado didático...")
-                        np.random.seed(int(time.time() * 100) % 100000)
-                        drift = np.random.choice([0.08, -0.04, 0.0, 0.12])
-                        volatility = np.random.uniform(1.3, 3.2)
-                        dt = 0.1
-                        prices = [100.0]
-                        for _ in range(int(training_candles) - 1):
-                            change = prices[-1] * (drift / 100.0 * dt + volatility / 100.0 * np.sqrt(dt) * np.random.normal())
-                            prices.append(max(10.0, prices[-1] + change))
-                        dates = pd.date_range(start="2026-01-01", periods=int(training_candles), freq="1h")
-                        df_train = pd.DataFrame({
-                            'close': prices,
-                            'open': [p - np.random.normal(0, 0.1) for p in prices],
-                            'high': [p + abs(np.random.normal(0, 0.15)) for p in prices],
-                            'low': [p - abs(np.random.normal(0, 0.15)) for p in prices],
-                            'volume': [1000] * int(training_candles)
-                        }, index=dates)
-                    else:
-                        st.toast("A descarregar dados históricos da Binance...")
-                        from data_collector import DataCollector
-                        symbol = "BTC/USDT" if "BTC" in training_source else "ETH/USDT"
-                        try:
-                            collector = DataCollector(exchange_id='binance', symbol=symbol, timeframe='1h')
-                            df_train = collector.get_ohlcv(limit=int(training_candles))
-                        except Exception as e:
-                            st.error(f"Erro ao descarregar da Binance: {e}")
-                            
-                    if df_train is not None and not df_train.empty:
-                        st.toast("A calcular feixe de médias de Fibonacci...")
-                        p2_t = st.session_state.get('tg_p2', 5)
-                        p3_t = st.session_state.get('tg_p3', 13)
-                        p4_t = st.session_state.get('tg_p4', 21)
-                        p5_t = st.session_state.get('tg_p5', 55)
-                        p6_t = st.session_state.get('tg_p6', 144)
-                        
-                        df_train['sma_5'] = df_train['close'].rolling(window=p2_t).mean()
-                        df_train['sma_13'] = df_train['close'].rolling(window=p3_t).mean()
-                        df_train['sma_21'] = df_train['close'].rolling(window=p4_t).mean()
-                        df_train['sma_55'] = df_train['close'].rolling(window=p5_t).mean()
-                        df_train['sma_144'] = df_train['close'].rolling(window=p6_t).mean()
-                        smas_t = ['sma_5','sma_13','sma_21','sma_55','sma_144']
-                        df_train['avg_sma'] = df_train[smas_t].mean(axis=1)
-                        df_train['sma_std'] = df_train[smas_t].std(axis=1)
-                        df_train['stretching'] = df_train[smas_t].sub(df_train['avg_sma'], axis=0).abs().mean(axis=1).div(df_train['avg_sma']).mul(100)
-                        df_train['velocity'] = df_train['sma_5'].diff(periods=2)
-                        df_train['acceleration'] = df_train['velocity'].diff(periods=2)
-                        df_train['volatility'] = df_train['close'].rolling(window=20, min_periods=1).std()
-                        # 4 novos indicadores dinâmicos
-                        delta_t = df_train['close'].diff()
-                        gain_t = delta_t.clip(lower=0).rolling(window=14).mean()
-                        loss_t = (-delta_t.clip(upper=0)).rolling(window=14).mean()
-                        rs_t = gain_t / (loss_t + 1e-9)
-                        df_train['rsi_14'] = 100 - (100 / (1 + rs_t))
-                        bb_std_t = df_train['close'].rolling(window=20).std()
-                        bb_mid_t = df_train['close'].rolling(window=20).mean()
-                        df_train['bb_dist'] = ((df_train['close'] - (bb_mid_t - 2 * bb_std_t)) / (4 * bb_std_t + 1e-9)) * 100
-                        macd_line_t = df_train['close'].ewm(span=12, adjust=False).mean() - df_train['close'].ewm(span=26, adjust=False).mean()
-                        macd_signal_t = macd_line_t.ewm(span=9, adjust=False).mean()
-                        df_train['macd_hist'] = macd_line_t - macd_signal_t
-                        if 'high' in df_train.columns and 'low' in df_train.columns:
-                            tr_t = np.maximum(df_train['high'] - df_train['low'], np.maximum((df_train['high'] - df_train['close'].shift()).abs(), (df_train['low'] - df_train['close'].shift()).abs()))
-                        else:
-                            tr_t = df_train['close'].diff().abs()
-                        df_train['atr_14'] = tr_t.rolling(window=14).mean()
-                        
-                        def classify_regime_row_t(row):
-                            p = row['close']
-                            s2 = row['sma_5']
-                            s3 = row['sma_13']
-                            s4 = row['sma_21']
-                            s5 = row['sma_55']
-                            s6 = row['sma_144']
-                            v = row['velocity']
-                            vol = row['volatility']
-                            stretch = row['stretching']
-                            if pd.isna(s6) or pd.isna(v) or pd.isna(vol) or pd.isna(stretch):
-                                return "LATERAL"
-                            is_bull_trend = (s2 > s3) and (s3 > s4) and (s4 > s5) and (v > 0)
-                            is_bear_trend = (s2 < s3) and (s3 < s4) and (s4 < s5) and (v < 0)
-                            if stretch < 0.6:
-                                return "LATERAL"
-                            elif is_bull_trend:
-                                return "BULL"
-                            elif is_bear_trend:
-                                return "BEAR"
-                            elif vol > p * 0.012:
-                                return "CAOTICO"
-                            else:
-                                return "LATERAL"
-                        
-                        df_train['regime'] = df_train.apply(classify_regime_row_t, axis=1)
-                        df_train['disp_pct'] = (df_train['sma_5'] - df_train['sma_144']) / df_train['sma_144'] * 100
-                        df_train['mola_pct'] = df_train[smas_t].std(axis=1) / df_train[smas_t].mean(axis=1) * 100
-                        df_train['infil_bull'] = (df_train['sma_5'] > df_train['sma_13']) & (df_train['sma_13'] > df_train['sma_21']) & (df_train['sma_55'] < df_train['sma_144'])
-                        df_train['infil_bear'] = (df_train['sma_5'] < df_train['sma_13']) & (df_train['sma_13'] < df_train['sma_21']) & (df_train['sma_55'] > df_train['sma_144'])
-                        df_train['reteste_val'] = ((df_train['close'] - df_train['sma_55']).abs() / df_train['sma_55'] * 100 < 0.8) | ((df_train['close'] - df_train['sma_144']).abs() / df_train['sma_144'] * 100 < 0.8)
-                        df_train.bfill(inplace=True)
-                        
-                        # Renomear close para price para ser compativel com o laboratorio
-                        if 'price' not in df_train.columns:
-                            df_train.rename(columns={'close': 'price'}, inplace=True)
-                            
-                        st.toast("A calcular topos e fundos ideais (Aprendizagem Profunda)...")
-                        import tab_math_lab
-                        
-                        # Garantir que a analise usa os SMAs selecionados no treino
-                        import streamlit as st
-                        
-                        old_p2 = st.session_state.get('math_active_sma_p2', 5)
-                        old_p3 = st.session_state.get('math_active_sma_p3', 13)
-                        old_p4 = st.session_state.get('math_active_sma_p4', 21)
-                        old_p5 = st.session_state.get('math_active_sma_p5', 55)
-                        old_p6 = st.session_state.get('math_active_sma_p6', 144)
-                        
-                        st.session_state.math_active_sma_p2 = p2_t
-                        st.session_state.math_active_sma_p3 = p3_t
-                        st.session_state.math_active_sma_p4 = p4_t
-                        st.session_state.math_active_sma_p5 = p5_t
-                        st.session_state.math_active_sma_p6 = p6_t
-                        
-                        df_train[f'sma_{p2_t}'] = df_train['sma_5']
-                        df_train[f'sma_{p3_t}'] = df_train['sma_13']
-                        df_train[f'sma_{p4_t}'] = df_train['sma_21']
-                        df_train[f'sma_{p5_t}'] = df_train['sma_55']
-                        df_train[f'sma_{p6_t}'] = df_train['sma_144']
-                        
-                        fundos_list, topos_list = tab_math_lab.find_structural_points(df_train)
-                        
-                        test_name = f"Auto-Treino {training_source} ({pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')})"
-                        
-                        st.toast("A gravar as novas descobertas no Cérebro...")
-                        tab_math_lab.save_current_test_rules(test_name, df_train, fundos_list, topos_list)
-                        
-                        # Restaurar as variáveis do Laboratório Matemático para não corromper o gráfico da outra aba
-                        st.session_state.math_active_sma_p2 = old_p2
-                        st.session_state.math_active_sma_p3 = old_p3
-                        st.session_state.math_active_sma_p4 = old_p4
-                        st.session_state.math_active_sma_p5 = old_p5
-                        st.session_state.math_active_sma_p6 = old_p6
-                        
-                        winning_t = fundos_list + topos_list
-                        
-                        st.success(f"🔥 **Auto-Treino Integrado com Sucesso!** Gravámos as conclusões na base de conhecimento e o cérebro consolidado do Bot evoluiu automaticamente em background com {len(winning_t)} padrões detetados de forma 100% matemática e objetiva.")
-                    else:
-                        st.error("Erro ao obter dados para o treino!")
+        # --- AUTO-TREINO: movido para o tab Cerebro do Bot (DNA) ---
         # =========================================================================
         # MODO REVISAO: gráfico completo apos o fim do jogo
         # =========================================================================
@@ -3174,6 +3010,181 @@ with tab_bot_brain:
     
     st.markdown("<h3 style='text-align: center; color: #7c3aed; margin-bottom:5px;'>🧠 Cérebro Consolidado do Bot</h3>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center; color: #64748b; font-size:13px; margin-bottom:20px; text-align: center;'>Cockpit estatístico cumulativo que unifica 100% das lições de treino do robô de forma automática.</p>", unsafe_allow_html=True)
+    import os, json, time
+    import numpy as np
+    import pandas as pd
+
+    # =========================================================================
+    # OTIMIZADOR DE AUTO-TREINO (MACHINE LEARNING AUTONOMO)
+    # =========================================================================
+    # --- NOVO EXPANDER: AUTO-TREINO (MACHINE LEARNING AUTÓNOMO) ---
+    with st.expander("🧠 Otimizador de Auto-Treino (Machine Learning Autónomo)", expanded=False):
+        col_t1, col_t2 = st.columns([1, 1])
+        with col_t1:
+            training_source = st.selectbox(
+                "Fonte de Aprendizagem:",
+                ["Sintético (Aleatório)", "Real Binance (BTC/USDT)", "Real Binance (ETH/USDT)"],
+                key="tg_train_source"
+            )
+            training_candles = st.number_input(
+                "Volume de Treino (Velas):",
+                min_value=100, max_value=20000, value=1000, step=100,
+                key="tg_train_candles"
+            )
+        with col_t2:
+            st.markdown("<div style='height:28px;'></div>", unsafe_allow_html=True)
+            if st.button("🚀 Iniciar Auto-Treino Estatístico", width='stretch', type="primary", key="tg_btn_train"):
+                st.toast("A inicializar motor de aprendizagem...")
+                
+                # 1. Obter dados
+                df_train = None
+                if "Sintético" in training_source:
+                    st.toast("A gerar mercado didático...")
+                    np.random.seed(int(time.time() * 100) % 100000)
+                    drift = np.random.choice([0.08, -0.04, 0.0, 0.12])
+                    volatility = np.random.uniform(1.3, 3.2)
+                    dt = 0.1
+                    prices = [100.0]
+                    for _ in range(int(training_candles) - 1):
+                        change = prices[-1] * (drift / 100.0 * dt + volatility / 100.0 * np.sqrt(dt) * np.random.normal())
+                        prices.append(max(10.0, prices[-1] + change))
+                    dates = pd.date_range(start="2026-01-01", periods=int(training_candles), freq="1h")
+                    df_train = pd.DataFrame({
+                        'close': prices,
+                        'open': [p - np.random.normal(0, 0.1) for p in prices],
+                        'high': [p + abs(np.random.normal(0, 0.15)) for p in prices],
+                        'low': [p - abs(np.random.normal(0, 0.15)) for p in prices],
+                        'volume': [1000] * int(training_candles)
+                    }, index=dates)
+                else:
+                    st.toast("A descarregar dados históricos da Binance...")
+                    from data_collector import DataCollector
+                    symbol = "BTC/USDT" if "BTC" in training_source else "ETH/USDT"
+                    try:
+                        collector = DataCollector(exchange_id='binance', symbol=symbol, timeframe='1h')
+                        df_train = collector.get_ohlcv(limit=int(training_candles))
+                    except Exception as e:
+                        st.error(f"Erro ao descarregar da Binance: {e}")
+                        
+                if df_train is not None and not df_train.empty:
+                    st.toast("A calcular feixe de médias de Fibonacci...")
+                    p2_t = st.session_state.get('tg_p2', 5)
+                    p3_t = st.session_state.get('tg_p3', 13)
+                    p4_t = st.session_state.get('tg_p4', 21)
+                    p5_t = st.session_state.get('tg_p5', 55)
+                    p6_t = st.session_state.get('tg_p6', 144)
+                    
+                    df_train['sma_5'] = df_train['close'].rolling(window=p2_t).mean()
+                    df_train['sma_13'] = df_train['close'].rolling(window=p3_t).mean()
+                    df_train['sma_21'] = df_train['close'].rolling(window=p4_t).mean()
+                    df_train['sma_55'] = df_train['close'].rolling(window=p5_t).mean()
+                    df_train['sma_144'] = df_train['close'].rolling(window=p6_t).mean()
+                    smas_t = ['sma_5','sma_13','sma_21','sma_55','sma_144']
+                    df_train['avg_sma'] = df_train[smas_t].mean(axis=1)
+                    df_train['sma_std'] = df_train[smas_t].std(axis=1)
+                    df_train['stretching'] = df_train[smas_t].sub(df_train['avg_sma'], axis=0).abs().mean(axis=1).div(df_train['avg_sma']).mul(100)
+                    df_train['velocity'] = df_train['sma_5'].diff(periods=2)
+                    df_train['acceleration'] = df_train['velocity'].diff(periods=2)
+                    df_train['volatility'] = df_train['close'].rolling(window=20, min_periods=1).std()
+                    # 4 novos indicadores dinâmicos
+                    delta_t = df_train['close'].diff()
+                    gain_t = delta_t.clip(lower=0).rolling(window=14).mean()
+                    loss_t = (-delta_t.clip(upper=0)).rolling(window=14).mean()
+                    rs_t = gain_t / (loss_t + 1e-9)
+                    df_train['rsi_14'] = 100 - (100 / (1 + rs_t))
+                    bb_std_t = df_train['close'].rolling(window=20).std()
+                    bb_mid_t = df_train['close'].rolling(window=20).mean()
+                    df_train['bb_dist'] = ((df_train['close'] - (bb_mid_t - 2 * bb_std_t)) / (4 * bb_std_t + 1e-9)) * 100
+                    macd_line_t = df_train['close'].ewm(span=12, adjust=False).mean() - df_train['close'].ewm(span=26, adjust=False).mean()
+                    macd_signal_t = macd_line_t.ewm(span=9, adjust=False).mean()
+                    df_train['macd_hist'] = macd_line_t - macd_signal_t
+                    if 'high' in df_train.columns and 'low' in df_train.columns:
+                        tr_t = np.maximum(df_train['high'] - df_train['low'], np.maximum((df_train['high'] - df_train['close'].shift()).abs(), (df_train['low'] - df_train['close'].shift()).abs()))
+                    else:
+                        tr_t = df_train['close'].diff().abs()
+                    df_train['atr_14'] = tr_t.rolling(window=14).mean()
+                    
+                    def classify_regime_row_t(row):
+                        p = row['close']
+                        s2 = row['sma_5']
+                        s3 = row['sma_13']
+                        s4 = row['sma_21']
+                        s5 = row['sma_55']
+                        s6 = row['sma_144']
+                        v = row['velocity']
+                        vol = row['volatility']
+                        stretch = row['stretching']
+                        if pd.isna(s6) or pd.isna(v) or pd.isna(vol) or pd.isna(stretch):
+                            return "LATERAL"
+                        is_bull_trend = (s2 > s3) and (s3 > s4) and (s4 > s5) and (v > 0)
+                        is_bear_trend = (s2 < s3) and (s3 < s4) and (s4 < s5) and (v < 0)
+                        if stretch < 0.6:
+                            return "LATERAL"
+                        elif is_bull_trend:
+                            return "BULL"
+                        elif is_bear_trend:
+                            return "BEAR"
+                        elif vol > p * 0.012:
+                            return "CAOTICO"
+                        else:
+                            return "LATERAL"
+                    
+                    df_train['regime'] = df_train.apply(classify_regime_row_t, axis=1)
+                    df_train['disp_pct'] = (df_train['sma_5'] - df_train['sma_144']) / df_train['sma_144'] * 100
+                    df_train['mola_pct'] = df_train[smas_t].std(axis=1) / df_train[smas_t].mean(axis=1) * 100
+                    df_train['infil_bull'] = (df_train['sma_5'] > df_train['sma_13']) & (df_train['sma_13'] > df_train['sma_21']) & (df_train['sma_55'] < df_train['sma_144'])
+                    df_train['infil_bear'] = (df_train['sma_5'] < df_train['sma_13']) & (df_train['sma_13'] < df_train['sma_21']) & (df_train['sma_55'] > df_train['sma_144'])
+                    df_train['reteste_val'] = ((df_train['close'] - df_train['sma_55']).abs() / df_train['sma_55'] * 100 < 0.8) | ((df_train['close'] - df_train['sma_144']).abs() / df_train['sma_144'] * 100 < 0.8)
+                    df_train.bfill(inplace=True)
+                    
+                    # Renomear close para price para ser compativel com o laboratorio
+                    if 'price' not in df_train.columns:
+                        df_train.rename(columns={'close': 'price'}, inplace=True)
+                        
+                    st.toast("A calcular topos e fundos ideais (Aprendizagem Profunda)...")
+                    import tab_math_lab
+                    
+                    # Garantir que a analise usa os SMAs selecionados no treino
+                    import streamlit as st
+                    
+                    old_p2 = st.session_state.get('math_active_sma_p2', 5)
+                    old_p3 = st.session_state.get('math_active_sma_p3', 13)
+                    old_p4 = st.session_state.get('math_active_sma_p4', 21)
+                    old_p5 = st.session_state.get('math_active_sma_p5', 55)
+                    old_p6 = st.session_state.get('math_active_sma_p6', 144)
+                    
+                    st.session_state.math_active_sma_p2 = p2_t
+                    st.session_state.math_active_sma_p3 = p3_t
+                    st.session_state.math_active_sma_p4 = p4_t
+                    st.session_state.math_active_sma_p5 = p5_t
+                    st.session_state.math_active_sma_p6 = p6_t
+                    
+                    df_train[f'sma_{p2_t}'] = df_train['sma_5']
+                    df_train[f'sma_{p3_t}'] = df_train['sma_13']
+                    df_train[f'sma_{p4_t}'] = df_train['sma_21']
+                    df_train[f'sma_{p5_t}'] = df_train['sma_55']
+                    df_train[f'sma_{p6_t}'] = df_train['sma_144']
+                    
+                    fundos_list, topos_list = tab_math_lab.find_structural_points(df_train)
+                    
+                    test_name = f"Auto-Treino {training_source} ({pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')})"
+                    
+                    st.toast("A gravar as novas descobertas no Cérebro...")
+                    tab_math_lab.save_current_test_rules(test_name, df_train, fundos_list, topos_list)
+                    
+                    # Restaurar as variáveis do Laboratório Matemático para não corromper o gráfico da outra aba
+                    st.session_state.math_active_sma_p2 = old_p2
+                    st.session_state.math_active_sma_p3 = old_p3
+                    st.session_state.math_active_sma_p4 = old_p4
+                    st.session_state.math_active_sma_p5 = old_p5
+                    st.session_state.math_active_sma_p6 = old_p6
+                    
+                    winning_t = fundos_list + topos_list
+                    
+                    st.success(f"🔥 **Auto-Treino Integrado com Sucesso!** Gravámos as conclusões na base de conhecimento e o cérebro consolidado do Bot evoluiu automaticamente em background com {len(winning_t)} padrões detetados de forma 100% matemática e objetiva.")
+                else:
+                    st.error("Erro ao obter dados para o treino!")
+
     
     knowledge_path = "bot_knowledge_base.json"
     dna_path = "bot_consensus_dna.json"
