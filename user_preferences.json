@@ -1,0 +1,23 @@
+{
+    "tg_p2": 1,
+    "tg_p3": 3,
+    "tg_p4": 6,
+    "tg_p5": 9,
+    "tg_p6": 30,
+    "short_window_val": 9,
+    "long_window_val": 21,
+    "paulo_gold_min_dist_pct_val": 0.0,
+    "tg_bot_compress_thresh": 0.6,
+    "tg_min_confidence_pct": 80.0,
+    "tg_sl_pct": 0.5,
+    "tg_sl_pct_active": true,
+    "tg_tp_pct": 7.0,
+    "tg_tp_pct_active": false,
+    "tg_ts_pct": 0.5,
+    "tg_ts_pct_active": true,
+    "fee_pct_val": 0.1,
+    "tax_pct_val": 28.0,
+    "slippage_pct_val": 0.05,
+    "paulo_gold_trend_filter_val": false,
+    "allow_reentry_val": true
+}

@@ -178,6 +178,7 @@ def render_variables_dashboard(compact=False):
         if selected_symbol != st.session_state.get('symbol_val'):
             st.session_state.symbol_val = selected_symbol
             st.rerun()
+
             
         # Exibição dinâmica de sliders didáticos
         if st.session_state.symbol_val == "🧪 Cenário Didático (Fictício)":
@@ -259,6 +260,7 @@ def render_variables_dashboard(compact=False):
                     st.session_state.stop_loss_pct_val = float(round(_active_caterpillar_dna["stop_loss_pct"], 1))
                     st.session_state.sl_active_val = True
             st.rerun()
+
             
         # Checkbox PG: Filtro Macro
         st.session_state.paulo_gold_trend_filter_val = st.checkbox(
@@ -291,7 +293,7 @@ def render_variables_dashboard(compact=False):
         _arena_strategies = [
             'Default (Fórmula do Jogo)',
             'Cérebro de Consenso (Lab)',
-            'Cruzamento de Linha Única (Testes)',
+            'Estratégia da Estratégia da Lagarta (Linha Única)',
             'Estratégia Média Camadas (Duas Linhas)',
         ]
         _arena_current = st.session_state.get('tg_strategy_type', 'Default (Fórmula do Jogo)')
@@ -306,8 +308,9 @@ def render_variables_dashboard(compact=False):
         )
         if _arena_selected != st.session_state.get('tg_strategy_type'):
             st.session_state.tg_strategy_type = _arena_selected
+
             # Auto-configurar risco por estrategia
-            if 'Cruzamento' in _arena_selected:
+            if 'Lagarta' in _arena_selected or 'Cruzamento' in _arena_selected:
                 st.session_state.tg_sl_pct_active = True
                 st.session_state.tg_sl_active = True
                 st.session_state.tg_sl_pct = 1.0
@@ -344,8 +347,27 @@ def render_variables_dashboard(compact=False):
                         pass
             st.rerun()
 
+        with st.expander("📖 Ler as Regras das Estratégias", expanded=False):
+            st.markdown('''
+**1. Estratégia da Lagarta (Linha Única)**
+* **Entrada:** Compra (LONG) quando o Preço cruza a linha para cima. Vende (SHORT) quando cruza para baixo.
+* **Teimosia:** Ignora cruzamentos opostos! Só sai ao bater no Stop Loss (0.5%) ou Trailing Stop.
+* **Agilidade Extrema:** Se sair por SL e a tendência oposta for válida, entra instantaneamente na nova direção.
+
+**2. Estratégia Média Camadas**
+* **Inversão:** Entra LONG quando P2 rompe o Equador (P4) para cima.
+* **Pullback:** Tenta reentrar quando o mercado corrige, mas P2 volta a cruzar a Média P3 para cima.
+
+**3. Cérebro de Consenso (Lab)**
+* **DNA de 6 Sensores:** Usa Tendência, Aceleração, Volatilidade, Distância ao Chão, Saturação e Stop Loss.
+* **Consenso:** Só ataca se a confiança coletiva dos sensores passar os 80%.
+
+**4. Default (Fórmula do Jogo)**
+* Modo puramente Manual.
+''')
+
         # Sub-opcao: Linha de Referencia (so para Cruzamento)
-        if st.session_state.get('tg_strategy_type', '') == 'Cruzamento de Linha Única (Testes)':
+        if st.session_state.get('tg_strategy_type', '') == 'Estratégia da Estratégia da Lagarta (Linha Única)':
             _ref_options = ['SMA Rápida (P2)', 'SMA Sinal (P3)', 'SMA Intermédia (P4)', 'SMA Lenta 1 (P5)', 'SMA Lenta 2 (P6)', 'Média do Vetor (avg_sma)', 'Desvio Padrão (sma_std)']
             _current_ref = st.session_state.get('tg_single_line_ref', 'SMA Rápida (P2)')
             if _current_ref not in _ref_options:
@@ -422,6 +444,7 @@ def render_variables_dashboard(compact=False):
             st.session_state.symbol_val = "🧪 Cenário Didático (Fictício)"
             st.toast("Valores padrões repostos com sucesso!")
             st.rerun()
+
             
         # Botão extra para ver valores do Cérebro Ativo
         if os.path.exists("bot_consensus_dna.json"):
@@ -438,6 +461,7 @@ def render_variables_dashboard(compact=False):
                     st.session_state.tg_p6 = smas[4]
                     st.toast("Médias sincronizadas com o Cérebro de Consenso!")
                     st.rerun()
+
                 except Exception as e_dna:
                     st.error(f"Erro: {e_dna}")
 

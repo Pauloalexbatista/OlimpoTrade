@@ -1777,7 +1777,7 @@ with tab_trader_game:
                     return "HOLD", 0.0, cond_dict
 
             # --- ESTRATÉGIA CUSTOMIZADA: CRUZAMENTO DE LINHA ÚNICA ---
-            if "Lagarta" in st.session_state.get("tg_strategy_type", "Default") or "Cruzamento" in st.session_state.get("tg_strategy_type", "Default"):
+            if "Cruzamento" in st.session_state.get("tg_strategy_type", "Default"):
                 ref_line_name = st.session_state.get("tg_single_line_ref", "SMA Rápida (P2)")
                 mapping = {
                     "SMA Rápida (P2)": "sma_5",
@@ -1817,12 +1817,8 @@ with tab_trader_game:
                     }
                     
                     if is_growing and is_crossover_long:
-                        if "Lagarta" in st.session_state.get("tg_strategy_type", "") and st.session_state.get("tg_position", "NONE") == "SHORT":
-                            return "HOLD", 0.0, cond_dict
                         return "LONG", 100.0, cond_dict
                     elif is_falling and is_crossover_short:
-                        if "Lagarta" in st.session_state.get("tg_strategy_type", "") and st.session_state.get("tg_position", "NONE") == "LONG":
-                            return "HOLD", 0.0, {"Gatilho": "Ignorado pela Lagarta (Apenas SL/TS saem)"}
                         cond_dict_short = {
                             "Afastamento > Desvio Padrão": bool(dist_now > std_now),
                             "Afastamento em Alta": bool(dist_now > dist_prev),
@@ -1845,12 +1841,8 @@ with tab_trader_game:
                     }
                     
                     if is_growing and is_crossover_long:
-                        if "Lagarta" in st.session_state.get("tg_strategy_type", "") and st.session_state.get("tg_position", "NONE") == "SHORT":
-                            return "HOLD", 0.0, cond_dict
                         return "LONG", 100.0, cond_dict
                     elif is_falling and is_crossover_short:
-                        if "Lagarta" in st.session_state.get("tg_strategy_type", "") and st.session_state.get("tg_position", "NONE") == "LONG":
-                            return "HOLD", 0.0, {"Gatilho": "Ignorado pela Lagarta (Apenas SL/TS saem)"}
                         cond_dict_short = {
                             f"Preço < {ref_line_name}": bool(price_now < line_now),
                             "Preço em Baixa (Descendo)": bool(is_falling),
@@ -2233,8 +2225,8 @@ with tab_trader_game:
         _p4 = st.session_state.get('tg_p4', 50)
         _p5 = st.session_state.get('tg_p5', 100)
         _p6 = st.session_state.get('tg_p6', 200)
-        _tag_map = {'Default': 'EQ', 'Cerebro': 'DNA', 'Cruzamento': 'X-LINE', 'Lagarta': 'LAGARTA', 'Camadas': 'LAYERS'}
-        _clr_map = {'Default': '#64748b', 'Cerebro': '#7c3aed', 'Cruzamento': '#0284c7', 'Lagarta': '#10b981', 'Camadas': '#dc2626'}
+        _tag_map = {'Default': 'EQ', 'Cerebro': 'DNA', 'Cruzamento': 'X-LINE', 'Camadas': 'LAYERS'}
+        _clr_map = {'Default': '#64748b', 'Cerebro': '#7c3aed', 'Cruzamento': '#0284c7', 'Camadas': '#dc2626'}
         _strat_tag = next((v for k, v in _tag_map.items() if k in _strat_d), '...')
         _strat_clr = next((v for k, v in _clr_map.items() if k in _strat_d), '#64748b')
         _strat_sub = ('Linha: ' + _ref_d) if 'Cruzamento' in _strat_d else ''

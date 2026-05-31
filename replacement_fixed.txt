@@ -1,0 +1,21 @@
+﻿        if _arena_selected != st.session_state.get('tg_strategy_type'):
+            st.session_state.tg_strategy_type = _arena_selected
+
+        with st.expander("📖 Ler as Regras das Estratégias", expanded=False):
+            st.markdown('''
+**1. Estratégia da Lagarta (Linha Única)**
+* **Entrada:** Compra (LONG) quando o Preço cruza a linha para cima. Vende (SHORT) quando cruza para baixo.
+* **Teimosia:** Ignora cruzamentos opostos! Só sai ao bater no Stop Loss (0.5%) ou Trailing Stop.
+* **Agilidade Extrema:** Se sair por SL e a tendência oposta for válida, entra instantaneamente na nova direção.
+
+**2. Estratégia Média Camadas**
+* **Inversão:** Entra LONG quando P2 rompe o Equador (P4) para cima.
+* **Pullback:** Tenta reentrar quando o mercado corrige, mas P2 volta a cruzar a Média P3 para cima.
+
+**3. Cérebro de Consenso (Lab)**
+* **DNA de 6 Sensores:** Usa Tendência, Aceleração, Volatilidade, Distância ao Chão, Saturação e Stop Loss.
+* **Consenso:** Só ataca se a confiança coletiva dos sensores passar os 80%.
+
+**4. Default (Fórmula do Jogo)**
+* Modo puramente Manual.
+''')
