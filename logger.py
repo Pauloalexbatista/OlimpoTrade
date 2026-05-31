@@ -1,6 +1,7 @@
 # my_trading_bot/logger.py
 import logging
 import os
+from logging.handlers import RotatingFileHandler
 
 def setup_logging():
     log_level = os.getenv("LOG_LEVEL", "INFO").upper()
@@ -18,8 +19,8 @@ def setup_logging():
         ch.setFormatter(formatter)
         logger.addHandler(ch)
 
-        # File handler
-        fh = logging.FileHandler(log_file)
+        # File handler (Rotating File Handler limitado a 10MB e 3 backups)
+        fh = RotatingFileHandler(log_file, maxBytes=10 * 1024 * 1024, backupCount=3, encoding="utf-8")
         fh.setLevel(log_level)
         fh.setFormatter(formatter)
         logger.addHandler(fh)

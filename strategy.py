@@ -315,75 +315,9 @@ class PauloGoldStrategy(BaseStrategy):
 
 
 
-class CaterpillarAIStrategy(BaseStrategy):
-    """
-    Estratégia gerada pela Universidade de Lagartas IA.
-    Usa o DNA (Pesos e Threshold) para gerar sinais baseados em 5 sensores.
-    """
-    def __init__(self, dna, logger=None):
-        self.dna = dna
-        self.logger = logger
-        msg = f"Estratégia IA Lagarta inicializada (Threshold={self.dna.get('threshold', 0):.2f})"
-        if self.logger:
-            self.logger.info(msg)
-        else:
-            print(msg)
-
-    def generate_signal(self, ohlcv_data: pd.DataFrame) -> dict:
-        if len(ohlcv_data) < 20:
-            return {"action": "HOLD", "signal": "HOLD", "price": None, "message": "Dados insuficientes para IA"}
-        
-        df = ohlcv_data.copy()
-        
-        # Calcular os mesmos indicadores usados no treino sintético
-        df['MA_Fast'] = ta.trend.sma_indicator(df['close'], window=5)
-        df['MA_Slow'] = ta.trend.sma_indicator(df['close'], window=12)
-        df['MA_200'] = ta.trend.sma_indicator(df['close'], window=20)
-        df['Std'] = df['close'].rolling(window=8).std()
-        
-        delta_l = df['close'].diff()
-        gain_l = (delta_l.where(delta_l > 0, 0)).rolling(window=8).mean()
-        loss_l = (-delta_l.where(delta_l < 0, 0)).rolling(window=8).mean()
-        rs_l = gain_l / (loss_l + 1e-5)
-        df['RSI'] = 100 - (100 / (1 + rs_l))
-        
-        df = df.fillna(method='bfill')
-        
-        last_row = df.iloc[-1]
-        prev_row = df.iloc[-2]
-        
-        p_c = last_row['close']
-        ma_f_c = last_row['MA_Fast']
-        ma_s_c = last_row['MA_Slow']
-        ma_f_p = prev_row['MA_Fast']
-        ma_200 = last_row['MA_200']
-        std_val = last_row['Std']
-        rsi_val = last_row['RSI']
-        
-        # 5 Sensores (Valores binários/trinários)
-        s1_trend = 1.0 if (p_c > ma_f_c > ma_s_c) else -1.0
-        s2_slope = 1.0 if (ma_f_c > ma_f_p) else -1.0
-        s3_vol = -1.0 if (std_val > 6.0) else 1.0
-        s4_floor = -1.0 if ((p_c - ma_200)/ma_200 > 0.09) else 1.0
-        s5_rsi = 1.0 if (rsi_val < 35) else (-1.0 if rsi_val > 65 else 0.0)
-        
-        # Score Computado via Pesos Neuronais do DNA
-        score = (s1_trend * self.dna.get('w_trend', 0)) + \
-                (s2_slope * self.dna.get('w_slope', 0)) + \
-                (s3_vol * self.dna.get('w_vol', 0)) + \
-                (s4_floor * self.dna.get('w_floor', 0)) + \
-                (s5_rsi * self.dna.get('w_rsi', 0))
-                
-        threshold = self.dna.get('threshold', 999.0)
-        
-        if score >= threshold:
-            msg = f"IA Score: {score:.2f} >= {threshold:.2f} (S1:{s1_trend} S2:{s2_slope} S3:{s3_vol})"
-            return {"action": "BUY", "signal": "BUY", "price": p_c, "message": msg}
-            
-        msg = f"IA Score: {score:.2f} < {threshold:.2f}"
-        return {"action": "HOLD", "signal": "HOLD", "price": p_c, "message": msg}
-
 import numpy as np
+
+
 
 class QuantumConsensusStrategy(BaseStrategy):
     """
@@ -490,7 +424,7 @@ class QuantumConsensusStrategy(BaseStrategy):
         buy_rules = reg_rules.get("buy_rules", {})
         sell_rules = reg_rules.get("sell_rules", {})
 
-        # Calcular sensores adicionais de Fibonacci
+        # Calcular sensores adicionais das médias
         std_val = np.std([s2_c, s3_c, s4_c, s5_c, s6_c])
         mean_val = np.mean([s2_c, s3_c, s4_c, s5_c, s6_c])
         mola_c = (std_val / mean_val * 100) if mean_val != 0 else 0.0
@@ -625,24 +559,6 @@ class StrategyFactory:
     def get_strategy(config: dict, logger=None) -> BaseStrategy:
         strategy_type = config.get("STRATEGY_TYPE", "SMA_CROSSOVER")
         
-        if strategy_type.startswith("🎓"):
-            caterpillar_name = strategy_type.replace("🎓 ", "")
-            try:
-                import json, os
-                file_path = "caterpillars.json"
-                if os.path.exists(file_path):
-                    with open(file_path, "r", encoding="utf-8") as f:
-                        caterpillars = json.load(f)
-                        if caterpillar_name in caterpillars:
-                            dna = caterpillars[caterpillar_name]
-                            return CaterpillarAIStrategy(dna=dna, logger=logger)
-            except Exception as e:
-                if logger: logger.error(f"Erro ao carregar DNA da lagarta {caterpillar_name}: {e}")
-            
-            # Caso falhe ao carregar o DNA, usamos fallback
-            if logger: logger.warning("Fallback para SMACrossover após falha no DNA")
-            return SMACrossoverStrategy(logger=logger)
-            
         if strategy_type == "QUANTUM_CONSENSUS":
             return QuantumConsensusStrategy(logger=logger)
         elif strategy_type == "PAULO_GOLD":

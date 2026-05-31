@@ -127,6 +127,8 @@ def render_variable_widget(var):
 
 def render_variables_dashboard(compact=False):
     """Desenha a Central & Dicionário de Variáveis. Suporta compact=True para ecrãs de topo."""
+    import os
+    import json
     initialize_variables_registry()
     
     if not compact:
@@ -134,49 +136,166 @@ def render_variables_dashboard(compact=False):
         st.markdown("<p style='text-align: center; color: #64748b;'>A fonte única de verdade e painel de comando quantitativo do OlimpoTrade.</p>", unsafe_allow_html=True)
         st.markdown("---")
 
-    # Renderizar os ajustadores divididos em 4 Colunas horizontais
-    col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
+    # Renderizar os ajustadores divididos em 5 Colunas horizontais
+    col1, col2, col3, col4, col5 = st.columns([1.2, 1.2, 1.2, 1.2, 1.2])
     
+    # 🌏 COLUNA 1: Mercado & Ativo
     with col1:
-        st.markdown("##### 📏 Médias Móveis")
-        mavg_vars = [v for v in VARIABLES if v.category == "Médias Móveis (Lab/Jogo)"]
-        for var in mavg_vars:
-            render_variable_widget(var)
+        st.markdown("##### 🌏 Mercado & Ativo")
+        
+        options_list = ["BTC/USDT", "ETH/USDT", "SOL/USDT", "BNB/USDT", "🧪 Cenário Didático (Fictício)"]
+        symbol_val = st.session_state.get('symbol_val', '🧪 Cenário Didático (Fictício)')
+        if symbol_val not in options_list:
+            symbol_val = '🧪 Cenário Didático (Fictício)'
             
+        selected_symbol = st.selectbox(
+            "Par de Trading",
+            options_list,
+            index=options_list.index(symbol_val),
+            help="Selecione o par de trading real para carregar dados da Binance API, ou use o Cenário Didático para simulações fictícias controladas.",
+            key="cc_global_symbol"
+        )
+        if selected_symbol != st.session_state.get('symbol_val'):
+            st.session_state.symbol_val = selected_symbol
+            st.rerun()
+            
+        # Exibição dinâmica de sliders didáticos
+        if st.session_state.symbol_val == "🧪 Cenário Didático (Fictício)":
+            st.markdown("<div style='margin-top:10px;'></div>", unsafe_allow_html=True)
+            
+            # 1. Cenário Didático
+            scenarios = ["Didatico Classico", "Montanha Russa", "Flash Crash", "Lateralizacao Eterna", "Tendencia Saudavel (Bull)"]
+            current_scenario = st.session_state.get('math_scenario', 'Didatico Classico')
+            if current_scenario not in scenarios:
+                current_scenario = 'Didatico Classico'
+            selected_scenario = st.selectbox(
+                "Cenário Didático",
+                scenarios,
+                index=scenarios.index(current_scenario),
+                key="cc_math_scenario"
+            )
+            if selected_scenario != st.session_state.get('math_scenario'):
+                st.session_state.math_scenario = selected_scenario
+                
+            # 2. Ruído do Mercado
+            current_noise = float(st.session_state.get('math_noise', 1.0))
+            selected_noise = st.slider(
+                "Ruído do Mercado",
+                0.1, 5.0,
+                current_noise,
+                step=0.1,
+                key="cc_math_noise"
+            )
+            if selected_noise != st.session_state.get('math_noise'):
+                st.session_state.math_noise = selected_noise
+                
+            # 3. Tamanho da Série
+            current_size = int(st.session_state.get('math_size', 500))
+            selected_size = st.slider(
+                "Tamanho da Série",
+                100, 2000,
+                current_size,
+                step=100,
+                key="cc_math_size"
+            )
+            if selected_size != st.session_state.get('math_size'):
+                st.session_state.math_size = selected_size
+
+    # 🎯 COLUNA 2: Algoritmo & Gatilhos
     with col2:
-        st.markdown("##### ⚙️ Estratégias & Cockpit")
-        # Checkboxes extras para Estratégias Clássicas
+        st.markdown("##### 🎯 Algoritmo & Gatilhos")
+        
+        # Dropdown Estratégia Ativa
+        _base_strategies = ["PAULO_GOLD", "SMA_CROSSOVER", "EMA_CROSSOVER", "MULTIPOINT_VECTOR"]
+        _caterpillar_keys = []
+        if "game_trained_caterpillars" in st.session_state:
+            _caterpillar_keys = ["🎓 " + k for k in st.session_state.game_trained_caterpillars.keys()]
+        _all_strategies = _base_strategies + _caterpillar_keys
+        
+        def _fmt_strategy(x):
+            if x == "SMA_CROSSOVER":      return "Média Simples (SMA Crossover)"
+            if x == "EMA_CROSSOVER":      return "Média Exponencial (EMA Crossover)"
+            if x == "MULTIPOINT_VECTOR":  return "Vetor de 5 Pontos (MultiPoint)"
+            if x == "PAULO_GOLD":         return "✨ Estratégia Exclusiva PAULO_GOLD"
+            return x
+            
+        current_strategy = st.session_state.get('strategy_type_val', 'PAULO_GOLD')
+        if current_strategy not in _all_strategies:
+            current_strategy = 'PAULO_GOLD'
+            
+        selected_strategy = st.selectbox(
+            "Estratégia Ativa",
+            _all_strategies,
+            index=_all_strategies.index(current_strategy),
+            format_func=_fmt_strategy,
+            key="cc_global_strategy"
+        )
+        if selected_strategy != st.session_state.get('strategy_type_val'):
+            st.session_state.strategy_type_val = selected_strategy
+            if selected_strategy.startswith("🎓 "):
+                _caterpillar_name = selected_strategy[2:].strip()
+                if _caterpillar_name in st.session_state.get("game_trained_caterpillars", {}):
+                    _active_caterpillar_dna = st.session_state.game_trained_caterpillars[_caterpillar_name]
+                    st.session_state.stop_loss_pct_val = float(round(_active_caterpillar_dna["stop_loss_pct"], 1))
+                    st.session_state.sl_active_val = True
+            st.rerun()
+            
+        # Checkbox PG: Filtro Macro
         st.session_state.paulo_gold_trend_filter_val = st.checkbox(
             "PG: Filtro Macro", 
-            value=st.session_state.paulo_gold_trend_filter_val,
+            value=st.session_state.get('paulo_gold_trend_filter_val', False),
             key="tg_chk_pg_filter"
         )
+        
+        # Checkbox Re-Entrada Tendência
         st.session_state.allow_reentry_val = st.checkbox(
             "Re-Entrada Tendência", 
-            value=st.session_state.allow_reentry_val,
+            value=st.session_state.get('allow_reentry_val', True),
             key="tg_chk_reentry"
         )
         
-        # Variáveis de Estratégias Clássicas e Indicadores Cockpit
+        # Sliders clássicos da estratégia
         class_vars = [v for v in VARIABLES if v.category in ["Estratégias Clássicas", "Indicadores Cockpit"]]
         for var in class_vars:
             render_variable_widget(var)
-            
+
+    # 🧬 COLUNA 3: Vetor de Médias Móveis
     with col3:
-        st.markdown("##### 🛡️ Decisão & Risco")
-        risk_vars = [v for v in VARIABLES if v.category in ["Filtros e Decisão", "Gestão de Risco"]]
+        st.markdown("##### 🧬 Vetor de Médias Móveis")
+        mavg_vars = [v for v in VARIABLES if v.category == "Médias Móveis (Lab/Jogo)"]
+        for var in mavg_vars:
+            render_variable_widget(var)
+
+    # 🛡️ COLUNA 4: Risco & Gatilhos
+    with col4:
+        st.markdown("##### 🛡️ Risco & Gatilhos")
+        
+        # Confiança mínima
+        conf_var = [v for v in VARIABLES if v.key == "tg_min_confidence_pct"][0]
+        render_variable_widget(conf_var)
+        
+        # Stop Loss, Take Profit, Trailing Stop
+        risk_vars = [v for v in VARIABLES if v.key in ["tg_sl_pct", "tg_tp_pct", "tg_ts_pct"]]
         for var in risk_vars:
             render_variable_widget(var)
             
-    with col4:
-        st.markdown("##### 💸 Custos & Operações")
+        # Custos & Fricções de Mercado
         cost_vars = [v for v in VARIABLES if v.category == "Custos de Mercado"]
         for var in cost_vars:
             render_variable_widget(var)
+
+    # 💾 COLUNA 5: Memória & Padrões
+    with col5:
+        st.markdown("##### 💾 Memória & Padrões")
+        st.markdown("<p style='font-size:12px; color:#64748b; margin-bottom:15px;'>Configure e guarde as suas variáveis favoritas ou reponha os valores padrões de fábrica.</p>", unsafe_allow_html=True)
+        
+        # Botão Guardar DNA Consenso (💾 Guardar)
+        if st.button("💾 Guardar", use_container_width=True, key="tg_btn_save_global"):
+            rebuild_consensus_dna()
+            st.success("Configuração do Robô guardada com sucesso na memória local!")
             
-        st.markdown("<div style='height:25px;'></div>", unsafe_allow_html=True)
-        # Botão para repor padrões
-        if st.button("🔄 Repor Padrões (Reset)", width='stretch', type="secondary", key="tg_btn_reset_global"):
+        # Botão Repor Padrões (🔁 Repor Padrões)
+        if st.button("🔁 Repor Padrões", use_container_width=True, key="tg_btn_reset_global"):
             for var in VARIABLES:
                 st.session_state[var.key] = var.default_value
                 if var.is_toggleable:
@@ -186,11 +305,29 @@ def render_variables_dashboard(compact=False):
                     elif var.key == "tg_ts_pct": st.session_state.tg_ts_active = False
             st.session_state.paulo_gold_trend_filter_val = False
             st.session_state.allow_reentry_val = True
+            st.session_state.symbol_val = "🧪 Cenário Didático (Fictício)"
             st.toast("Valores de fábrica repostos com sucesso!")
             st.rerun()
+            
+        # Botão extra para ver valores do Cérebro Ativo
+        if os.path.exists("bot_consensus_dna.json"):
+            st.markdown("<div style='margin-top:10px;'></div>", unsafe_allow_html=True)
+            if st.button("🧠 Carregar Cérebro", use_container_width=True, key="tg_btn_load_dna_global"):
+                try:
+                    with open("bot_consensus_dna.json", "r", encoding="utf-8") as f_dna:
+                        dna = json.load(f_dna)
+                    smas = dna.get("smas", [5, 13, 21, 55, 144])
+                    st.session_state.tg_p2 = smas[0]
+                    st.session_state.tg_p3 = smas[1]
+                    st.session_state.tg_p4 = smas[2]
+                    st.session_state.tg_p5 = smas[3]
+                    st.session_state.tg_p6 = smas[4]
+                    st.toast("Médias sincronizadas com o Cérebro de Consenso!")
+                    st.rerun()
+                except Exception as e_dna:
+                    st.error(f"Erro: {e_dna}")
 
-    # Terceira Linha: O Cérebro Activo do BOT (Regras de Consenso DNA)
-    render_bot_brain_table()
+
 
     # Segunda Linha: O Dicionário de Conceitos a ocupar toda a largura (100% de ecrã)
     st.markdown("---")

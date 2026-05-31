@@ -113,6 +113,14 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+if "symbol_val" not in st.session_state:
+    st.session_state.symbol_val = "🧪 Cenário Didático (Fictício)"
+if "math_scenario" not in st.session_state:
+    st.session_state.math_scenario = "Didatico Classico"
+if "math_noise" not in st.session_state:
+    st.session_state.math_noise = 1.0
+if "math_size" not in st.session_state:
+    st.session_state.math_size = 500
 # 2. Inicialização de Session State para persistência e ligação dinâmica de inputs
 if "strategy_type_val" not in st.session_state:
     st.session_state.strategy_type_val = "PAULO_GOLD"
@@ -345,80 +353,21 @@ st.markdown("""
     <div style="font-size: 0.8rem; font-weight: 600; color: #64748b; letter-spacing: 0.5px;">Algorithmic Trading & Analytics Lab</div>
 </div>
 """, unsafe_allow_html=True)
-# 1. LINHA HORIZONTAL COMPACTA DE CONTROLES E BOTÃO (SEM BARRA LATERAL!)
-col_ctrl1, col_ctrl2, col_ctrl3, col_ctrl4, col_ctrl5 = st.columns([1.5, 1.2, 2.2, 2.8, 2.3])
-with col_ctrl1:
-    symbol = st.selectbox(
-        "Par de Trading",
-        ["BTC/USDT", "ETH/USDT", "SOL/USDT", "BNB/USDT"],
-        index=0,
-        help="Par de moedas a transacionar. Todos os cálculos de banca e lucro são exibidos na sua moeda local (EUR)."
-    )
-with col_ctrl2:
-    timeframe = st.selectbox(
-        "Timeframe",
-        ["15m", "1h", "4h", "1d"],
-        index=1,
-        help="Escala de tempo de cada candle (vela). Timeframes maiores (1h, 1d) filtram ruído e mostram tendências mais fortes."
-    )
-with col_ctrl3:
-    limit_candles = st.slider(
-        "Quantidade de Candles",
-        100, 1000, 500,
-        step=50,
-        help="Quantidade de velas a obter do histórico. Dica: Para simular 1 ano instantaneamente, use timeframe '1d' e 365 candles."
-    )
-with col_ctrl4:
-    # Construir lista de estrategias incluindo lagartas graduadas da Universidade
-    if "game_trained_caterpillars" not in st.session_state:
-        st.session_state.game_trained_caterpillars = {}
-    
-    _base_strategies = ["SMA_CROSSOVER", "EMA_CROSSOVER", "MULTIPOINT_VECTOR", "PAULO_GOLD"]
-    _caterpillar_keys = ["🎓 " + k for k in st.session_state.game_trained_caterpillars.keys()]
-    _all_strategies = _base_strategies + _caterpillar_keys
-    
-    def _fmt_strategy(x):
-        if x == "SMA_CROSSOVER":      return "Media Simples (SMA Crossover)"
-        if x == "EMA_CROSSOVER":      return "Media Exponencial (EMA Crossover)"
-        if x == "MULTIPOINT_VECTOR":  return "Vetor de 5 Pontos (MultiPoint)"
-        if x == "PAULO_GOLD":         return "✨ Estrategia Exclusiva PAULO_GOLD"
-        return x  # Lagartas graduadas mostram o proprio nome com emoji
-    
-    _current = st.session_state.strategy_type_val if st.session_state.strategy_type_val in _all_strategies else "PAULO_GOLD"
-    _current_idx = _all_strategies.index(_current) if _current in _all_strategies else 3
-    
-    strategy_type = st.selectbox(
-        "Estrategia Ativa",
-        _all_strategies,
-        index=_current_idx,
-        format_func=_fmt_strategy,
-        help="Escolha o algoritmo de decisao. As lagartas 🎓 sao especialistas treinadas na Universidade IA!"
-    )
-    
-    # Se for uma lagarta graduada, injetar o seu DNA nos parametros da sessao
-    _active_caterpillar_dna = None
-    if strategy_type.startswith("🎓 "):
-        _caterpillar_name = strategy_type[2:].strip()
-        if _caterpillar_name in st.session_state.game_trained_caterpillars:
-            _active_caterpillar_dna = st.session_state.game_trained_caterpillars[_caterpillar_name]
-            st.session_state.stop_loss_pct_val = float(round(_active_caterpillar_dna["stop_loss_pct"], 1))
-            st.session_state.sl_active_val = True
-        # Mantém a strategy_type com o nome original da lagarta para que a StrategyFactory a apanhe
-        st.session_state.strategy_type_val = strategy_type
-with col_ctrl5:
-    st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
-    run_button = st.button("🚀 Executar Simulação Real", width='stretch', type="primary")
+# 1. VALORES GLOBAIS COMANDADOS CENTRALMENTE
+symbol_raw = st.session_state.get('symbol_val', '🧪 Cenário Didático (Fictício)')
+# Usar BTC/USDT como substituto para abas reais se o cenario didatico estiver ativo
+symbol = "BTC/USDT" if symbol_raw == "🧪 Cenário Didático (Fictício)" else symbol_raw
+timeframe = st.session_state.get('timeframe_val', '1h')
+limit_candles = st.session_state.get('limit_candles_val', 500)
+strategy_type = st.session_state.get('strategy_type_val', 'PAULO_GOLD')
+run_button = False
+
 # ----------------- NOVO PAINEL DE CONFIGURAÇÕES COLAPSÁVEL CENTRAL -----------------
 if '_active_caterpillar_dna' not in dir():
     _active_caterpillar_dna = None
 config = load_config()
-with st.expander("🔧 Painel Global de Configuração do Robô & Central de Variáveis (Clique para Configurar)", expanded=False):
-    st.markdown("""
-    <div style='font-size: 0.9rem; color: #64748b; margin-bottom: 1.5rem; text-align:center;'>
-        💡 <b>Comando Central:</b> Configure aqui todas as variáveis quantitativas, médias de Fibonacci, limites de risco e fricções de mercado.
-        As alterações propagam-se instantaneamente para todas as abas e simulações da app!
-    </div>
-    """, unsafe_allow_html=True)
+with st.expander("💛 Centro de Comando Global & Configurações", expanded=False):
+    
     
     import variables_registry
     variables_registry.render_variables_dashboard(compact=True)

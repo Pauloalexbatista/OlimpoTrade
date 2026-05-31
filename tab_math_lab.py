@@ -62,17 +62,63 @@ def generate_math_market(scenario="Didatico Classico", noise=1.0):
             
     return prices
 
+def load_global_binance_data_helper():
+    try:
+        from data_collector import DataCollector
+        symbol = st.session_state.get('symbol_val', 'BTC/USDT')
+        timeframe = st.session_state.get('timeframe_val', '1h')
+        limit = st.session_state.get('limit_candles_val', 500)
+        
+        collector = DataCollector(exchange_id='binance', symbol=symbol, timeframe=timeframe)
+        df_real = collector.get_ohlcv(limit=limit)
+        
+        if df_real is not None and not df_real.empty:
+            st.session_state.math_df_real = pd.DataFrame({
+                "close": df_real["close"].tolist(),
+                "timestamp": df_real["timestamp"].tolist()
+            })
+            st.session_state.math_prices = df_real["close"].tolist()
+            st.session_state.math_step = min(50, len(st.session_state.math_prices) - 1)
+        else:
+            st.session_state.math_df_real = pd.DataFrame({"close": [100.0]*100, "timestamp": [f"V{i}" for i in range(100)]})
+            st.session_state.math_prices = [100.0]*100
+    except Exception as e:
+        st.session_state.math_df_real = pd.DataFrame({"close": [100.0]*100, "timestamp": [f"V{i}" for i in range(100)]})
+        st.session_state.math_prices = [100.0]*100
+
 def recalculate_math_df():
-    p2 = st.session_state.get('math_active_sma_p2', 5)
-    p3 = st.session_state.get('math_active_sma_p3', 13)
-    p4 = st.session_state.get('math_active_sma_p4', 21)
-    p5 = st.session_state.get('math_active_sma_p5', 55)
-    p6 = st.session_state.get('math_active_sma_p6', 144)
+    p2 = st.session_state.get('tg_p2', 5)
+    p3 = st.session_state.get('tg_p3', 13)
+    p4 = st.session_state.get('tg_p4', 21)
+    p5 = st.session_state.get('tg_p5', 55)
+    p6 = st.session_state.get('tg_p6', 144)
     
+    # Sincronizar chaves ativas locais para compatibilidade de quem le
+    st.session_state.math_active_sma_p2 = p2
+    st.session_state.math_active_sma_p3 = p3
+    st.session_state.math_active_sma_p4 = p4
+    st.session_state.math_active_sma_p5 = p5
+    st.session_state.math_active_sma_p6 = p6
+    
+    # Sincronizar chaves de design movel locais tambem
+    st.session_state.math_sma_p2 = p2
+    st.session_state.math_sma_p3 = p3
+    st.session_state.math_sma_p4 = p4
+    st.session_state.math_sma_p5 = p5
+    st.session_state.math_sma_p6 = p6
+
+    # Determinar a fonte baseado no symbol_val global
+    if st.session_state.get('symbol_val', '') == "🧪 Cenário Didático (Fictício)":
+        st.session_state.math_source = "Sintetico"
+    else:
+        st.session_state.math_source = "Mercado Global (Binance Real)"
+
     if st.session_state.math_source == "Sintetico":
         prices = st.session_state.math_prices
         timestamps = [f"V{idx}" for idx in range(len(prices))]
     else:
+        if "math_df_real" not in st.session_state or st.session_state.math_df_real is None:
+            load_global_binance_data_helper()
         df_real = st.session_state.math_df_real
         prices = df_real["close"].tolist()
         timestamps = df_real["timestamp"].tolist()
@@ -91,7 +137,7 @@ def recalculate_math_df():
     avg_sma = df[smas].mean(axis=1)
     df['stretching'] = df[smas].sub(avg_sma, axis=0).abs().mean(axis=1).div(avg_sma).mul(100)
 
-    # 4 novos indicadores dinâmicos didáticos e robustos
+    # 4 novos indicadores dinamicos didaticos e robustos
     delta = df['price'].diff()
     gain = delta.clip(lower=0).rolling(window=14).mean()
     loss = (-delta.clip(upper=0)).rolling(window=14).mean()
@@ -119,6 +165,7 @@ def recalculate_math_df():
     df['regime'] = regimes
     
     st.session_state.math_df = df
+
 
 def classify_regime_row(row, p2, p3, p4, p5, p6):
     p = row['price']
@@ -220,7 +267,7 @@ def get_pattern_stats(points_list, df, regime_filter=None):
         gain_pct = pt.get("gain_pct", 0.0)
         loss_pct = pt.get("loss_pct", 0.0)
         
-        # Novos indicadores da Geometria Sagrada Fibonacci
+        # Novos indicadores da geométrico de médias
         smas = [p2_val, p3_val, p4_val, p5_val, p6_val]
         if not any(pd.isna(x) for x in smas):
             std_val = np.std(smas)
@@ -395,359 +442,202 @@ def load_uploaded_csv(uploaded_file):
 
 def render():
     st.markdown("""
-    <div style='background: linear-gradient(135deg, #1e3a8a 0%, #0d1b2a 100%); padding: 25px; border-radius: 12px; margin-bottom: 25px; color: white;'>
-        <h1 style='margin:0; font-size: 2.2rem;'>🔮 Laboratório Matemático & Regimes Adaptativos</h1>
-        <p style='margin: 5px 0 0 0; opacity: 0.8;'>Simulador quântico de regimes de mercado, derivadas e mineração de padrões estatísticos em tempo real.</p>
+    <div style='background: linear-gradient(135deg, #1e3a8a 0%, #0d1b2a 100%); padding: 25px; border-radius: 12px; margin-bottom: 20px; color: white;'>
+        <h1 style='margin:0; font-size: 2.2rem;'>🧪 Laboratorio Matematico & Regimes Adaptativos</h1>
+        <p style='margin: 5px 0 0 0; opacity: 0.8;'>Simulador quantico de regimes de mercado, derivadas e mineracao de padroes estatisticos em tempo real.</p>
     </div>
     """, unsafe_allow_html=True)
     
-    # 📚 Dicionário de Física Financeira Incorporado
-    with st.expander("📚 Dicionário de Física Financeira: Como ler as colunas?", expanded=False):
-        st.markdown("""
-        ### 📚 O Dicionário de Variáveis do OlimpoTrade
-        
-        * **1. Stretching (Sobrestiramento) ── *"A Distância ao Elástico"***
-          * **O que é**: O quão longe o preço atual se afastou do feixe de médias móveis.
-          * **Como ler**: Pensa no preço preso às médias por um elástico. Se ele se afasta demasiado (Stretching alto), tende a voltar para trás (reversão). Em mercado lateral, reversões seguras ocorrem com Stretching muito baixo (< 0.60%).
-          
-        * **2. Disp. Vetorial % (Dispersão Vetorial) ── *"A Tensão da Mola"***
-          * **O que é**: A distância percentual entre a média mais rápida (Média 5) e a média mais lenta (Média 144).
-          * **Como ler**: 
-            * **Valores Negativos (ex: -1.5%)**: A mola está comprimida para baixo. Armazena energia potencial elástica enorme para uma explosão de alta (reversão forte com lucros > 5%).
-            * **Valores Positivos (ex: +3.0%)**: A mola já está esticada para cima. O movimento já está a meio, tendo menos energia de explosão (ganhos menores < 3.8%).
-            
-        * **3. Compressão Mola % (Coesão) ── *"O Aperto das Linhas"***
-          * **O que é**: Mede o quão juntas ou afastadas estão as 5 médias entre si (desvio padrão interno).
-          * **Como ler**: Valores muito baixos (feixe de linhas afastado) indicam compressão máxima de energia antes de uma violenta rutura de preço (breakout).
-          
-        * **4. Infiltração Fractal ── *"A Mudança no Micro-Tempo"***
-          * **O que é**: Indica se a tendência já começou a mudar nos prazos muito rápidos (médias 5, 13, 21) antes de se ver nas tendências lentas de longo prazo (55, 144).
-          * **Como ler**: Permite-nos entrar de forma antecipada logo no início da reversão macro, apanhando o fundo cirúrgico.
-          
-        * **5. Reteste Gravitacional ── *"O Trampolim"***
-          * **O que é**: Ocorre quando o preço recua exatamente até tocar no suporte de betão da média institucional de 55 ou na gravidade de 144.
-          * **Como ler**: Toques precisos nestas médias lentas oferecem os ricochetes com melhor rácio risco/retorno a favor da tendência principal.
-          
-        * **6. Velocidade e Aceleração ── *"O Acelerador e o Travão"***
-          * **Como ler**: A **Velocidade** indica a rapidez do movimento das médias rápidas. A **Aceleração** mede a força por trás dessa velocidade. Se a velocidade cai mas a aceleração inverte, o mercado está a travar para mudar de direção.
-        """)
-    
     # 1. Setup Session States
-    if 'math_source' not in st.session_state:
-        st.session_state.math_source = "Sintetico"
-    if 'math_scenario' not in st.session_state:
-        st.session_state.math_scenario = "Didatico Classico"
-    if 'math_noise' not in st.session_state:
-        st.session_state.math_noise = 1.0
-    if 'math_size' not in st.session_state:
-        st.session_state.math_size = 500
     if 'math_prices' not in st.session_state:
         st.session_state.math_prices = generate_math_market("Didatico Classico", 1.0)
     if 'math_step' not in st.session_state:
         st.session_state.math_step = 50
     if 'math_running' not in st.session_state:
         st.session_state.math_running = False
+    if 'math_instant_mode' not in st.session_state:
+        st.session_state.math_instant_mode = False
+        
+    p2 = st.session_state.get('tg_p2', 5)
+    p3 = st.session_state.get('tg_p3', 13)
+    p4 = st.session_state.get('tg_p4', 21)
+    p5 = st.session_state.get('tg_p5', 55)
+    p6 = st.session_state.get('tg_p6', 144)
     
-    # Custom SMA parameter session states (Design Mode)
-    if 'math_sma_p2' not in st.session_state: st.session_state.math_sma_p2 = 5
-    if 'math_sma_p3' not in st.session_state: st.session_state.math_sma_p3 = 13
-    if 'math_sma_p4' not in st.session_state: st.session_state.math_sma_p4 = 21
-    if 'math_sma_p5' not in st.session_state: st.session_state.math_sma_p5 = 55
-    if 'math_sma_p6' not in st.session_state: st.session_state.math_sma_p6 = 144
-    
-    # Active SMA parameter session states (usados nos cálculos de math_df ativo)
-    if 'math_active_sma_p2' not in st.session_state: st.session_state.math_active_sma_p2 = 5
-    if 'math_active_sma_p3' not in st.session_state: st.session_state.math_active_sma_p3 = 13
-    if 'math_active_sma_p4' not in st.session_state: st.session_state.math_active_sma_p4 = 21
-    if 'math_active_sma_p5' not in st.session_state: st.session_state.math_active_sma_p5 = 55
-    if 'math_active_sma_p6' not in st.session_state: st.session_state.math_active_sma_p6 = 144
-    
+    st.session_state.math_active_sma_p2 = p2
+    st.session_state.math_active_sma_p3 = p3
+    st.session_state.math_active_sma_p4 = p4
+    st.session_state.math_active_sma_p5 = p5
+    st.session_state.math_active_sma_p6 = p6
+
+    # Sincronizar de forma absoluta
+    is_synthetic = (st.session_state.get('symbol_val', '') == "🧪 Cenário Didático (Fictício)")
+    if is_synthetic:
+        st.session_state.math_source = "Sintetico"
+    else:
+        st.session_state.math_source = "Mercado Global (Binance Real)"
+
     if 'math_df' not in st.session_state:
         recalculate_math_df()
+
+    # 2. Cockpit Unico de Parametros Activos (Fim absoluto de qualquer duplicacao!)
+    if is_synthetic:
+        scenario = st.session_state.get('math_scenario', 'Didatico Classico')
+        noise = st.session_state.get('math_noise', 1.0)
+        size = st.session_state.get('math_size', 500)
         
-    # 2. Control Columns Layout
-    col_setup, col_sma, col_sim = st.columns(3)
-    
-    with col_setup:
-        st.subheader("🛠️ Configuração do Mercado")
-        source_opt = st.radio("Fonte de Dados", ["Sintetico", "Binance CSV"], index=0 if st.session_state.math_source == "Sintetico" else 1, horizontal=True)
+        st.markdown(f"""
+        <div style="background: rgba(124, 58, 237, 0.05); border: 1px solid rgba(124, 58, 237, 0.15); padding: 20px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 20px rgba(31, 38, 135, 0.03);">
+            <h4 style="margin: 0 0 10px 0; color: #5b21b6; display: flex; align-items: center; gap: 8px;">🧪 Simulacao de Cenario Didatico (Ficticio) Ativa</h4>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; font-size: 13.5px; color: #475569;">
+                <div>
+                    📈 <strong>Cenario Didatico Activo:</strong><br>
+                    <span style="font-weight: bold; color: #7c3aed;">{scenario}</span>
+                </div>
+                <div>
+                    📏 <strong>Amostra / Ruido:</strong><br>
+                    <span style="font-weight: bold; color: #475569;">{size} velas | Ruido: {noise}</span>
+                </div>
+                <div>
+                    📐 <strong>Vetor de Medias Ativas:</strong><br>
+                    <span style="background: #f3e8ff; color: #7e22ce; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 12.5px;">P2:{p2}</span>
+                    <span style="background: #f3e8ff; color: #7e22ce; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 12.5px;">P3:{p3}</span>
+                    <span style="background: #f3e8ff; color: #7e22ce; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 12.5px;">P4:{p4}</span>
+                    <span style="background: #f3e8ff; color: #7e22ce; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 12.5px;">P5:{p5}</span>
+                    <span style="background: #f3e8ff; color: #7e22ce; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 12.5px;">P6:{p6}</span>
+                </div>
+            </div>
+            <div style="font-size: 12px; color: #6b7280; margin-top: 10px; font-style: italic;">
+                Nota: O simulador esta a rodar uma serie artificial pedagogica baseada nas suas configuracoes no Centro de Comando no topo do ecra.
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        symbol = st.session_state.get('symbol_val', 'BTC/USDT')
+        timeframe = st.session_state.get('timeframe_val', '1h')
+        limit = st.session_state.get('limit_candles_val', 500)
         
-        if source_opt != st.session_state.math_source:
-            st.session_state.math_source = source_opt
-            if source_opt == "Sintetico":
-                st.session_state.math_prices = generate_math_market(st.session_state.math_scenario, st.session_state.math_noise)
-                st.session_state.math_step = 50
-            recalculate_math_df()
-            st.rerun()
-            
-        if st.session_state.math_source == "Sintetico":
-            scenario = st.selectbox("Cenário Didático", ["Didatico Classico", "Montanha Russa", "Flash Crash", "Lateralizacao Eterna", "Tendencia Saudavel (Bull)"], index=["Didatico Classico", "Montanha Russa", "Flash Crash", "Lateralizacao Eterna", "Tendencia Saudavel (Bull)"].index(st.session_state.math_scenario))
-            noise = st.slider("Ruído do Mercado", 0.1, 5.0, float(st.session_state.math_noise), step=0.1)
-            size = st.slider("Tamanho da Série", 100, 2000, int(st.session_state.math_size), step=100)
-            
-            if scenario != st.session_state.math_scenario or noise != st.session_state.math_noise or size != st.session_state.math_size:
-                st.session_state.math_scenario = scenario
-                st.session_state.math_noise = noise
-                st.session_state.math_size = size
-                st.session_state.math_prices = generate_math_market(scenario, noise)[:size]
-                st.session_state.math_step = 50
-                recalculate_math_df()
-                st.rerun()
-        else:
-            uploaded_file = st.file_uploader("Carregar Ficheiro CSV (ex: Binance)", type=["csv"])
-            if uploaded_file is not None:
-                if load_uploaded_csv(uploaded_file):
-                    st.rerun()
-                    
-    with col_sma:
-
-                    
-        st.subheader("📐 Vetor de Médias Móveis")
-
-                    
-        st.markdown("*Insira qualquer período de média móvel desejado:*")
-
-                    
+        st.markdown(f"""
+        <div style="background: rgba(2, 132, 199, 0.05); border: 1px solid rgba(2, 132, 199, 0.15); padding: 20px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 20px rgba(31, 38, 135, 0.03);">
+            <h4 style="margin: 0 0 10px 0; color: #1e3b8b; display: flex; align-items: center; gap: 8px;">🌎 Analise Quantitativa Real Ativa (Binance API)</h4>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; font-size: 13.5px; color: #334155;">
+                <div>
+                    🌎 <strong>Mercado Global Activo:</strong><br>
+                    <span style="font-weight: bold; color: #0284c7;">{symbol} ({timeframe})</span>
+                </div>
+                <div>
+                    📏 <strong>Amostra de Backtest:</strong><br>
+                    <span style="font-weight: bold; color: #475569;">{limit} candles</span>
+                </div>
+                <div>
+                    📐 <strong>Vetor de Medias Ativas:</strong><br>
+                    <span style="background: #f0fdf4; color: #15803d; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 12.5px;">P2:{p2}</span>
+                    <span style="background: #f0fdf4; color: #15803d; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 12.5px;">P3:{p3}</span>
+                    <span style="background: #f0fdf4; color: #15803d; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 12.5px;">P4:{p4}</span>
+                    <span style="background: #f0fdf4; color: #15803d; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 12.5px;">P5:{p5}</span>
+                    <span style="background: #f0fdf4; color: #15803d; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 12.5px;">P6:{p6}</span>
+                </div>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 15px; padding-top: 10px; border-top: 1px dashed rgba(2, 132, 199, 0.15);">
+                <span style="font-size: 12px; color: #0f172a; font-weight: bold;">
+                    💡 Dica: Para alterar as medias, timeframe ou ativo, basta abrir o painel 🎛️ Centro de Comando no topo!
+                </span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
         
-
-                    
-        p2_val = st.number_input("Média Rápida (P2)", value=int(st.session_state.math_sma_p2), step=1)
-
-                    
-        p3_val = st.number_input("Média Curta (P3)", value=int(st.session_state.math_sma_p3), step=1)
-
-                    
-        p4_val = st.number_input("Média Média (P4)", value=int(st.session_state.math_sma_p4), step=1)
-
-                    
-        p5_val = st.number_input("Média Longa (P5)", value=int(st.session_state.math_sma_p5), step=1)
-
-                    
-        p6_val = st.number_input("Super Longa (P6)", value=int(st.session_state.math_sma_p6), step=1)
-
-                    
-        
-
-                    
-        if (p2_val != st.session_state.math_sma_p2 or 
-
-                    
-            p3_val != st.session_state.math_sma_p3 or 
-
-                    
-            p4_val != st.session_state.math_sma_p4 or 
-
-                    
-            p5_val != st.session_state.math_sma_p5 or 
-
-                    
-            p6_val != st.session_state.math_sma_p6):
-
-                    
-            st.session_state.math_sma_p2 = p2_val
-
-                    
-            st.session_state.math_sma_p3 = p3_val
-
-                    
-            st.session_state.math_sma_p4 = p4_val
-
-                    
-            st.session_state.math_sma_p5 = p5_val
-
-                    
-            st.session_state.math_sma_p6 = p6_val
-
-                    
-            recalculate_math_df()
-
-                    
-            st.rerun()
-            
-    with col_sim:
-
-            
-        st.subheader("⚙️ Controlo de Batimentos")
-
-            
-        
-
-            
-        # Modo Instantâneo checkbox
-
-            
-        instant_mode = st.checkbox("⚡ Modo Instantâneo (Processar Tudo)", value=st.session_state.get('math_instant_mode', False), help="Calcula e exibe a série completa imediatamente, ignorando a animação passo-a-passo.")
-
-            
-        if instant_mode != st.session_state.get('math_instant_mode', False):
-
-            
-            st.session_state.math_instant_mode = instant_mode
-
-            
-            if instant_mode:
-
-            
-                st.session_state.math_step = len(st.session_state.math_df) - 1
-
-            
-                st.session_state.math_running = False
-
-            
-            else:
-
-            
-                st.session_state.math_step = 50
-
-            
-            st.rerun()
-
-            
-            
-
-            
-        if instant_mode:
-
-            
-            st.session_state.math_step = len(st.session_state.math_df) - 1
-
-            
-            st.session_state.math_running = False
-
-            
-            
-
-            
-        # Play/Pause toggle (only if not in instant mode)
-
-            
-        if not instant_mode:
-
-            
-            running_label = "⏸️ Pausar Simulação" if st.session_state.math_running else "▶️ Iniciar Simulação"
-
-            
-            if st.button(running_label, width='stretch'):
-
-            
-                st.session_state.math_running = not st.session_state.math_running
-
-            
-                st.rerun()
-
-            
-                
-
-            
-            col_btn1, col_btn2 = st.columns(2)
-
-            
-            with col_btn1:
-
-            
-                if st.button("➡️ Avançar 1 Passo", width='stretch'):
-
-            
-                    st.session_state.math_running = False
-
-            
-                    df_len = len(st.session_state.math_df)
-
-            
-                    if st.session_state.math_step < df_len - 1:
-
-            
-                        st.session_state.math_step += 1
-
-            
-                    st.rerun()
-
-            
-            with col_btn2:
-
-            
-                if st.button("🔄 Reiniciar", width='stretch'):
-
-            
-                    st.session_state.math_step = 50
-
-            
-                    st.session_state.math_running = False
-
-            
-                    if st.session_state.math_source == "Sintetico":
-
-            
-                        st.session_state.math_prices = generate_math_market(st.session_state.math_scenario, st.session_state.math_noise)
-
-            
+        col_binance_btn, col_void = st.columns([1.2, 2.8])
+        with col_binance_btn:
+            if st.button("🔄 Recarregar Dados da API", use_container_width=True, key="btn_reload_math_binance"):
+                with st.spinner("A carregar dados frescos da Binance..."):
+                    load_global_binance_data_helper()
                     recalculate_math_df()
-
-            
+                    st.toast("Dados atualizados da Binance!")
                     st.rerun()
 
-            
-                    
+    st.markdown("---")
 
-            
-            speed = st.selectbox("Velocidade do Batimento", ["Lento (1.0s)", "Médio (0.3s)", "Rápido (0.05s)"], index=1)
+    # 4. Linha Horizontal de Controlo de Batimentos Ultra-Premium
+    col_play, col_step, col_reset, col_inst, col_speed, col_export = st.columns([2.2, 2.2, 1.8, 2.5, 2.2, 2.5])
+    
+    # Preparar dados para o botao de exportacao
+    df_full = st.session_state.math_df
+    csv_buffer = io.StringIO()
+    df_full.to_csv(csv_buffer, index=False)
+    csv_data = csv_buffer.getvalue()
+    
+    instant_mode = st.session_state.math_instant_mode
+    
+    with col_inst:
+        chk_instant = st.checkbox("⚡ Modo Instantaneo", value=instant_mode, help="Processa e exibe a serie completa imediatamente.")
+        if chk_instant != instant_mode:
+            st.session_state.math_instant_mode = chk_instant
+            if chk_instant:
+                st.session_state.math_step = len(st.session_state.math_df) - 1
+                st.session_state.math_running = False
+            else:
+                st.session_state.math_step = 50
+            st.rerun()
 
-            
-            speed_map = {"Lento (1.0s)": 1.0, "Médio (0.3s)": 0.3, "Rápido (0.05s)": 0.05}
+    if st.session_state.math_instant_mode:
+        st.session_state.math_step = len(st.session_state.math_df) - 1
+        st.session_state.math_running = False
 
-            
+    with col_play:
+        if st.session_state.math_instant_mode:
+            st.button("▶️ Iniciar Simulacao", use_container_width=True, disabled=True, key="btn_play_disabled")
+        else:
+            running_label = "⏸️ Pausar Simulacao" if st.session_state.math_running else "▶️ Iniciar Simulacao"
+            if st.button(running_label, use_container_width=True, key="btn_play_active"):
+                st.session_state.math_running = not st.session_state.math_running
+                st.rerun()
+
+    with col_step:
+        if st.session_state.math_instant_mode:
+            st.button("➡️ Passo", use_container_width=True, disabled=True, key="btn_step_disabled")
+        else:
+            if st.button("➡️ Avançar Passo", use_container_width=True, key="btn_step_active"):
+                st.session_state.math_running = False
+                df_len = len(st.session_state.math_df)
+                if st.session_state.math_step < df_len - 1:
+                    st.session_state.math_step += 1
+                st.rerun()
+
+    with col_reset:
+        if st.button("🔁 Reiniciar", use_container_width=True, key="btn_reset_active"):
+            st.session_state.math_step = 50
+            st.session_state.math_running = False
+            if st.session_state.math_source == "Sintetico":
+                st.session_state.math_prices = generate_math_market(st.session_state.math_scenario, st.session_state.math_noise)
+            recalculate_math_df()
+            st.rerun()
+
+    with col_speed:
+        if st.session_state.math_instant_mode:
+            st.selectbox("Velocidade", ["Instantaneo"], index=0, disabled=True, label_visibility="collapsed", key="select_speed_disabled")
+            step_delay = 0.05
+        else:
+            speed = st.selectbox(
+                "Velocidade",
+                ["Lento (1.0s)", "Medio (0.3s)", "Rapido (0.05s)"],
+                index=1,
+                label_visibility="collapsed",
+                key="select_speed_active"
+            )
+            speed_map = {"Lento (1.0s)": 1.0, "Medio (0.3s)": 0.3, "Rapido (0.05s)": 0.05}
             step_delay = speed_map[speed]
 
-            
-        else:
-
-            
-            st.info("⚡ Modo Instantâneo Ativo: Série completa processada e exibida abaixo.")
-
-            
-            step_delay = 0.05
-
-            
-            
-
-            
-        # Export data as CSV
-
-            
-        df_full = st.session_state.math_df
-
-            
-        csv_buffer = io.StringIO()
-
-            
-        df_full.to_csv(csv_buffer, index=False)
-
-            
-        csv_data = csv_buffer.getvalue()
-
-            
-        
-
-            
+    with col_export:
         st.download_button(
-
-            
-            label="📥 Exportar Toda a Série (CSV)",
-
-            
+            label="📥 Exportar CSV",
             data=csv_data,
-
-            
             file_name=f"serie_olimpotrade_{int(time.time())}.csv",
-
-            
             mime="text/csv",
-
-            
-            width='stretch'
-
-            
+            use_container_width=True,
+            key="btn_export_csv"
         )
+
+    st.markdown("<div style='margin-bottom:15px;'></div>", unsafe_allow_html=True)
 
     # 3. Dynamic Cockpit Cards
     step = st.session_state.math_step
@@ -1008,7 +898,7 @@ def show_golden_rules(filtered_opp, filtered_thr, selected_regime):
             st.dataframe(df_stats, width='stretch', hide_index=True)
             
             # 2. Indicadores Fractais (Micro-Barras HD)
-            st.markdown("##### 🔮 Fidelidade Fractal & Fibonacci")
+            st.markdown("##### 🔮 Fidelidade Fractal & Médias")
             
             # Barra Infiltração
             st.markdown(f"**Infiltração Fractal Rápida:** {infil_rate:.1f}%")
@@ -1079,7 +969,7 @@ def show_golden_rules(filtered_opp, filtered_thr, selected_regime):
             st.dataframe(df_stats_t, width='stretch', hide_index=True)
             
             # 2. Indicadores Fractais (Micro-Barras HD)
-            st.markdown("##### 🔮 Fidelidade Fractal & Fibonacci")
+            st.markdown("##### 🔮 Fidelidade Fractal & Médias")
             
             # Barra Infiltração
             st.markdown(f"**Infiltração Fractal Rápida:** {infil_rate_t:.1f}%")
