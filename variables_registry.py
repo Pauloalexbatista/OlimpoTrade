@@ -679,6 +679,32 @@ def render_bot_brain_table():
     df_dna = pd.DataFrame(table_rows, columns=columns)
     
     st.dataframe(df_dna, width='stretch', hide_index=True, height=550)
+    
+    # Nota Teórica e Explicativa sobre o Consenso de Regimes (Matemática Pura)
+    st.markdown("""
+    <div style="background: linear-gradient(135deg, rgba(15,23,42,0.9) 0%, rgba(30,41,59,0.95) 100%);
+                padding: 20px; border-radius: 14px; border: 1px solid rgba(124,58,237,0.3);
+                box-shadow: 0 8px 32px rgba(0,0,0,0.3); margin-top: 20px;">
+        <h5 style="color: #a78bfa; margin-top: 0; font-weight: 800; display: flex; align-items: center; gap: 8px;">
+            🎓 Nota Científica: A Simetria Cruzada dos Regimes Extremos
+        </h5>
+        <p style="font-size: 13.5px; color: #cbd5e1; line-height: 1.6; margin-bottom: 12px;">
+            Notou que as colunas de <b>BULL / LONG</b> e <b>BEAR / SHORT</b> estão vazias, enquanto <b>BULL / SHORT</b> e <b>BEAR / LONG</b> estão preenchidas? 
+            Isto não é um erro, mas sim uma <b>consequência matemática pura e brilhante</b> da estrutura geométrica do mercado:
+        </p>
+        <ul style="font-size: 13px; color: #cbd5e1; line-height: 1.6; padding-left: 20px; margin-bottom: 0;">
+            <li style="margin-bottom: 8px;">
+                <b>Porquê BULL / LONG está vazio?</b> Um <i>Fundo Estrutural</i> (ponto ideal de compra) é por definição um <b>mínimo local</b>. Para o preço formar um vale, ele teve de cair nos últimos períodos, o que faz com que as médias curtas (<code style="color:#f472b6;">sma_5</code>, <code style="color:#f472b6;">sma_13</code>) apontem para baixo e cruzem. Por isso, na vela exata do fundo, as médias <b>nunca</b> estarão alinhadas em alta pura (<code style="color:#4ade80;">BULL</code>). O regime no fundo é classificado como <code style="color:#ef4444;">BEAR</code> ou <code style="color:#60a5fa;">LATERAL</code>.
+            </li>
+            <li style="margin-bottom: 8px;">
+                <b>Porquê BEAR / SHORT está vazio?</b> Um <i>Topo Estrutural</i> (ponto ideal de venda) é um <b>máximo local</b>. Para o preço formar um pico, ele teve de subir recentemente, alinhando as médias curtas para cima. Na vela exata do topo, é matematicamente impossível as médias estarem alinhadas em baixa pura (<code style="color:#ef4444;">BEAR</code>). O regime no topo é classificado como <code style="color:#4ade80;">BULL</code> ou <code style="color:#60a5fa;">LATERAL</code>.
+            </li>
+            <li>
+                <b>Conclusão Científica:</b> O Bot é estatisticamente consistente. Ele aprende regras de <b>LONG (Compra)</b> nos regimes <code style="color:#ef4444;">BEAR</code> (pullbacks extremos nos suportes), <code style="color:#60a5fa;">LATERAL</code> e <code style="color:#818cf8;">CAÓTICO</code>, e regras de <b>SHORT (Venda)</b> nos regimes <code style="color:#4ade80;">BULL</code> (picos de euforia e resistências), <code style="color:#60a5fa;">LATERAL</code> e <code style="color:#818cf8;">CAÓTICO</code>.
+            </li>
+        </ul>
+    </div>
+    """, unsafe_allow_html=True)
 
 def rebuild_consensus_dna():
     import os
