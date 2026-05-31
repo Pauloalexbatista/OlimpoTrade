@@ -2183,121 +2183,125 @@ with tab_trader_game:
         }
         </style>
         """, unsafe_allow_html=True)
-        # --- COCKPIT DE CONFIGURACOES ---
-        with st.expander("Configuração: Períodos das Médias & Risco", expanded=not st.session_state.tg_active and not st.session_state.tg_game_finished):
-            col_c1, col_c2, col_c3 = st.columns([0.8, 1.8, 1.0])
-            with col_c1:
-                st.markdown("##### Jogador")
-                name_input = st.text_input("Nome:", value=st.session_state.tg_trader_name, key="tg_name_wdg")
-                if name_input: st.session_state.tg_trader_name = name_input
-                st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
-                if st.button("Iniciar / Novo Jogo", type="primary", width='stretch'):
+        # =========================================================================
+        # PAINEL DE LANCAMENTO - premium, sempre visivel, sem expander
+        # =========================================================================
+        _strat_d = st.session_state.get('tg_strategy_type', 'Default (Formulas do Jogo)')
+        _ref_d   = st.session_state.get('tg_single_line_ref', 'SMA Rapida (P2)')
+        _sl_on   = st.session_state.get('tg_sl_pct_active', st.session_state.get('tg_sl_active', True))
+        _tp_on   = st.session_state.get('tg_tp_pct_active', st.session_state.get('tg_tp_active', False))
+        _ts_on   = st.session_state.get('tg_ts_pct_active', st.session_state.get('tg_ts_active', False))
+        _sl_v    = st.session_state.get('tg_sl_pct', 2.0)
+        _tp_v    = st.session_state.get('tg_tp_pct', 7.0)
+        _ts_v    = st.session_state.get('tg_ts_pct', 1.5)
+        _p2 = st.session_state.get('tg_p2', 9)
+        _p3 = st.session_state.get('tg_p3', 21)
+        _p4 = st.session_state.get('tg_p4', 50)
+        _p5 = st.session_state.get('tg_p5', 100)
+        _p6 = st.session_state.get('tg_p6', 200)
+        _tag_map = {'Default': 'EQ', 'Cerebro': 'DNA', 'Cruzamento': 'X-LINE', 'Camadas': 'LAYERS'}
+        _clr_map = {'Default': '#64748b', 'Cerebro': '#7c3aed', 'Cruzamento': '#0284c7', 'Camadas': '#dc2626'}
+        _strat_tag = next((v for k, v in _tag_map.items() if k in _strat_d), '...')
+        _strat_clr = next((v for k, v in _clr_map.items() if k in _strat_d), '#64748b')
+        _strat_sub = ('Linha: ' + _ref_d) if 'Cruzamento' in _strat_d else ''
+
+        def _rb(lbl, on, val):
+            if on:
+                return (
+                    f'<span style="background:rgba(16,185,129,0.15);color:#10b981;'
+                    f'border:1px solid rgba(16,185,129,0.4);border-radius:5px;'
+                    f'padding:2px 8px;font-size:11px;font-weight:700;">{lbl} {val:.1f}%</span>'
+                )
+            return (
+                f'<span style="background:rgba(100,116,139,0.1);color:#94a3b8;'
+                f'border:1px solid rgba(100,116,139,0.2);border-radius:5px;'
+                f'padding:2px 8px;font-size:11px;"><s>{lbl}</s></span>'
+            )
+
+        _risk = _rb('SL', _sl_on, _sl_v) + '&nbsp;' + _rb('TP', _tp_on, _tp_v) + '&nbsp;' + _rb('TS', _ts_on, _ts_v)
+
+        def _sma_badge(label, val, bg, bc, tc):
+            return (
+                f'<span style="background:{bg};border:1px solid {bc};border-radius:6px;'
+                f'padding:3px 10px;font-size:13px;font-weight:800;color:{tc};">{label} {val}</span>'
+            )
+
+        _badges = (
+            _sma_badge('P2', _p2, 'rgba(37,99,235,0.2)',   'rgba(37,99,235,0.5)',   '#60a5fa') +
+            _sma_badge('P3', _p3, 'rgba(234,179,8,0.15)',  'rgba(234,179,8,0.4)',   '#fbbf24') +
+            _sma_badge('P4', _p4, 'rgba(249,115,22,0.15)', 'rgba(249,115,22,0.4)', '#fb923c') +
+            _sma_badge('P5', _p5, 'rgba(168,85,247,0.15)', 'rgba(168,85,247,0.4)', '#c084fc') +
+            _sma_badge('P6', _p6, 'rgba(16,185,129,0.15)', 'rgba(16,185,129,0.4)', '#34d399')
+        )
+
+        if not st.session_state.tg_active and not st.session_state.tg_game_finished:
+            st.markdown(
+                '<div style="background:linear-gradient(135deg,rgba(15,23,42,0.97),rgba(30,41,59,0.97));'
+                'border:1px solid rgba(124,58,237,0.35);border-radius:16px;padding:20px 28px;'
+                'margin-bottom:16px;box-shadow:0 8px 32px rgba(0,0,0,0.3);">'
+                '<div style="display:flex;align-items:flex-start;gap:28px;flex-wrap:wrap;">'
+                '<div style="flex:0 0 auto;min-width:150px;">'
+                '<div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Jogador</div>'
+                f'<div style="font-size:20px;font-weight:800;color:#f1f5f9;">{st.session_state.tg_trader_name}</div>'
+                '</div>'
+                '<div style="flex:1;min-width:280px;">'
+                '<div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Medias Ativas no Jogo</div>'
+                f'<div style="display:flex;gap:6px;flex-wrap:wrap;">{_badges}</div>'
+                '</div>'
+                '<div style="flex:0 0 auto;min-width:180px;">'
+                '<div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Estrategia Ativa</div>'
+                f'<div style="font-size:14px;font-weight:700;color:{_strat_clr};">[{_strat_tag}] {_strat_d}</div>'
+                f'<div style="font-size:11px;color:#94a3b8;margin-top:2px;">{_strat_sub}</div>'
+                f'<div style="margin-top:8px;display:flex;gap:4px;flex-wrap:wrap;">{_risk}</div>'
+                '</div>'
+                '</div>'
+                '<div style="font-size:10px;color:#475569;margin-top:14px;text-align:right;font-style:italic;">'
+                'Altera estrategia, medias e risco no Centro de Comando no topo da pagina'
+                '</div>'
+                '</div>',
+                unsafe_allow_html=True
+            )
+            _cn, _cb = st.columns([1, 1])
+            with _cn:
+                _ni = st.text_input(
+                    'Nome do Jogo / Teste:',
+                    value=st.session_state.tg_trader_name,
+                    key='tg_name_wdg',
+                    placeholder='Ex: Teste Cerebro Fibonacci'
+                )
+                if _ni:
+                    st.session_state.tg_trader_name = _ni
+            with _cb:
+                st.markdown('<div style="height:28px;"></div>', unsafe_allow_html=True)
+                if st.button('Iniciar Novo Jogo', type='primary', width='stretch', key='tg_btn_start_main'):
                     start_new_game()
                     st.rerun()
-            with col_c2:
-                st.markdown("##### 📏 Médias Ativas no Jogo")
-                # Exibir as médias como badges premium estilizados
-                st.markdown(f"""
-                <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px;">
-                    <div style="background: rgba(14, 165, 233, 0.1); border: 1px solid rgba(14, 165, 233, 0.3); border-radius: 6px; padding: 6px 12px; text-align: center; flex: 1; min-width: 60px;">
-                        <div style="font-size: 10px; color: #0ea5e9; text-transform: uppercase; font-weight: bold;">Rápida (P2)</div>
-                        <div style="font-size: 18px; font-weight: 900; color: var(--text-color);">{st.session_state.tg_p2}</div>
-                    </div>
-                    <div style="background: rgba(249, 115, 22, 0.1); border: 1px solid rgba(249, 115, 22, 0.3); border-radius: 6px; padding: 6px 12px; text-align: center; flex: 1; min-width: 60px;">
-                        <div style="font-size: 10px; color: #f97316; text-transform: uppercase; font-weight: bold;">Confirm (P3)</div>
-                        <div style="font-size: 18px; font-weight: 900; color: var(--text-color);">{st.session_state.tg_p3}</div>
-                    </div>
-                    <div style="background: rgba(168, 85, 247, 0.1); border: 1px solid rgba(168, 85, 247, 0.3); border-radius: 6px; padding: 6px 12px; text-align: center; flex: 1; min-width: 60px;">
-                        <div style="font-size: 10px; color: #a855f7; text-transform: uppercase; font-weight: bold;">Média (P4)</div>
-                        <div style="font-size: 18px; font-weight: 900; color: var(--text-color);">{st.session_state.tg_p4}</div>
-                    </div>
-                    <div style="background: rgba(236, 72, 153, 0.1); border: 1px solid rgba(236, 72, 153, 0.3); border-radius: 6px; padding: 6px 12px; text-align: center; flex: 1; min-width: 60px;">
-                        <div style="font-size: 10px; color: #ec4899; text-transform: uppercase; font-weight: bold;">Longa (P5)</div>
-                        <div style="font-size: 18px; font-weight: 900; color: var(--text-color);">{st.session_state.tg_p5}</div>
-                    </div>
-                    <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 6px; padding: 6px 12px; text-align: center; flex: 1; min-width: 60px;">
-                        <div style="font-size: 10px; color: #10b981; text-transform: uppercase; font-weight: bold;">Mestra (P6)</div>
-                        <div style="font-size: 18px; font-weight: 900; color: var(--text-color);">{st.session_state.tg_p6}</div>
-                    </div>
-                </div>
-                <div style="font-size: 11px; color: #64748b; margin-top: 10px; font-style: italic; text-align: center;">
-                    💡 Altere os períodos das médias móveis na Central de Variáveis no topo da página.
-                </div>
-                """, unsafe_allow_html=True)
-            with col_c3:
-                st.markdown("##### Estratégia do Robô")
-                strat_choice = st.selectbox(
-                    "Modelo de Decisão:", ["Default (Fórmula do Jogo)", "Cérebro de Consenso (Lab)", "Cruzamento de Linha Única (Testes)", "Estratégia Média Camadas (Duas Linhas)"],
-                    index=0 if st.session_state.tg_strategy_type == "Default" else (1 if st.session_state.tg_strategy_type == "Cérebro de Consenso (Lab)" else (2 if "Cruzamento" in st.session_state.tg_strategy_type else 3)),
-                    key="tg_strategy_type_select"
+
+        elif st.session_state.tg_active:
+            def _sba(val, bg, bc, tc):
+                return (
+                    f'<span style="background:{bg};border:1px solid {bc};border-radius:5px;'
+                    f'padding:2px 8px;font-size:12px;font-weight:700;color:{tc};">{val}</span>'
                 )
-                if strat_choice != st.session_state.tg_strategy_type:
-                    st.session_state.tg_strategy_type = strat_choice
-                    if "Cérebro" in strat_choice:
-                        if os.path.exists("bot_consensus_dna.json"):
-                            try:
-                                with open("bot_consensus_dna.json", "r", encoding="utf-8") as f:
-                                    dna = json.load(f)
-                                smas = dna.get("smas", [5, 13, 21, 55, 144])
-                                st.session_state.tg_p2 = smas[0]
-                                st.session_state.tg_p3 = smas[1]
-                                st.session_state.tg_p4 = smas[2]
-                                st.session_state.tg_p5 = smas[3]
-                                st.session_state.tg_p6 = smas[4]
-                                recalculate_indicators()
-                                st.toast("Médias sincronizadas com o Cérebro de Consenso!")
-                            except Exception:
-                                pass
-                    elif 'Cruzamento' in strat_choice:
-                        st.session_state.tg_sl_active = True
-                        st.session_state.tg_sl_pct = 1.0
-                        st.session_state.tg_ts_active = True
-                        st.session_state.tg_ts_pct = 1.0
-                        st.session_state.tg_tp_active = False
-                        st.toast("Estratégia Linha Única: SL=1.0% e TS=1.0% ativados automaticamente!")
-                    elif "Esmigalhador" in strat_choice or "Média Camadas" in strat_choice or "Camadas" in strat_choice:
-                        st.session_state.tg_sl_active = True
-                        st.session_state.tg_sl_pct = 1.0
-                        st.session_state.tg_ts_active = True
-                        st.session_state.tg_ts_pct = 0.5
-                        st.session_state.tg_tp_active = False
-                        st.toast("Estratégia Média Camadas: SL=1.0% e TS=0.5% (O Soluço) ativados automaticamente!")
-                    st.rerun()                
-                if st.session_state.tg_strategy_type == "Cruzamento de Linha Única (Testes)":
-                    ref_options = ["SMA Rápida (P2)", "SMA Sinal (P3)", "SMA Intermédia (P4)", "SMA Lenta 1 (P5)", "SMA Lenta 2 (P6)", "Média do Vetor (avg_sma)", "Desvio Padrão (sma_std)"]
-                    current_ref = st.session_state.get("tg_single_line_ref", "SMA Rápida (P2)")
-                    if current_ref not in ref_options:
-                        current_ref = "SMA Rápida (P2)"
-                    st.selectbox(
-                        "Linha de Referência:",
-                        ref_options,
-                        index=ref_options.index(current_ref),
-                        key="tg_single_line_ref"
-                    )
-                
-                st.markdown("##### 🛡️ Gestão de Risco Ativa")
-                sl_status = f"<span style='color:#10b981; font-weight:bold;'>LIGADO ({st.session_state.tg_sl_pct:.1f}%)</span>" if st.session_state.tg_sl_active else "<span style='color:#64748b; font-style:italic;'>Desativado</span>"
-                tp_status = f"<span style='color:#10b981; font-weight:bold;'>LIGADO ({st.session_state.tg_tp_pct:.1f}%)</span>" if st.session_state.tg_tp_active else "<span style='color:#64748b; font-style:italic;'>Desativado</span>"
-                ts_status = f"<span style='color:#10b981; font-weight:bold;'>LIGADO ({st.session_state.tg_ts_pct:.1f}%)</span>" if st.session_state.tg_ts_active else "<span style='color:#64748b; font-style:italic;'>Desativado</span>"
-                st.markdown(f"""
-                <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; padding: 10px; font-size: 13px; margin-top: 5px;">
-                    <div style="display:flex; justify-content:space-between; margin-bottom: 6px;">
-                        <span style="color:#94a3b8;">Stop Loss (SL):</span>
-                        <span>{sl_status}</span>
-                    </div>
-                    <div style="display:flex; justify-content:space-between; margin-bottom: 6px;">
-                        <span style="color:#94a3b8;">Take Profit (TP):</span>
-                        <span>{tp_status}</span>
-                    </div>
-                    <div style="display:flex; justify-content:space-between;">
-                        <span style="color:#94a3b8;">Trailing Stop (TS):</span>
-                        <span>{ts_status}</span>
-                    </div>
-                </div>
-                <div style="font-size: 11px; color: #64748b; margin-top: 10px; font-style: italic; text-align: center;">
-                    💡 Ajuste os parâmetros de risco na Central de Variáveis no topo.
-                </div>
-                """, unsafe_allow_html=True)
+            _slim = (
+                _sba(_p2, 'rgba(37,99,235,0.2)',   'rgba(37,99,235,0.5)',   '#60a5fa') +
+                _sba(_p3, 'rgba(234,179,8,0.15)',  'rgba(234,179,8,0.4)',   '#fbbf24') +
+                _sba(_p4, 'rgba(249,115,22,0.15)', 'rgba(249,115,22,0.4)', '#fb923c') +
+                _sba(_p5, 'rgba(168,85,247,0.15)', 'rgba(168,85,247,0.4)', '#c084fc') +
+                _sba(_p6, 'rgba(16,185,129,0.15)', 'rgba(16,185,129,0.4)', '#34d399')
+            )
+            st.markdown(
+                '<div style="background:rgba(124,58,237,0.1);border:1px solid rgba(124,58,237,0.3);'
+                'border-radius:10px;padding:10px 20px;margin-bottom:12px;'
+                'display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">'
+                '<div style="display:flex;align-items:center;gap:16px;">'
+                f'<span style="color:#a78bfa;font-weight:700;font-size:13px;">EM JOGO: {st.session_state.tg_trader_name}</span>'
+                f'<span style="color:#64748b;font-size:12px;">[{_strat_tag}] {_strat_d}</span>'
+                '</div>'
+                f'<div style="display:flex;gap:6px;">{_slim}</div>'
+                '</div>',
+                unsafe_allow_html=True
+            )
         # --- AUTO-TREINO: movido para o tab Cerebro do Bot (DNA) ---
         # =========================================================================
         # MODO REVISAO: gráfico completo apos o fim do jogo

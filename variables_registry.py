@@ -17,11 +17,11 @@ class QuantVariable:
 # Registo central das variáveis do sistema
 VARIABLES = [
     # Médias Móveis (Fibonacci & Clássicas)
-    QuantVariable("tg_p2", "Período SMA Rápida (P2)", "Médias Móveis (Lab/Jogo)", "Média móvel rápida imediata (cabeça do feixe). Representa a velocidade do momentum curto.", "SMA(Close, P2)", 5, 1, 999, 1),
-    QuantVariable("tg_p3", "Período SMA Sinal (P3)", "Médias Móveis (Lab/Jogo)", "Média móvel usada para cruzamentos rápidos com P2 para gatilho.", "SMA(Close, P3)", 13, 1, 999, 1),
-    QuantVariable("tg_p4", "Período SMA Intermédia (P4)", "Médias Móveis (Lab/Jogo)", "Média intermédia que define o alinhamento de curto/médio prazo.", "SMA(Close, P4)", 21, 1, 999, 1),
-    QuantVariable("tg_p5", "Período SMA Lenta 1 (P5)", "Médias Móveis (Lab/Jogo)", "Média institucional lenta. Atua como primeiro trampolim de suporte.", "SMA(Close, P5)", 55, 1, 999, 1),
-    QuantVariable("tg_p6", "Período SMA Lenta 2 (P6)", "Médias Móveis (Lab/Jogo)", "Média institucional profunda. Atua como o suporte gravitacional final.", "SMA(Close, P6)", 144, 1, 999, 1),
+    QuantVariable("tg_p2", "Período SMA Rápida (P2)", "Médias Móveis (Lab/Jogo)", "Média móvel rápida imediata (cabeça do feixe). Representa a velocidade do momentum curto.", "SMA(Close, P2)", 9, 1, 999, 1),
+    QuantVariable("tg_p3", "Período SMA Sinal (P3)", "Médias Móveis (Lab/Jogo)", "Média móvel usada para cruzamentos rápidos com P2 para gatilho.", "SMA(Close, P3)", 21, 1, 999, 1),
+    QuantVariable("tg_p4", "Período SMA Intermédia (P4)", "Médias Móveis (Lab/Jogo)", "Média intermédia que define o alinhamento de curto/médio prazo.", "SMA(Close, P4)", 50, 1, 999, 1),
+    QuantVariable("tg_p5", "Período SMA Lenta 1 (P5)", "Médias Móveis (Lab/Jogo)", "Média institucional lenta. Atua como primeiro trampolim de suporte.", "SMA(Close, P5)", 100, 1, 999, 1),
+    QuantVariable("tg_p6", "Período SMA Lenta 2 (P6)", "Médias Móveis (Lab/Jogo)", "Média institucional profunda. Atua como o suporte gravitacional final.", "SMA(Close, P6)", 200, 1, 999, 1),
     
     # Médias Móveis Clássicas (PAULO_GOLD & Cruzamentos)
     QuantVariable("short_window_val", "Janela Curta Clássica (Rápida)", "Estratégias Clássicas", "Número de candles para a média curta móvel das estratégias clássicas.", "SMA(Close, Short)", 9, 1, 999, 1),
@@ -43,37 +43,57 @@ VARIABLES = [
     QuantVariable("slippage_pct_val", "Deslizamento (Slippage) (%)", "Custos de Mercado", "Fricção que simula pior preço de execução por atraso ou liquidez.", "Compra + Slippage%, Venda - Slippage%", 0.05, 0.0, 0.5, 0.01)
 ]
 
+
+def load_user_preferences():
+    import json
+    import os
+    pref_file = "user_preferences.json"
+    if os.path.exists(pref_file):
+        try:
+            with open(pref_file, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except:
+            return {}
+    return {}
+
+def save_user_preferences(prefs):
+    import json
+    with open("user_preferences.json", "w", encoding="utf-8") as f:
+        json.dump(prefs, f, indent=4)
+
 def initialize_variables_registry():
     """Garante que todas as variáveis quantitativas estão presentes no st.session_state."""
+    import streamlit as st
+    prefs = load_user_preferences()
     for var in VARIABLES:
         # Inicializar ativação (se for toggleable)
         if var.is_toggleable:
             toggle_key = f"{var.key}_active"
             if toggle_key not in st.session_state:
                 if var.key == "tg_sl_pct":
-                    st.session_state[toggle_key] = st.session_state.get("tg_sl_active", True)
+                    st.session_state[toggle_key] = prefs.get(toggle_key, st.session_state.get("tg_sl_active", True))
                 elif var.key == "tg_tp_pct":
-                    st.session_state[toggle_key] = st.session_state.get("tg_tp_active", False)
+                    st.session_state[toggle_key] = prefs.get(toggle_key, st.session_state.get("tg_tp_active", False))
                 elif var.key == "tg_ts_pct":
-                    st.session_state[toggle_key] = st.session_state.get("tg_ts_active", False)
+                    st.session_state[toggle_key] = prefs.get(toggle_key, st.session_state.get("tg_ts_active", False))
                 else:
-                    st.session_state[toggle_key] = True
+                    st.session_state[toggle_key] = prefs.get(toggle_key, True)
                     
         # Inicializar valor principal
         if var.key not in st.session_state:
-            if var.key == "tg_p2": st.session_state[var.key] = st.session_state.get("p2_window_val", var.default_value)
-            elif var.key == "tg_p3": st.session_state[var.key] = st.session_state.get("p3_window_val", var.default_value)
-            elif var.key == "tg_p4": st.session_state[var.key] = st.session_state.get("p4_window_val", var.default_value)
-            elif var.key == "tg_p5": st.session_state[var.key] = st.session_state.get("p5_window_val", var.default_value)
-            elif var.key == "tg_p6": st.session_state[var.key] = st.session_state.get("p6_window_val", var.default_value)
+            if var.key == "tg_p2": st.session_state[var.key] = prefs.get(var.key, st.session_state.get("p2_window_val", var.default_value))
+            elif var.key == "tg_p3": st.session_state[var.key] = prefs.get(var.key, st.session_state.get("p3_window_val", var.default_value))
+            elif var.key == "tg_p4": st.session_state[var.key] = prefs.get(var.key, st.session_state.get("p4_window_val", var.default_value))
+            elif var.key == "tg_p5": st.session_state[var.key] = prefs.get(var.key, st.session_state.get("p5_window_val", var.default_value))
+            elif var.key == "tg_p6": st.session_state[var.key] = prefs.get(var.key, st.session_state.get("p6_window_val", var.default_value))
             else:
-                st.session_state[var.key] = var.default_value
+                st.session_state[var.key] = prefs.get(var.key, var.default_value)
                 
     # Variáveis booleanas manuais adicionais
     if "paulo_gold_trend_filter_val" not in st.session_state:
-        st.session_state.paulo_gold_trend_filter_val = False
+        st.session_state.paulo_gold_trend_filter_val = prefs.get('paulo_gold_trend_filter_val', False)
     if "allow_reentry_val" not in st.session_state:
-        st.session_state.allow_reentry_val = True
+        st.session_state.allow_reentry_val = prefs.get('allow_reentry_val', True)
 
 def render_variable_widget(var):
     # Se for toggleable (ex: Stop Loss, Take Profit), desenhar toggle and slider
@@ -259,6 +279,84 @@ def render_variables_dashboard(compact=False):
         for var in class_vars:
             render_variable_widget(var)
 
+
+        # Separador visual
+        st.markdown('<hr style="margin: 12px 0; border-color: rgba(124,58,237,0.2);"/>', unsafe_allow_html=True)
+        st.markdown("##### 🎮 Estratégia da Arena")
+
+        # Inicializar tg_strategy_type se necessario
+        if 'tg_strategy_type' not in st.session_state:
+            st.session_state.tg_strategy_type = 'Default (Fórmula do Jogo)'
+
+        _arena_strategies = [
+            'Default (Fórmula do Jogo)',
+            'Cérebro de Consenso (Lab)',
+            'Cruzamento de Linha Única (Testes)',
+            'Estratégia Média Camadas (Duas Linhas)',
+        ]
+        _arena_current = st.session_state.get('tg_strategy_type', 'Default (Fórmula do Jogo)')
+        if _arena_current not in _arena_strategies:
+            _arena_current = 'Default (Fórmula do Jogo)'
+
+        _arena_selected = st.selectbox(
+            'Modelo de Decisão Arena:',
+            _arena_strategies,
+            index=_arena_strategies.index(_arena_current),
+            key='cc_arena_strategy'
+        )
+        if _arena_selected != st.session_state.get('tg_strategy_type'):
+            st.session_state.tg_strategy_type = _arena_selected
+            # Auto-configurar risco por estrategia
+            if 'Cruzamento' in _arena_selected:
+                st.session_state.tg_sl_pct_active = True
+                st.session_state.tg_sl_active = True
+                st.session_state.tg_sl_pct = 1.0
+                st.session_state.tg_ts_pct_active = True
+                st.session_state.tg_ts_active = True
+                st.session_state.tg_ts_pct = 1.0
+                st.session_state.tg_tp_pct_active = False
+                st.session_state.tg_tp_active = False
+                st.toast('Linha Única: SL=1% e TS=1% ativados automaticamente!')
+            elif 'Camadas' in _arena_selected or 'Esmigalhador' in _arena_selected:
+                st.session_state.tg_sl_pct_active = True
+                st.session_state.tg_sl_active = True
+                st.session_state.tg_sl_pct = 1.0
+                st.session_state.tg_ts_pct_active = True
+                st.session_state.tg_ts_active = True
+                st.session_state.tg_ts_pct = 0.5
+                st.session_state.tg_tp_pct_active = False
+                st.session_state.tg_tp_active = False
+                st.toast('Média Camadas: SL=1% e TS=0.5% ativados automaticamente!')
+            elif 'Cérebro' in _arena_selected:
+                if os.path.exists('bot_consensus_dna.json'):
+                    try:
+                        import json as _json
+                        with open('bot_consensus_dna.json', 'r', encoding='utf-8') as _f_dna:
+                            _dna = _json.load(_f_dna)
+                        _smas = _dna.get('smas', [5, 13, 21, 55, 144])
+                        st.session_state.tg_p2 = _smas[0]
+                        st.session_state.tg_p3 = _smas[1]
+                        st.session_state.tg_p4 = _smas[2]
+                        st.session_state.tg_p5 = _smas[3]
+                        st.session_state.tg_p6 = _smas[4]
+                        st.toast('Médias sincronizadas com o Cérebro de Consenso!')
+                    except Exception:
+                        pass
+            st.rerun()
+
+        # Sub-opcao: Linha de Referencia (so para Cruzamento)
+        if st.session_state.get('tg_strategy_type', '') == 'Cruzamento de Linha Única (Testes)':
+            _ref_options = ['SMA Rápida (P2)', 'SMA Sinal (P3)', 'SMA Intermédia (P4)', 'SMA Lenta 1 (P5)', 'SMA Lenta 2 (P6)', 'Média do Vetor (avg_sma)', 'Desvio Padrão (sma_std)']
+            _current_ref = st.session_state.get('tg_single_line_ref', 'SMA Rápida (P2)')
+            if _current_ref not in _ref_options:
+                _current_ref = 'SMA Rápida (P2)'
+            st.selectbox(
+                'Linha de Referência:',
+                _ref_options,
+                index=_ref_options.index(_current_ref),
+                key='tg_single_line_ref'
+            )
+
     # 🧬 COLUNA 3: Vetor de Médias Móveis
     with col3:
         st.markdown("##### 🧬 Vetor de Médias Móveis")
@@ -287,26 +385,42 @@ def render_variables_dashboard(compact=False):
     # 💾 COLUNA 5: Memória & Padrões
     with col5:
         st.markdown("##### 💾 Memória & Padrões")
-        st.markdown("<p style='font-size:12px; color:#64748b; margin-bottom:15px;'>Configure e guarde as suas variáveis favoritas ou reponha os valores padrões de fábrica.</p>", unsafe_allow_html=True)
+        st.markdown("<p style='font-size:12px; color:#64748b; margin-bottom:15px;'>Configure e guarde as suas variáveis favoritas ou reponha os valores padrões.</p>", unsafe_allow_html=True)
         
         # Botão Guardar DNA Consenso (💾 Guardar)
         if st.button("💾 Guardar", use_container_width=True, key="tg_btn_save_global"):
             rebuild_consensus_dna()
-            st.success("Configuração do Robô guardada com sucesso na memória local!")
+            # Guardar preferências do utilizador
+            prefs_to_save = {}
+            for v in VARIABLES:
+                if v.key in st.session_state:
+                    prefs_to_save[v.key] = st.session_state[v.key]
+                t_key = f"{v.key}_active"
+                if t_key in st.session_state:
+                    prefs_to_save[t_key] = st.session_state[t_key]
+            if "paulo_gold_trend_filter_val" in st.session_state:
+                prefs_to_save["paulo_gold_trend_filter_val"] = st.session_state["paulo_gold_trend_filter_val"]
+            if "allow_reentry_val" in st.session_state:
+                prefs_to_save["allow_reentry_val"] = st.session_state["allow_reentry_val"]
+            save_user_preferences(prefs_to_save)
+            st.success("Configurações do painel e Cérebro guardadas com sucesso na memória local!")
             
         # Botão Repor Padrões (🔁 Repor Padrões)
         if st.button("🔁 Repor Padrões", use_container_width=True, key="tg_btn_reset_global"):
+            import os
+            if os.path.exists("user_preferences.json"):
+                os.remove("user_preferences.json")
             for var in VARIABLES:
-                st.session_state[var.key] = var.default_value
+                st.session_state[var.key] = prefs.get(var.key, var.default_value)
                 if var.is_toggleable:
                     st.session_state[f"{var.key}_active"] = (var.key == "tg_sl_pct")
                     if var.key == "tg_sl_pct": st.session_state.tg_sl_active = True
                     elif var.key == "tg_tp_pct": st.session_state.tg_tp_active = False
                     elif var.key == "tg_ts_pct": st.session_state.tg_ts_active = False
-            st.session_state.paulo_gold_trend_filter_val = False
-            st.session_state.allow_reentry_val = True
+            st.session_state.paulo_gold_trend_filter_val = prefs.get('paulo_gold_trend_filter_val', False)
+            st.session_state.allow_reentry_val = prefs.get('allow_reentry_val', True)
             st.session_state.symbol_val = "🧪 Cenário Didático (Fictício)"
-            st.toast("Valores de fábrica repostos com sucesso!")
+            st.toast("Valores padrões repostos com sucesso!")
             st.rerun()
             
         # Botão extra para ver valores do Cérebro Ativo
