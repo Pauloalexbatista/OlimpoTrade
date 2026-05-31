@@ -1485,16 +1485,43 @@ with tab_trader_game:
         def record_and_append_trade(t_dict):
             df_data = st.session_state.get("tg_data", None)
             e_step = t_dict.get("entry_step", st.session_state.tg_entry_step)
+            x_step = t_dict.get("exit_step", None)
+            
+            # 1. Registar variáveis na ENTRADA
             if df_data is not None and e_step < len(df_data):
                 try:
                     t_dict["entry_std"] = float(df_data['sma_std'].iloc[e_step])
-                    t_dict["entry_stretching"] = float(df_data['stretching'].iloc[e_step])
+                    t_dict["entry_stretching"] = float(df_data['stretching'].iloc[e_step]) if 'stretching' in df_data.columns else 0.0
+                    t_dict["entry_mola"] = float(df_data['mola_pct'].iloc[e_step]) if 'mola_pct' in df_data.columns else 0.0
+                    t_dict["entry_sma5"] = float(df_data['sma_5'].iloc[e_step])
+                    t_dict["entry_sma13"] = float(df_data['sma_13'].iloc[e_step])
+                    t_dict["entry_sma21"] = float(df_data['sma_21'].iloc[e_step])
+                    t_dict["entry_sma55"] = float(df_data['sma_55'].iloc[e_step])
+                    t_dict["entry_sma144"] = float(df_data['sma_144'].iloc[e_step])
+                    t_dict["entry_rsi"] = float(df_data['rsi_14'].iloc[e_step]) if 'rsi_14' in df_data.columns else 0.0
+                    t_dict["entry_bb_dist"] = float(df_data['bb_dist'].iloc[e_step]) if 'bb_dist' in df_data.columns else 0.0
+                    t_dict["entry_macd"] = float(df_data['macd_hist'].iloc[e_step]) if 'macd_hist' in df_data.columns else 0.0
+                    t_dict["entry_atr"] = float(df_data['atr_14'].iloc[e_step]) if 'atr_14' in df_data.columns else 0.0
                 except Exception:
-                    t_dict["entry_std"] = 0.0
-                    t_dict["entry_stretching"] = 0.0
-            else:
-                t_dict["entry_std"] = 0.0
-                t_dict["entry_stretching"] = 0.0
+                    pass
+            
+            # 2. Registar variáveis na SAÍDA
+            if df_data is not None and x_step is not None and x_step < len(df_data):
+                try:
+                    t_dict["exit_std"] = float(df_data['sma_std'].iloc[x_step])
+                    t_dict["exit_stretching"] = float(df_data['stretching'].iloc[x_step]) if 'stretching' in df_data.columns else 0.0
+                    t_dict["exit_mola"] = float(df_data['mola_pct'].iloc[x_step]) if 'mola_pct' in df_data.columns else 0.0
+                    t_dict["exit_sma5"] = float(df_data['sma_5'].iloc[x_step])
+                    t_dict["exit_sma13"] = float(df_data['sma_13'].iloc[x_step])
+                    t_dict["exit_sma21"] = float(df_data['sma_21'].iloc[x_step])
+                    t_dict["exit_sma55"] = float(df_data['sma_55'].iloc[x_step])
+                    t_dict["exit_sma144"] = float(df_data['sma_144'].iloc[x_step])
+                    t_dict["exit_rsi"] = float(df_data['rsi_14'].iloc[x_step]) if 'rsi_14' in df_data.columns else 0.0
+                    t_dict["exit_bb_dist"] = float(df_data['bb_dist'].iloc[x_step]) if 'bb_dist' in df_data.columns else 0.0
+                    t_dict["exit_macd"] = float(df_data['macd_hist'].iloc[x_step]) if 'macd_hist' in df_data.columns else 0.0
+                    t_dict["exit_atr"] = float(df_data['atr_14'].iloc[x_step]) if 'atr_14' in df_data.columns else 0.0
+                except Exception:
+                    pass
             st.session_state.tg_trades.append(t_dict)
 
         # Periodos das medias
@@ -3100,6 +3127,34 @@ with tab_trader_game:
                     display_df["exit_price"] = display_df["exit_price"].map(lambda x: f"{x:.2f}")
                     
                 st.dataframe(display_df.rename(columns=rename_map), use_container_width=True)
+                
+                # --- BOTAO DE DOWNLOAD DO RELATORIO COMPLETO DE DECISOES ---
+                try:
+                    csv_df = th_df.copy()
+                    csv_rename = {
+                        "type": "Operação", "entry_price": "Preço Entrada", "exit_price": "Preço Saída",
+                        "pnl_pct": "PnL (%)", "pnl_eur": "Retorno (EUR)", "candles": "Duração (Velas)",
+                        "entry_step": "Vela Entrada", "exit_step": "Vela Saída", "reason": "Motivo do Fecho",
+                        "entry_std": "Desvio Entrada", "entry_mola": "Mola Entrada", "entry_rsi": "RSI Entrada",
+                        "entry_bb_dist": "BB Dist Entrada", "entry_macd": "MACD Entrada", "entry_atr": "ATR Entrada",
+                        "entry_sma5": "SMA 5 Entrada", "entry_sma13": "SMA 13 Entrada", "entry_sma21": "SMA 21 Entrada",
+                        "entry_sma55": "SMA 55 Entrada", "entry_sma144": "SMA 144 Entrada",
+                        "exit_std": "Desvio Saída", "exit_mola": "Mola Saída", "exit_rsi": "RSI Saída",
+                        "exit_bb_dist": "BB Dist Saída", "exit_macd": "MACD Saída", "exit_atr": "ATR Saída",
+                        "exit_sma5": "SMA 5 Saída", "exit_sma13": "SMA 13 Saída", "exit_sma21": "SMA 21 Saída",
+                        "exit_sma55": "SMA 55 Saída", "exit_sma144": "SMA 144 Saída"
+                    }
+                    csv_df = csv_df.rename(columns={k: v for k, v in csv_rename.items() if k in csv_df.columns})
+                    csv_data = csv_df.to_csv(index=False).encode('utf-8')
+                    st.download_button(
+                        label="📥 Descarregar Relatório Completo de Decisões (CSV)",
+                        data=csv_data,
+                        file_name="relatorio_completo_decisoes.csv",
+                        mime="text/csv",
+                        key="tg_download_csv_btn"
+                    )
+                except Exception as e_csv:
+                    st.error(f"Erro ao gerar CSV: {str(e_csv)}")
             else:
                 st.info("Nenhuma ordem fechada neste jogo até ao momento.")
                 
