@@ -2105,63 +2105,89 @@ with tab_trader_game:
             50%  { box-shadow: 0 0 22px 9px #ef4444, 0 0 55px 18px rgba(239,68,68,0.8), inset 0 0 28px rgba(239,68,68,0.55); }
             100% { box-shadow: 0 0 10px 3px #ef4444, 0 0 28px 8px rgba(239,68,68,0.5), inset 0 0 16px rgba(239,68,68,0.25); }
         }
-        .casino-long-active button, .casino-long-inactive button,
-        .casino-short-active button, .casino-short-inactive button,
-        .casino-blocked button {
-            border-radius: 16px !important;
+        /* --- LAYOUT ALIGNMENT HACKS PERFECTED --- */
+        div.element-container:has(.arena-row-marker),
+        div.element-container:has(.casino-buttons-marker),
+        div.element-container:has(.advisor-bottom-marker) {
+            display: none !important;
+        }
+        div.element-container:has(.arena-row-marker) + div.element-container > div[data-testid="stHorizontalBlock"] {
+            align-items: stretch !important;
+        }
+        div.element-container:has(.arena-row-marker) + div.element-container > div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
+            display: flex !important;
+            flex-direction: column !important;
+        }
+        div.element-container:has(.arena-row-marker) + div.element-container > div[data-testid="stHorizontalBlock"] > div[data-testid="column"] > div[data-testid="stVerticalBlock"] {
+            height: 100% !important;
+            display: flex !important;
+            flex-direction: column !important;
+        }
+        div[data-testid="column"]:has(div.game-control-anchor) div[data-testid="stVerticalBlock"] {
+            gap: 4px !important;
+        }
+        div.element-container:has(.casino-buttons-marker) + div.element-container {
+            margin-top: auto !important;
+            padding-top: 10px !important;
+        }
+        div.element-container:has(.advisor-bottom-marker) + div.element-container {
+            margin-top: auto !important;
+            padding-top: 10px !important;
+        }
+        
+        div.element-container:has(.casino-long-active) + div.element-container .stButton button,
+        div.element-container:has(.casino-long-inactive) + div.element-container .stButton button,
+        div.element-container:has(.casino-short-active) + div.element-container .stButton button,
+        div.element-container:has(.casino-short-inactive) + div.element-container .stButton button,
+        div.element-container:has(.casino-blocked) + div.element-container .stButton button {
+            border-radius: 4px !important;
             font-weight: 900 !important;
-            font-size: 13px !important;
+            font-size: 14px !important;
             letter-spacing: 0.5px !important;
             text-transform: uppercase !important;
-            transition: all 0.15s ease !important;
+            transition: all 0.2s ease !important;
             height: 72px !important;
             min-height: 72px !important;
+            border: none !important;
         }
-        .casino-long-active button {
-            background: linear-gradient(180deg, #34d399 0%, #10b981 35%, #059669 70%, #064e3b 100%) !important;
+        div.element-container:has(.casino-long-active) + div.element-container .stButton button {
+            background: #4ade80 !important;
+            color: #064e3b !important;
+            box-shadow: 0 0 25px 8px rgba(74, 222, 128, 0.6) !important;
+            animation: pulse-green-led 1.5s ease-in-out infinite !important;
+            border: 2px solid #86efac !important;
+        }
+        div.element-container:has(.casino-long-inactive) + div.element-container .stButton button {
+            background: #16a34a !important;
             color: #ffffff !important;
-            border: 3px solid #6ee7b7 !important;
-            outline: 3px solid rgba(16,185,129,0.5) !important; outline-offset: 2px !important;
-            text-shadow: 0 0 10px rgba(255,255,255,0.9), 0 1px 2px rgba(0,0,0,0.6) !important;
-            animation: pulse-green-led 1.4s ease-in-out infinite !important;
+            border: 2px solid #14532d !important;
         }
-        .casino-long-active button:hover { filter: brightness(1.15) !important; transform: scale(1.02) !important; }
-        .casino-long-inactive button {
-            background: linear-gradient(180deg, #052e16 0%, #064e3b 40%, #065f46 100%) !important;
-            color: #6ee7b7 !important;
-            border: 3px solid #134e4a !important;
-            outline: 3px solid rgba(16,185,129,0.08) !important; outline-offset: 2px !important;
-            text-shadow: 0 0 6px rgba(110,231,183,0.35) !important;
-            box-shadow: 0 0 5px rgba(16,185,129,0.1), inset 0 2px 5px rgba(0,0,0,0.5) !important;
+        div.element-container:has(.casino-long-inactive) + div.element-container .stButton button:hover {
+            background: #15803d !important;
         }
-        .casino-long-inactive button:hover {
-            background: linear-gradient(180deg, #065f46 0%, #059669 40%, #10b981 100%) !important;
-            color: #fff !important;
-            box-shadow: 0 0 20px rgba(16,185,129,0.55), inset 0 0 14px rgba(16,185,129,0.2) !important;
-            transform: scale(1.01) !important;
+        div.element-container:has(.casino-short-active) + div.element-container .stButton button {
+            background: #f87171 !important;
+            color: #450a0a !important;
+            box-shadow: 0 0 25px 8px rgba(248, 113, 113, 0.6) !important;
+            animation: pulse-red-led 1.5s ease-in-out infinite !important;
+            border: 2px solid #fca5a5 !important;
         }
-        .casino-short-active button {
-            background: linear-gradient(180deg, #fca5a5 0%, #ef4444 35%, #dc2626 70%, #7f1d1d 100%) !important;
+        div.element-container:has(.casino-short-inactive) + div.element-container .stButton button {
+            background: #dc2626 !important;
             color: #ffffff !important;
-            border: 3px solid #fca5a5 !important;
-            outline: 3px solid rgba(239,68,68,0.5) !important; outline-offset: 2px !important;
-            text-shadow: 0 0 10px rgba(255,255,255,0.9), 0 1px 2px rgba(0,0,0,0.6) !important;
-            animation: pulse-red-led 1.4s ease-in-out infinite !important;
+            border: 2px solid #7f1d1d !important;
         }
-        .casino-short-active button:hover { filter: brightness(1.15) !important; transform: scale(1.02) !important; }
-        .casino-short-inactive button {
-            background: linear-gradient(180deg, #450a0a 0%, #7f1d1d 40%, #991b1b 100%) !important;
-            color: #fca5a5 !important;
-            border: 3px solid #7f1d1d !important;
-            outline: 3px solid rgba(239,68,68,0.08) !important; outline-offset: 2px !important;
-            text-shadow: 0 0 6px rgba(252,165,165,0.35) !important;
-            box-shadow: 0 0 5px rgba(239,68,68,0.1), inset 0 2px 5px rgba(0,0,0,0.5) !important;
+        div.element-container:has(.casino-short-inactive) + div.element-container .stButton button:hover {
+            background: #b91c1c !important;
         }
-        .casino-short-inactive button:hover {
-            background: linear-gradient(180deg, #991b1b 0%, #dc2626 40%, #ef4444 100%) !important;
-            color: #fff !important;
-            box-shadow: 0 0 20px rgba(239,68,68,0.55), inset 0 0 14px rgba(239,68,68,0.2) !important;
-            transform: scale(1.01) !important;
+        div.element-container:has(.casino-blocked) + div.element-container .stButton button {
+            background: #334155 !important;
+            color: #64748b !important;
+            cursor: not-allowed !important;
+            border: 2px solid #1e293b !important;
+        }
+        div.element-container:has(.casino-blocked) + div.element-container .stButton button:hover {
+            background: #334155 !important;
         }
         .casino-blocked button {
             background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%) !important;
@@ -2512,7 +2538,8 @@ with tab_trader_game:
             # LAYOUT PRINCIPAL: 3 colunas
             # col_chart | col_ctrl | col_advisor
             # =========================================================
-            col_chart, col_ctrl, col_advisor = st.columns([5, 2.5, 3.5])
+            st.markdown("<div class='arena-row-marker'></div>", unsafe_allow_html=True)
+            col_chart, col_ctrl, col_advisor = st.columns([6.8, 2.2, 2.5])
             # =========================================================
             # COL CHART - Grafico
             # =========================================================
@@ -2649,21 +2676,17 @@ with tab_trader_game:
                     index=1, label_visibility="collapsed", key="tg_speed_widget"
                 )
                 tg_delay = 1.0 if "Lento" in tg_speed_select else (0.3 if "Medio" in tg_speed_select else (0.05 if "Rapido" in tg_speed_select else (0.02 if "Super-Rapido" in tg_speed_select else (0.01 if "Hiper-Rapido" in tg_speed_select else 0.0))))
-                st.markdown("<hr style='margin:8px 0;border:0;border-top:1px solid rgba(255,255,255,0.08);'>", unsafe_allow_html=True)
-                # --- Co-piloto radio ---
-                col_bl, col_br = st.columns([1.2, 2.8])
-                with col_bl:
-                    st.markdown("<h6 style='margin-top:6px;font-weight:bold;color:#a78bfa;'>Co-piloto:</h6>", unsafe_allow_html=True)
-                with col_br:
-                    bot_mode_choice = st.radio(
-                        "Modo:", ["Manual", "Co-piloto", "Bot Autonomo"],
-                        horizontal=True,
-                        index=["Manual","Co-piloto","Bot Autonomo"].index(st.session_state.tg_bot_mode) if st.session_state.tg_bot_mode in ["Manual","Co-piloto","Bot Autonomo"] else 0,
-                        key="tg_bot_mode_radio", label_visibility="collapsed"
-                    )
+                # Combined separator and heading to save vertical space
+                st.markdown("<hr style='margin:4px 0;border:0;border-top:1px solid rgba(255,255,255,0.08);'><h6 style='margin:0;font-weight:bold;color:#a78bfa;margin-bottom:2px;'>Co-piloto:</h6>", unsafe_allow_html=True)
+                bot_mode_choice = st.radio(
+                    "Modo:", ["Manual", "Co-piloto", "Bot Autonomo"],
+                    horizontal=True,
+                    index=["Manual","Co-piloto","Bot Autonomo"].index(st.session_state.tg_bot_mode) if st.session_state.tg_bot_mode in ["Manual","Co-piloto","Bot Autonomo"] else 0,
+                    key="tg_bot_mode_radio", label_visibility="collapsed"
+                )
                 if bot_mode_choice != st.session_state.tg_bot_mode:
                     st.session_state.tg_bot_mode = bot_mode_choice
-                st.markdown("<hr style='margin:8px 0;border:0;border-top:1px solid rgba(255,255,255,0.08);'>", unsafe_allow_html=True)
+                st.markdown("<hr style='margin:4px 0;border:0;border-top:1px solid rgba(255,255,255,0.08);'>", unsafe_allow_html=True)
                 # --- Compute signal ---
                 _bot_signal, _bot_conf, _bot_conds = compute_bot_signal(df, current_step)
                 _sig_color = {"LONG": "#10B981", "SHORT": "#EF4444", "HOLD": "#94a3b8"}[_bot_signal]
@@ -2718,25 +2741,9 @@ with tab_trader_game:
                             st.session_state.tg_lowest_price = price_now
                             st.toast(f"Bot entrou SHORT a {price_now:.2f}")
                 # --- CASINO BUTTONS ---
+                st.markdown("<div class='casino-buttons-marker'></div>", unsafe_allow_html=True)
                 _long_on  = st.session_state.tg_position == "LONG"
                 _short_on = st.session_state.tg_position == "SHORT"
-                _led_ld = "background:#10b981;box-shadow:0 0 8px 3px #10b981;" if _long_on else "background:#052e16;border:1px solid #134e4a;"
-                _led_sd = "background:#ef4444;box-shadow:0 0 8px 3px #ef4444;" if _short_on else "background:#450a0a;border:1px solid #991b1b;"
-                _ll = "ON &#9679; ACESO" if _long_on else "OFF &#9675; APAGADO"
-                _sl = "ON &#9679; ACESO" if _short_on else "OFF &#9675; APAGADO"
-                _lc = "#10b981" if _long_on else "#334155"
-                _sc = "#ef4444" if _short_on else "#334155"
-                st.markdown(
-                    f'<div style="display:flex;gap:0;margin-bottom:6px;">'
-                    f'<div style="flex:1;text-align:center;font-size:10px;font-weight:bold;letter-spacing:1px;color:{_lc};text-transform:uppercase;">'
-                    f'<span style="display:inline-block;width:8px;height:8px;border-radius:50%;{_led_ld}margin-right:4px;vertical-align:middle;"></span>'
-                    f'LONG &nbsp; {_ll}</div>'
-                    f'<div style="flex:1;text-align:center;font-size:10px;font-weight:bold;letter-spacing:1px;color:{_sc};text-transform:uppercase;">'
-                    f'<span style="display:inline-block;width:8px;height:8px;border-radius:50%;{_led_sd}margin-right:4px;vertical-align:middle;"></span>'
-                    f'SHORT &nbsp; {_sl}</div>'
-                    f'</div>',
-                    unsafe_allow_html=True
-                )
                 col_btn_long, col_btn_short = st.columns(2)
                 with col_btn_long:
                     if st.session_state.tg_position == "LONG":
@@ -2833,28 +2840,34 @@ with tab_trader_game:
                     f'border-left:4px solid {_sig_color};border:1px solid rgba(124,58,237,0.25);'
                     f'box-shadow:0 4px 20px rgba(0,0,0,0.3);margin-bottom:8px;">'
                     f'<div style="font-size:20px;font-weight:900;color:{_sig_color};">{_sig_icon} {_bot_signal} '
-                    f'<span style="font-size:12px;color:#64748b;">confianca {_bot_conf}%</span></div>'
+                    f'<span style="font-size:14px;color:#94a3b8;font-weight:bold;margin-left:8px;">confianca {_bot_conf}%</span></div>'
                     f'</div>',
                     unsafe_allow_html=True
                 )
                 
-                # --- 12 variaveis (cada uma em st.markdown separado) ---
-                st.markdown('<div style="background:rgba(15,23,42,0.7);border-radius:10px;padding:10px 12px;border:1px solid rgba(124,58,237,0.15);">',
-                    unsafe_allow_html=True)
+                # --- 12 variaveis (unificadas num unico bloco HTML) ---
+                conds_html = []
                 for _ck, _cv in _bot_conds.items():
                     _ccolor = "#10B981" if _cv else "#EF4444"
                     _cmark  = "&#10003;" if _cv else "&#10007;"
-                    st.markdown(
-                        f'<div style="font-size:11px;padding:1px 0;color:#cbd5e1;">'
-                        f'<span style="color:{_ccolor};font-weight:bold;">{_cmark}</span> {_ck}</div>',
-                        unsafe_allow_html=True
+                    conds_html.append(
+                        f'<div style="font-size:13.5px;padding:3px 0;color:#cbd5e1;line-height:1.4;">'
+                        f'<span style="color:{_ccolor};font-weight:bold;margin-right:6px;">{_cmark}</span>{_ck}</div>'
                     )
-                st.markdown('</div>', unsafe_allow_html=True)
                 
+                conds_block = (
+                    f'<div style="background:rgba(15,23,42,0.7);border-radius:10px;padding:12px 14px;'
+                    f'border:1px solid rgba(124,58,237,0.15);">'
+                    f'{"".join(conds_html)}'
+                    f'</div>'
+                )
+                st.markdown(conds_block, unsafe_allow_html=True)
+                
+                st.markdown("<div class='advisor-bottom-marker'></div>", unsafe_allow_html=True)
                 # --- Eficiencia ---
                 st.markdown(
                     f'<div style="margin-top:8px;padding:8px 12px;background:rgba(15,23,42,0.7);'
-                    f'border-radius:8px;border:1px solid rgba(255,255,255,0.06);font-size:11px;">'
+                    f'border-radius:8px;border:1px solid rgba(255,255,255,0.06);font-size:12.5px;">'
                     f'<span style="color:#10B981;font-weight:bold;">LONG {_l_eff:.0f}% ({_l_wins}/{len(_l_trades)})</span>'
                     f' &nbsp;|&nbsp; '
                     f'<span style="color:#EF4444;font-weight:bold;">SHORT {_s_eff:.0f}% ({_s_wins}/{len(_s_trades)})</span>'
