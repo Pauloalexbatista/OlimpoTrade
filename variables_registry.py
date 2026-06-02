@@ -557,11 +557,11 @@ def render_variables_dashboard(compact=False):
         
         # Stop Loss, Take Profit, Trailing Stop
         # Filtro universal de dispersão (todas as estratégias)
-        _cur_disp = float(st.session_state.get('tg_lagarta_min_disp', 0.0))
+        if 'tg_lagarta_min_disp' not in st.session_state:
+            st.session_state.tg_lagarta_min_disp = 0.0
         st.slider(
             '📐 Dispersão Mínima das SMAs',
             min_value=0.0, max_value=2.0,
-            value=_cur_disp,
             step=0.05,
             key='tg_lagarta_min_disp',
             help='Suspende entradas de QUALQUER estratégia quando as SMAs estão demasiado comprimidas. 0 = sem filtro (desativado). Recomendado: 0.30 para Lagarta.'
