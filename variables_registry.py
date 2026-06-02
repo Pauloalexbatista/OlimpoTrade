@@ -497,23 +497,23 @@ def render_variables_dashboard(compact=False):
                   except Exception:
                       st.toast('Cérebro: Bot Autónomo ligado!')
           elif 'Claude' in _arena_selected:
-              # Configuração otimizada Estratégia Claude — Pirâmide Fibonacci
-              st.session_state.tg_p2 = 3
-              st.session_state.tg_p3 = 5
-              st.session_state.tg_p4 = 8
-              st.session_state.tg_p5 = 13
-              st.session_state.tg_p6 = 21
+              # Claude v4: Pirâmide FLAT EXIT — SMAs rápidas, SL/TS tight
+              st.session_state.tg_p2 = 2
+              st.session_state.tg_p3 = 3
+              st.session_state.tg_p4 = 5
+              st.session_state.tg_p5 = 8
+              st.session_state.tg_p6 = 13
               st.session_state.tg_sl_pct_active = True
               st.session_state.tg_sl_active = True
-              st.session_state.tg_sl_pct = 2.5
+              st.session_state.tg_sl_pct = 0.5
               st.session_state.tg_ts_pct_active = True
               st.session_state.tg_ts_active = True
-              st.session_state.tg_ts_pct = 2.0
+              st.session_state.tg_ts_pct = 0.5
               st.session_state.tg_tp_pct_active = False
               st.session_state.tg_tp_active = False
-              st.session_state.tg_lagarta_min_disp = 0.4
+              st.session_state.tg_lagarta_min_disp = 0.0
               st.session_state.tg_bot_mode = "Bot Autonomo"
-              st.toast('🤖 Claude Pirâmide: Fibonacci [3,5,8,13,21] SL=2.5% TS=2.0% — Bot Autónomo ligado!')
+              st.toast('🤖 Claude v4: [2,3,5,8,13] SL=0.5% TS=0.5% FLAT EXIT — Vamos bater o recorde!')
           elif 'Default' in _arena_selected or 'Manual' in _arena_selected:
               st.session_state.tg_bot_mode = "Manual"
               st.toast('Modo Manual ativado.')
