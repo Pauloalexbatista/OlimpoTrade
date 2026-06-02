@@ -2452,31 +2452,185 @@ with tab_trader_game:
                 </div>
             </div>
             """, unsafe_allow_html=True)
-            col_rev_chart, col_rev_ctrl = st.columns([7, 3])
-            with col_rev_ctrl:
-                st.markdown('<div class="game-control-anchor"></div>', unsafe_allow_html=True)
-                st.markdown("##### Ordens Fechadas")
-                if st.session_state.tg_trades:
-                    for i, tr in enumerate(st.session_state.tg_trades, 1):
-                        clr = "#10B981" if tr.get('pnl_pct',0) >= 0 else "#EF4444"
-                        st.markdown(f"<div style='font-size:12px; padding:4px 0; border-bottom:1px solid #f1f5f9;'>"
-                                    f"<b style='color:{clr};'>#{i} {tr['type']}</b>  "
-                                    f"<span style='color:#64748b;'>{tr.get('entry_price',0):.2f}→{tr.get('exit_price',0):.2f}</span>  "
-                                    f"<b style='color:{clr};'>{tr.get('pnl_pct',0):+.2f}%</b></div>", unsafe_allow_html=True)
-                st.markdown("<hr style='margin:8px 0;'>", unsafe_allow_html=True)
-                if st.button("Novo Jogo", type="primary", width='stretch', key="rv_new_game"):
+            # --- Gráfico full-width + botão ---
+            col_rev_chart, col_rev_btn = st.columns([9, 1])
+            with col_rev_btn:
+                st.markdown('<div style="height:32px;"></div>', unsafe_allow_html=True)
+                if st.button("🔄", help="Novo Jogo", type="primary", key="rv_new_game"):
                     start_new_game()
                     st.rerun()
             with col_rev_chart:
-                # Grafico completo: das 100 velas jogadas (step 144 a 244)
                 full_game_df = df.iloc[144:245]
-                # Checkboxes cinzentas redundantes removidas. Controlo feito diretamente por clique na legenda do Plotly!
                 fig_review = _build_chart(
                     full_game_df, df,
                     title_str=f"Revisao Completa — {st.session_state.tg_trader_name} | 100 Velas Jogadas",
                     show_full_range=True
                 )
                 st.plotly_chart(fig_review, width='stretch')
+
+            # =========================================================================
+            # RELATÓRIO DE SESSÃO
+            # =========================================================================
+            if st.session_state.tg_trades:
+                _trades = st.session_state.tg_trades
+                _strat  = st.session_state.get('tg_strategy_type', 'Default')
+                _ref    = st.session_state.get('tg_single_line_ref', 'SMA Rápida (P2)')
+
+                tab_perf, tab_justif, tab_padroes = st.tabs([
+                    "📊 Performance",
+                    "🔍 Justificação de Entradas",
+                    "💡 Padrões & Conclusões"
+                ])
+
+                # ── TAB 1: PERFORMANCE ────────────────────────────────────────────
+                with tab_perf:
+                    _wins   = [t for t in _trades if t.get('pnl_pct', 0) > 0]
+                    _losses = [t for t in _trades if t.get('pnl_pct', 0) <= 0]
+                    _longs  = [t for t in _trades if t.get('type') == 'LONG']
+                    _shorts = [t for t in _trades if t.get('type') == 'SHORT']
+                    _by_reason = {}
+                    for t in _trades:
+                        r = t.get('reason', 'Outro')
+                        _by_reason.setdefault(r, []).append(t.get('pnl_pct', 0))
+
+                    c1, c2, c3, c4 = st.columns(4)
+                    c1.metric("Win Rate Global", f"{len(_wins)/max(1,len(_trades))*100:.0f}%",
+                              f"{len(_wins)}V / {len(_losses)}D")
+                    c2.metric("Melhor Trade",
+                              f"{max(_trades, key=lambda t: t.get('pnl_pct',0)).get('pnl_pct',0):+.2f}%",
+                              f"#{_trades.index(max(_trades, key=lambda t: t.get('pnl_pct',0)))} {max(_trades, key=lambda t: t.get('pnl_pct',0)).get('type','')}")
+                    c3.metric("Pior Trade",
+                              f"{min(_trades, key=lambda t: t.get('pnl_pct',0)).get('pnl_pct',0):+.2f}%",
+                              f"#{_trades.index(min(_trades, key=lambda t: t.get('pnl_pct',0)))} {min(_trades, key=lambda t: t.get('pnl_pct',0)).get('type','')}")
+                    _avg_dur_w = sum(t.get('candles',0) for t in _wins)/max(1,len(_wins))
+                    _avg_dur_l = sum(t.get('candles',0) for t in _losses)/max(1,len(_losses))
+                    c4.metric("Duração: V vs D", f"{_avg_dur_w:.1f} vs {_avg_dur_l:.1f} velas")
+
+                    st.markdown("---")
+                    ca, cb = st.columns(2)
+                    with ca:
+                        st.markdown("**Por Direção**")
+                        _long_wr  = sum(1 for t in _longs  if t.get('pnl_pct',0)>0)/max(1,len(_longs))*100
+                        _short_wr = sum(1 for t in _shorts if t.get('pnl_pct',0)>0)/max(1,len(_shorts))*100
+                        _long_avg  = sum(t.get('pnl_pct',0) for t in _longs)/max(1,len(_longs))
+                        _short_avg = sum(t.get('pnl_pct',0) for t in _shorts)/max(1,len(_shorts))
+                        df_dir = pd.DataFrame({
+                            "Direção": ["LONG","SHORT"],
+                            "Trades":  [len(_longs), len(_shorts)],
+                            "Win Rate":[f"{_long_wr:.0f}%", f"{_short_wr:.0f}%"],
+                            "PnL Médio":[f"{_long_avg:+.2f}%", f"{_short_avg:+.2f}%"],
+                        })
+                        st.dataframe(df_dir, hide_index=True, width='stretch')
+                    with cb:
+                        st.markdown("**Por Motivo de Saída**")
+                        _reason_rows = []
+                        for r, pnls in _by_reason.items():
+                            _wr = sum(1 for p in pnls if p>0)/len(pnls)*100
+                            _reason_rows.append({"Motivo": r, "Trades": len(pnls),
+                                                 "Win Rate": f"{_wr:.0f}%",
+                                                 "PnL Médio": f"{sum(pnls)/len(pnls):+.2f}%"})
+                        st.dataframe(pd.DataFrame(_reason_rows), hide_index=True, width='stretch')
+
+                    # Dispersão por faixas
+                    st.markdown("---")
+                    st.markdown("**Por Faixa de Dispersão na Entrada**")
+                    _disp_bands = [(0,0.3,"0–0.30 🔴"),(0.3,0.6,"0.30–0.60 🟡"),(0.6,1.0,"0.60–1.0 🟢"),(1.0,99,"  > 1.0  🔵")]
+                    _band_rows = []
+                    for lo, hi, lbl in _disp_bands:
+                        band = [t for t in _trades if lo <= t.get('entry_std',0) < hi]
+                        if not band: continue
+                        _bwr = sum(1 for t in band if t.get('pnl_pct',0)>0)/len(band)*100
+                        _band_rows.append({"Faixa": lbl,"Trades":len(band),"Win Rate":f"{_bwr:.0f}%",
+                                           "PnL Médio":f"{sum(t.get('pnl_pct',0) for t in band)/len(band):+.2f}%",
+                                           "PnL Total":f"{sum(t.get('pnl_pct',0) for t in band):+.2f}%"})
+                    if _band_rows:
+                        st.dataframe(pd.DataFrame(_band_rows), hide_index=True, width='stretch')
+
+                # ── TAB 2: JUSTIFICAÇÃO DE ENTRADAS ──────────────────────────────
+                with tab_justif:
+                    st.markdown("Cada entrada justificada pelas condições do mercado no momento da entrada:")
+                    _disp_thresh = st.session_state.get('tg_lagarta_min_disp', 0.3)
+                    _rows = []
+                    for i, tr in enumerate(_trades):
+                        _typ  = tr.get('type','')
+                        _disp = tr.get('entry_std', 0)
+                        _vel  = tr.get('entry_velocity', None) or tr.get('entry_stretching', None)
+                        _rsi  = tr.get('entry_rsi', None)
+                        _macd = tr.get('entry_macd', None)
+                        _pnl  = tr.get('pnl_pct', 0)
+                        _reason_exit = tr.get('reason','')
+
+                        # Justificação da entrada
+                        _justif = []
+                        if 'Lagarta' in _strat:
+                            _justif.append(f"Cruzamento {'↑ Alta' if _typ=='LONG' else '↓ Baixa'} ({_ref})")
+                        elif 'Camadas' in _strat:
+                            _justif.append(f"P2 {'rompe P4 ↑' if _typ=='LONG' else 'rompe P4 ↓'}")
+                        elif 'Cérebro' in _strat:
+                            _justif.append("Consenso DNA atingido")
+                        else:
+                            _justif.append(f"{'≥7' if _typ=='LONG' else '≥7'}/12 condições")
+
+                        _disp_ok = _disp >= _disp_thresh
+                        _justif.append(f"Dispersão {_disp:.2f} {'✅' if _disp_ok else '⚠️'}")
+                        if _vel is not None:
+                            _justif.append(f"Vel {'↑' if _vel>0 else '↓'}{abs(_vel):.3f}")
+                        if _rsi is not None:
+                            _rsi_tag = "sobrecomp⚠️" if _rsi>70 else ("sobrevend⚠️" if _rsi<30 else "neutro✅")
+                            _justif.append(f"RSI {_rsi:.0f} {_rsi_tag}")
+                        if _macd is not None:
+                            _justif.append(f"MACD {'↑' if _macd>0 else '↓'}")
+
+                        _rows.append({
+                            "#": i,
+                            "Dir": _typ,
+                            "Entrada": f"{tr.get('entry_price',0):.2f}",
+                            "Saída": f"{tr.get('exit_price',0):.2f}",
+                            "PnL": f"{_pnl:+.2f}%",
+                            "Saiu por": _reason_exit,
+                            "Justificação da Entrada": " | ".join(_justif),
+                        })
+                    st.dataframe(pd.DataFrame(_rows), hide_index=True, width='stretch', height=500)
+
+                # ── TAB 3: PADRÕES & CONCLUSÕES ───────────────────────────────────
+                with tab_padroes:
+                    _total_pnl = sum(t.get('pnl_pct',0) for t in _trades)
+                    _avg_disp_w = sum(t.get('entry_std',0) for t in _wins)/max(1,len(_wins))
+                    _avg_disp_l = sum(t.get('entry_std',0) for t in _losses)/max(1,len(_losses))
+                    _avg_dur_total = sum(t.get('candles',0) for t in _trades)/max(1,len(_trades))
+                    _sl_count = sum(1 for t in _trades if 'STOP LOSS' in t.get('reason',''))
+                    _ts_count = sum(1 for t in _trades if 'TRAILING' in t.get('reason',''))
+                    _bot_count= sum(1 for t in _trades if 'Bot Exit' in t.get('reason',''))
+                    _1vela    = sum(1 for t in _trades if t.get('candles',0) <= 1)
+
+                    obs = []
+                    if _avg_disp_w > _avg_disp_l + 0.1:
+                        obs.append(f"✅ Vencedores tiveram dispersão média mais alta ({_avg_disp_w:.2f} vs {_avg_disp_l:.2f}) — o filtro de dispersão >{_disp_thresh:.2f} está justificado.")
+                    else:
+                        obs.append(f"ℹ️ Dispersão não diferenciou claramente vencedores ({_avg_disp_w:.2f}) de perdedores ({_avg_disp_l:.2f}) neste jogo.")
+                    if _avg_dur_w > _avg_dur_l + 0.5:
+                        obs.append(f"✅ Vencedores duraram mais ({_avg_dur_w:.1f} velas) que perdedores ({_avg_dur_l:.1f}) — trades com tempo para desenvolver são mais rentáveis.")
+                    if _1vela > len(_trades) * 0.3:
+                        obs.append(f"⚠️ {_1vela} trades de 1 vela ({_1vela/len(_trades)*100:.0f}%) — mercado muito volátil ou SL/TS muito apertado.")
+                    if _sl_count > _ts_count:
+                        obs.append(f"⚠️ Mais Stop Loss ({_sl_count}) que Trailing Stop ({_ts_count}) — o mercado reverteu antes de ganhar tração.")
+                    else:
+                        obs.append(f"✅ Mais Trailing Stop ({_ts_count}) que Stop Loss ({_sl_count}) — bom sinal, os trades desenvolveram-se.")
+                    if _bot_count > 0:
+                        _bot_trades = [t for t in _trades if 'Bot Exit' in t.get('reason','')]
+                        _bot_avg = sum(t.get('pnl_pct',0) for t in _bot_trades)/len(_bot_trades)
+                        obs.append(f"ℹ️ {_bot_count} saídas por reversão de sinal (Bot Exit), média {_bot_avg:+.2f}% — a teimosia reverteu nessa altura.")
+                    if _total_pnl > 0:
+                        obs.append(f"🏆 Sessão positiva: +{_total_pnl:.2f}% acumulado em {len(_trades)} operações.")
+                    else:
+                        obs.append(f"💡 Sessão negativa ({_total_pnl:.2f}%). Experimenta aumentar o filtro de dispersão ou ajustar SL/TS.")
+
+                    for o in obs:
+                        st.markdown(o)
+
+                    st.markdown("---")
+                    st.markdown("**Configuração desta sessão**")
+                    st.code(f"Estratégia: {_strat}\nLinha ref.: {_ref}\nFiltro dispersão: >{_disp_thresh:.2f}\nSL: {st.session_state.tg_sl_pct:.1f}%  |  TS: {st.session_state.tg_ts_pct:.1f}%")
         # =========================================================================
         # MODO JOGO ATIVO
         # =========================================================================
