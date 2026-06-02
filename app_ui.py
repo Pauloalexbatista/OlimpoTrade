@@ -2471,6 +2471,10 @@ with tab_trader_game:
             long_wr = (sum(1 for t in long_trades if t.get('pnl_pct', 0) > 0) / max(long_len, 1) * 100) if long_len > 0 else 0.0
             short_wr = (sum(1 for t in short_trades if t.get('pnl_pct', 0) > 0) / max(short_len, 1) * 100) if short_len > 0 else 0.0
             ret_pct = st.session_state.tg_capital - 100.0
+            # Calcular retorno líquido após imposto (só sobre lucros)
+            _tax_pct  = st.session_state.get('tax_pct_val', 28.0)
+            _tax_eur  = max(0.0, ret_pct) * (_tax_pct / 100.0)
+            ret_after_tax = ret_pct - _tax_eur
             ret_color = "#10B981" if ret_pct >= 0 else "#EF4444"
             emoji_result = "🏆" if ret_pct > 0 else ("😐" if ret_pct == 0 else "💀")
             st.markdown(f"""
@@ -2484,8 +2488,12 @@ with tab_trader_game:
                         <div style="color:#10B981; font-size:22px; font-weight:900; font-family:monospace;">{st.session_state.tg_capital:.2f} EUR</div>
                     </div>
                     <div class="review-stat" style="flex:1;">
-                        <div style="color:#64748b; font-size:11px; text-transform:uppercase;">Retorno Total</div>
+                        <div style="color:#64748b; font-size:11px; text-transform:uppercase;">Retorno Bruto</div>
                         <div style="color:{ret_color}; font-size:22px; font-weight:900; font-family:monospace;">{ret_pct:+.2f}%</div>
+                    </div>
+                    <div class="review-stat" style="flex:1;">
+                        <div style="color:#64748b; font-size:11px; text-transform:uppercase;">Líquido (após {_tax_pct:.0f}% IRS)</div>
+                        <div style="color:{'#10B981' if ret_after_tax >= 0 else '#EF4444'}; font-size:22px; font-weight:900; font-family:monospace;">{ret_after_tax:+.2f}%</div>
                     </div>
                     <div class="review-stat" style="flex:1;">
                         <div style="color:#64748b; font-size:11px; text-transform:uppercase;">Operacoes</div>
@@ -2730,7 +2738,7 @@ with tab_trader_game:
                         triggered, trigger_reason = True, "TRAILING STOP"
                         executed_price = st.session_state.tg_lowest_price * (1 + st.session_state.tg_ts_pct/100.0)
                 if triggered:
-                    commissions = st.session_state.tg_capital * 0.0005
+                    commissions = st.session_state.tg_capital * ((st.session_state.get('fee_pct_val', 0.1) + st.session_state.get('slippage_pct_val', 0.05)) / 100.0) * 2
                     if st.session_state.tg_position == "LONG":
                         trade_pnl_pct = (executed_price - entry_p) / entry_p * 100
                     else:
@@ -2752,7 +2760,7 @@ with tab_trader_game:
                 # Fechar posicao aberta
                 if st.session_state.tg_position != "NONE":
                     entry_p = st.session_state.tg_entry_price
-                    commissions = st.session_state.tg_capital * 0.0005
+                    commissions = st.session_state.tg_capital * ((st.session_state.get('fee_pct_val', 0.1) + st.session_state.get('slippage_pct_val', 0.05)) / 100.0) * 2
                     trade_pnl_pct = (price_now - entry_p)/entry_p*100 if st.session_state.tg_position == "LONG" else (entry_p - price_now)/entry_p*100
                     net_pnl = st.session_state.tg_capital * (trade_pnl_pct/100.0) - commissions
                     st.session_state.tg_capital += net_pnl
@@ -2898,7 +2906,7 @@ with tab_trader_game:
                                     executed_price = st.session_state.tg_lowest_price * (1 + st.session_state.tg_ts_pct/100.0)
                                     
                             if triggered:
-                                commissions = st.session_state.tg_capital * 0.0005
+                                commissions = st.session_state.tg_capital * ((st.session_state.get('fee_pct_val', 0.1) + st.session_state.get('slippage_pct_val', 0.05)) / 100.0) * 2
                                 if st.session_state.tg_position == "LONG":
                                     trade_pnl_pct = (executed_price - entry_p) / entry_p * 100
                                 else:
@@ -2921,7 +2929,7 @@ with tab_trader_game:
                             # A) Saídas Primeiro
                             if _pos == "LONG" and (_bot_signal == "SHORT" or (_bot_signal == "HOLD" and _bot_conf >= st.session_state.get("tg_min_confidence_pct", 80.0))):
                                 entry_p = st.session_state.tg_entry_price
-                                commissions = st.session_state.tg_capital * 0.0005
+                                commissions = st.session_state.tg_capital * ((st.session_state.get('fee_pct_val', 0.1) + st.session_state.get('slippage_pct_val', 0.05)) / 100.0) * 2
                                 pnl_pct = (price_now - entry_p) / entry_p * 100
                                 net_pnl = st.session_state.tg_capital * (pnl_pct/100.0) - commissions
                                 st.session_state.tg_capital += net_pnl
@@ -2935,7 +2943,7 @@ with tab_trader_game:
                                 _pos = "NONE"
                             elif _pos == "SHORT" and (_bot_signal == "LONG" or (_bot_signal == "HOLD" and _bot_conf >= st.session_state.get("tg_min_confidence_pct", 80.0))):
                                 entry_p = st.session_state.tg_entry_price
-                                commissions = st.session_state.tg_capital * 0.0005
+                                commissions = st.session_state.tg_capital * ((st.session_state.get('fee_pct_val', 0.1) + st.session_state.get('slippage_pct_val', 0.05)) / 100.0) * 2
                                 pnl_pct = (entry_p - price_now) / entry_p * 100
                                 net_pnl = st.session_state.tg_capital * (pnl_pct/100.0) - commissions
                                 st.session_state.tg_capital += net_pnl
@@ -2988,7 +2996,7 @@ with tab_trader_game:
                     # A) Verificar Saídas Primeiro
                     if _pos == "LONG" and (_bot_signal == "SHORT" or (_bot_signal == "HOLD" and _bot_conf >= st.session_state.get("tg_min_confidence_pct", 80.0))):
                         entry_p = st.session_state.tg_entry_price
-                        commissions = st.session_state.tg_capital * 0.0005
+                        commissions = st.session_state.tg_capital * ((st.session_state.get('fee_pct_val', 0.1) + st.session_state.get('slippage_pct_val', 0.05)) / 100.0) * 2
                         pnl_pct = (price_now - entry_p) / entry_p * 100
                         net_pnl = st.session_state.tg_capital * (pnl_pct/100.0) - commissions
                         st.session_state.tg_capital += net_pnl
@@ -3003,7 +3011,7 @@ with tab_trader_game:
                         st.toast(f"Bot saiu LONG a {price_now:.2f} ({pnl_pct:+.2f}%)")
                     elif _pos == "SHORT" and (_bot_signal == "LONG" or (_bot_signal == "HOLD" and _bot_conf >= st.session_state.get("tg_min_confidence_pct", 80.0))):
                         entry_p = st.session_state.tg_entry_price
-                        commissions = st.session_state.tg_capital * 0.0005
+                        commissions = st.session_state.tg_capital * ((st.session_state.get('fee_pct_val', 0.1) + st.session_state.get('slippage_pct_val', 0.05)) / 100.0) * 2
                         pnl_pct = (entry_p - price_now) / entry_p * 100
                         net_pnl = st.session_state.tg_capital * (pnl_pct/100.0) - commissions
                         st.session_state.tg_capital += net_pnl
@@ -3042,7 +3050,7 @@ with tab_trader_game:
                         st.markdown('<div class="casino-long-active">', unsafe_allow_html=True)
                         if st.button(f"LONG ATIVO  {long_pnl:+.2f}%", width="stretch", key="tg_btn_long_act"):
                             entry_p = st.session_state.tg_entry_price
-                            commissions = st.session_state.tg_capital * 0.0005
+                            commissions = st.session_state.tg_capital * ((st.session_state.get('fee_pct_val', 0.1) + st.session_state.get('slippage_pct_val', 0.05)) / 100.0) * 2
                             trade_pnl_pct = (price_now - entry_p)/entry_p*100
                             net_pnl = st.session_state.tg_capital * (trade_pnl_pct/100.0) - commissions
                             st.session_state.tg_capital += net_pnl
@@ -3077,7 +3085,7 @@ with tab_trader_game:
                         st.markdown('<div class="casino-short-active">', unsafe_allow_html=True)
                         if st.button(f"SHORT ATIVO  {short_pnl:+.2f}%", width="stretch", key="tg_btn_short_act"):
                             entry_p = st.session_state.tg_entry_price
-                            commissions = st.session_state.tg_capital * 0.0005
+                            commissions = st.session_state.tg_capital * ((st.session_state.get('fee_pct_val', 0.1) + st.session_state.get('slippage_pct_val', 0.05)) / 100.0) * 2
                             trade_pnl_pct = (entry_p - price_now)/entry_p*100
                             net_pnl = st.session_state.tg_capital * (trade_pnl_pct/100.0) - commissions
                             st.session_state.tg_capital += net_pnl
