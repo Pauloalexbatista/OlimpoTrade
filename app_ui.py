@@ -2506,11 +2506,19 @@ with tab_trader_game:
                 </div>
             </div>
             """, unsafe_allow_html=True)
-            # --- Gráfico full-width + botão ---
-            col_rev_chart, col_rev_btn = st.columns([9, 1])
+            # --- Gráfico + painel lateral com nome e botão ---
+            col_rev_chart, col_rev_btn = st.columns([8, 2])
             with col_rev_btn:
-                st.markdown('<div style="height:32px;"></div>', unsafe_allow_html=True)
-                if st.button("🔄", help="Novo Jogo", type="primary", key="rv_new_game"):
+                st.markdown('<div class="game-control-anchor"></div>', unsafe_allow_html=True)
+                _new_name = st.text_input(
+                    "Nome do próximo jogo:",
+                    value=st.session_state.tg_trader_name,
+                    key="rv_trader_name",
+                    placeholder="Ex: Estratégia Claude"
+                )
+                if _new_name:
+                    st.session_state.tg_trader_name = _new_name
+                if st.button("🔄 Novo Jogo", type="primary", width='stretch', key="rv_new_game"):
                     start_new_game()
                     st.rerun()
             with col_rev_chart:
