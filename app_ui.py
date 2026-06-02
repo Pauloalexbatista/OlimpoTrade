@@ -404,6 +404,14 @@ with st.expander("💛 Centro de Comando Global & Configurações", expanded=Fal
 # Mapear variáveis locais a partir do estado para compatibilidade global
 short_window = st.session_state.get('short_window_val', 9)
 long_window = st.session_state.get('long_window_val', 21)
+p2_window = st.session_state.get('tg_p2', 5)
+p3_window = st.session_state.get('tg_p3', 13)
+p4_window = st.session_state.get('tg_p4', 21)
+p5_window = st.session_state.get('tg_p5', 55)
+p6_window = st.session_state.get('tg_p6', 144)
+p5_filter_active = st.session_state.get('p5_filter_active_val', True)
+exhaustion_filter = st.session_state.get('exhaustion_filter_val', True)
+exhaustion_threshold = st.session_state.get('exhaustion_threshold_val', 2.5)
 operation_mode = st.session_state.get('operation_mode_val', 'TREND_FOLLOWING')
 entry_mode = st.session_state.get('entry_mode_val', '4PONTOS')
 exit_mode = st.session_state.get('exit_mode_val', 'P3')
@@ -423,12 +431,13 @@ logger = setup_logging()
 import variables_registry as _vr_global
 _vr_global.initialize_variables_registry()
 # 7. Abas Principais do Laboratório (TABS SIMPLIFICADAS)
-tab_backtest, tab_simulator, tab_math_lab, tab_trader_game, tab_bot_brain = st.tabs([
+tab_backtest, tab_simulator, tab_math_lab, tab_trader_game, tab_bot_brain, tab_alpaca = st.tabs([
     "📈 Simulação & Gráficos Real",
     "🔬 Laboratório de Simulação & Otimização",
     "🎛️ Laboratório Matemático & Regimes",
     "🎮 Arena de Jogo & Auto-Treino",
-    "🧠 Cérebro do Bot (DNA)"
+    "🧠 Cérebro do Bot (DNA)",
+    "🚀 Deploy Alpaca",
 ])
 # Ação do Botão Principal do Backtester
 if run_button:
@@ -1789,79 +1798,136 @@ with tab_trader_game:
                     "Desvio Padrão (sma_std)": "sma_std"
                 }
                 col_name = mapping.get(ref_line_name, "sma_5")
-                
+
                 price_now = df['close'].iloc[step]
                 price_prev = df['close'].iloc[step-1]
-                
+
+                # Proteção: se a linha de referência é igual ao preço (ex: P2=1 → SMA1=preço),
+                # a Lagarta nunca cruzaria a si própria. Avançar para a próxima linha útil.
+                fallback_cols = ["sma_13", "sma_21", "sma_55", "sma_144", "avg_sma"]
+                if col_name not in ("avg_sma", "sma_std"):
+                    line_test = df[col_name].iloc[step]
+                    if abs(line_test - price_now) < 1e-9:  # linha = preço → inútil
+                        for fb in fallback_cols:
+                            if abs(df[fb].iloc[step] - price_now) > 1e-9:
+                                col_name = fb
+                                ref_line_name = f"Auto ({fb})"
+                                break
+
                 is_growing = price_now > price_prev
                 is_falling = price_now < price_prev
-                
+
+                # Filtro de dispersão: suspende entradas quando SMAs estão demasiado comprimidas
+                _disp_min = st.session_state.get('tg_lagarta_min_disp', 0.3)
+                _disp_now = float(df['sma_std'].iloc[step]) if 'sma_std' in df.columns else 0.0
+                if _disp_now < _disp_min:
+                    return "HOLD", 0.0, {
+                        "Dispersão SMAs": f"{_disp_now:.3f}",
+                        f"Mínimo ({_disp_min:.2f})": "❌ SMAs comprimidas — aguardar expansão",
+                    }
+
                 # Lógica especial para Desvio Padrão (Breakout de Volatilidade)
                 if ref_line_name == "Desvio Padrão (sma_std)":
-                    avg_now = df['avg_sma'].iloc[step]
+                    avg_now  = df['avg_sma'].iloc[step]
                     avg_prev = df['avg_sma'].iloc[step-1]
-                    
-                    std_now = df['sma_std'].iloc[step]
+                    std_now  = df['sma_std'].iloc[step]
                     std_prev = df['sma_std'].iloc[step-1]
-                    
-                    dist_now = abs(price_now - avg_now)
+                    dist_now  = abs(price_now  - avg_now)
                     dist_prev = abs(price_prev - avg_prev)
-                    
-                    is_crossover_long = (dist_prev <= std_prev) and (dist_now > std_now)
-                    is_crossover_short = (dist_prev <= std_prev) and (dist_now > std_now)
-                    
+
+                    is_breakout = (dist_prev <= std_prev) and (dist_now > std_now)
+
                     cond_dict = {
                         "Afastamento > Desvio Padrão": bool(dist_now > std_now),
                         "Afastamento em Alta": bool(dist_now > dist_prev),
-                        "Breakout de Volatilidade Alta": bool(is_crossover_long)
+                        "Breakout de Volatilidade": bool(is_breakout),
+                        "Preço a Crescer": bool(is_growing),
                     }
-                    
-                    if is_growing and is_crossover_long:
+
+                    if is_breakout and is_growing:
                         if "Lagarta" in st.session_state.get("tg_strategy_type", "") and st.session_state.get("tg_position", "NONE") == "SHORT":
-                            return "HOLD", 0.0, cond_dict
-                        return "LONG", 100.0, cond_dict
-                    elif is_falling and is_crossover_short:
+                            return "HOLD", 0.0, {**cond_dict, "Gatilho": "Ignorado pela Lagarta"}
+                        return "LONG", 100.0, {**cond_dict, "Gatilho": "Breakout de Alta"}
+                    elif is_breakout and is_falling:
                         if "Lagarta" in st.session_state.get("tg_strategy_type", "") and st.session_state.get("tg_position", "NONE") == "LONG":
-                            return "HOLD", 0.0, {"Gatilho": "Ignorado pela Lagarta (Apenas SL/TS saem)"}
-                        cond_dict_short = {
-                            "Afastamento > Desvio Padrão": bool(dist_now > std_now),
-                            "Afastamento em Alta": bool(dist_now > dist_prev),
-                            "Breakout de Volatilidade Baixa": bool(is_crossover_short)
-                        }
-                        return "SHORT", 100.0, cond_dict_short
+                            return "HOLD", 0.0, {**cond_dict, "Gatilho": "Ignorado pela Lagarta"}
+                        return "SHORT", 100.0, {**cond_dict, "Gatilho": "Breakout de Baixa"}
                     else:
                         return "HOLD", 0.0, cond_dict
                 else:
-                    line_now = df[col_name].iloc[step]
+                    _is_lagarta = "Lagarta" in st.session_state.get("tg_strategy_type", "")
+                    _cur_pos    = st.session_state.get("tg_position", "NONE")
+
+                    # --- Modo "Qualquer SMA Ativa": verifica todas as 5 SMAs ---
+                    if ref_line_name == "Qualquer SMA Ativa":
+                        all_sma_cols = ["sma_5", "sma_13", "sma_21", "sma_55", "sma_144"]
+                        first_long = None
+                        first_short = None
+                        crossed_lines = []
+                        for sma_col in all_sma_cols:
+                            ln  = df[sma_col].iloc[step]
+                            lp  = df[sma_col].iloc[step-1]
+                            if abs(ln - price_now) < 1e-9:   # SMA = preço (período 1), ignorar
+                                continue
+                            if (price_prev <= lp) and (price_now > ln):
+                                crossed_lines.append(f"↑ {sma_col}")
+                                if first_long is None:
+                                    first_long = sma_col
+                            elif (price_prev >= lp) and (price_now < ln):
+                                crossed_lines.append(f"↓ {sma_col}")
+                                if first_short is None:
+                                    first_short = sma_col
+
+                        cond_dict = {
+                            "Linhas Cruzadas": str(crossed_lines) if crossed_lines else "nenhuma",
+                            "Cruzamento Alta":  bool(first_long),
+                            "Cruzamento Baixa": bool(first_short),
+                        }
+                        # Teimosia correta: manter se cruzou na MESMA direção da posição atual
+                        # Reverter se cruzou na direção OPOSTA
+                        if first_long and not first_short:
+                            # cruzamento de alta: se já em LONG → manter (HOLD), senão → LONG
+                            if _cur_pos == "LONG":
+                                return "HOLD", 0.0, {**cond_dict, "Gatilho": "Teimosia — já em LONG, mantém"}
+                            return "LONG", 100.0, {**cond_dict, "Gatilho": f"↑ cruzou {first_long}"}
+                        elif first_short and not first_long:
+                            # cruzamento de baixa: se já em SHORT → manter (HOLD), senão → SHORT
+                            if _cur_pos == "SHORT":
+                                return "HOLD", 0.0, {**cond_dict, "Gatilho": "Teimosia — já em SHORT, mantém"}
+                            return "SHORT", 100.0, {**cond_dict, "Gatilho": f"↓ cruzou {first_short}"}
+                        else:
+                            return "HOLD", 0.0, cond_dict
+
+                    # --- Modo linha única (padrão) ---
+                    line_now  = df[col_name].iloc[step]
                     line_prev = df[col_name].iloc[step-1]
-                    
-                    is_crossover_long = (price_prev <= line_prev) and (price_now > line_now)
+
+                    is_crossover_long  = (price_prev <= line_prev) and (price_now > line_now)
                     is_crossover_short = (price_prev >= line_prev) and (price_now < line_now)
-                    
+
                     cond_dict = {
                         f"Preço > {ref_line_name}": bool(price_now > line_now),
-                        "Preço em Alta (Crescendo)": bool(is_growing),
-                        "Cruzamento de Alta": bool(is_crossover_long)
+                        "Cruzamento de Alta":  bool(is_crossover_long),
+                        "Cruzamento de Baixa": bool(is_crossover_short),
                     }
-                    
-                    if is_growing and is_crossover_long:
-                        if "Lagarta" in st.session_state.get("tg_strategy_type", "") and st.session_state.get("tg_position", "NONE") == "SHORT":
-                            return "HOLD", 0.0, cond_dict
-                        return "LONG", 100.0, cond_dict
-                    elif is_falling and is_crossover_short:
-                        if "Lagarta" in st.session_state.get("tg_strategy_type", "") and st.session_state.get("tg_position", "NONE") == "LONG":
-                            return "HOLD", 0.0, {"Gatilho": "Ignorado pela Lagarta (Apenas SL/TS saem)"}
-                        cond_dict_short = {
-                            f"Preço < {ref_line_name}": bool(price_now < line_now),
-                            "Preço em Baixa (Descendo)": bool(is_falling),
-                            "Cruzamento de Baixa": bool(is_crossover_short)
-                        }
-                        return "SHORT", 100.0, cond_dict_short
+
+                    if is_crossover_long:
+                        # Já em LONG → teimosia (mesma direção, mantém)
+                        if _cur_pos == "LONG":
+                            return "HOLD", 0.0, {**cond_dict, "Gatilho": "Teimosia — já em LONG, mantém"}
+                        # Em SHORT ou NONE → reverter/entrar LONG
+                        return "LONG", 100.0, {**cond_dict, "Gatilho": "Cruzamento de Alta → LONG"}
+                    elif is_crossover_short:
+                        # Já em SHORT → teimosia (mesma direção, mantém)
+                        if _cur_pos == "SHORT":
+                            return "HOLD", 0.0, {**cond_dict, "Gatilho": "Teimosia — já em SHORT, mantém"}
+                        # Em LONG ou NONE → reverter/entrar SHORT
+                        return "SHORT", 100.0, {**cond_dict, "Gatilho": "Cruzamento de Baixa → SHORT"}
                     else:
                         return "HOLD", 0.0, cond_dict
                 
             # Verificar se a estratégia ativa é o Cérebro de Consenso DNA
-            if st.session_state.get("tg_strategy_type", "Default") == "Cérebro de Consenso (Lab)" and os.path.exists("bot_consensus_dna.json"):
+            if st.session_state.get("tg_strategy_type", "Default") == "Cérebro de Consenso (IA)" and os.path.exists("bot_consensus_dna.json"):
                 try:
                     with open("bot_consensus_dna.json", "r", encoding="utf-8") as f:
                         dna = json.load(f)
@@ -2577,7 +2643,7 @@ with tab_trader_game:
                         st.rerun()
                 
                 # Botão premium para Simulação Instantânea até ao Fim do Jogo
-                if st.button("⚡ Simular Até ao Fim (Instantâneo)", use_container_width=True, key="tg_simulate_to_end_btn"):
+                if st.button("⚡ Simular Até ao Fim (Instantâneo)", width='stretch', key="tg_simulate_to_end_btn"):
                     st.session_state.tg_running = False  # Pausa o auto loop se estivesse a correr
                     while (st.session_state.tg_step - 144) < 100:
                         st.session_state.tg_step += 1
@@ -2667,12 +2733,12 @@ with tab_trader_game:
                                 
                             # B) Entradas Imediatamente (reversão na mesma vela)
                             if _pos == "NONE":
-                                if _bot_signal == "LONG" and _bot_conf >= st.session_state.get("tg_min_confidence_pct", 80.0):
+                                if _bot_signal == "LONG":
                                     st.session_state.tg_position = "LONG"
                                     st.session_state.tg_entry_price = price_now
                                     st.session_state.tg_entry_step = current_step
                                     st.session_state.tg_highest_price = price_now
-                                elif _bot_signal == "SHORT" and _bot_conf >= st.session_state.get("tg_min_confidence_pct", 80.0):
+                                elif _bot_signal == "SHORT":
                                     st.session_state.tg_position = "SHORT"
                                     st.session_state.tg_entry_price = price_now
                                     st.session_state.tg_entry_step = current_step
@@ -2736,13 +2802,13 @@ with tab_trader_game:
 
                     # B) Verificar Entradas Imediatamente (incluindo reversões automáticas no mesmo ponto/vela!)
                     if _pos == "NONE":
-                        if _bot_signal == "LONG" and _bot_conf >= st.session_state.get("tg_min_confidence_pct", 80.0):
+                        if _bot_signal == "LONG":
                             st.session_state.tg_position = "LONG"
                             st.session_state.tg_entry_price = price_now
                             st.session_state.tg_entry_step = current_step
                             st.session_state.tg_highest_price = price_now
                             st.toast(f"Bot entrou LONG a {price_now:.2f}")
-                        elif _bot_signal == "SHORT" and _bot_conf >= st.session_state.get("tg_min_confidence_pct", 80.0):
+                        elif _bot_signal == "SHORT":
                             st.session_state.tg_position = "SHORT"
                             st.session_state.tg_entry_price = price_now
                             st.session_state.tg_entry_step = current_step
@@ -2828,7 +2894,7 @@ with tab_trader_game:
             # COL ADVISOR - Sinal do co-piloto + 12 variaveis
             # =========================================================
             with col_advisor:
-                dna_active = st.session_state.get("tg_strategy_type", "Default") == "Cerebro de Consenso (Lab)"
+                dna_active = st.session_state.get("tg_strategy_type", "Default") == "Cérebro de Consenso (IA)"
                 
                 # --- Regime label ---
                 if dna_active:
@@ -2936,7 +3002,7 @@ with tab_trader_game:
                 if "exit_price" in display_df.columns:
                     display_df["exit_price"] = display_df["exit_price"].map(lambda x: f"{x:.2f}")
                     
-                st.dataframe(display_df.rename(columns=rename_map), use_container_width=True)
+                st.dataframe(display_df.rename(columns=rename_map), width='stretch')
                 
                 # --- BOTAO DE DOWNLOAD DO RELATORIO COMPLETO DE DECISOES ---
                 try:
@@ -3009,7 +3075,7 @@ with tab_trader_game:
                     # Ordenar por banca final descendente (melhores primeiro)
                     top_list = sorted(scores, key=lambda x: x.get("capital", 100.0), reverse=True)[:20]
                     df_top = format_records_df(top_list)
-                    st.dataframe(df_top, use_container_width=True, hide_index=True)
+                    st.dataframe(df_top, width='stretch', hide_index=True)
                     
                 with tab_piores:
                     # Ordenar por banca final ascendente (piores primeiro)
@@ -3020,7 +3086,7 @@ with tab_trader_game:
                     df_worst = df_worst.rename(columns={"Posição": "Nível de Perda"})
                     # Vamos mudar "1º" para "Pior", "2º" para "2º Pior", etc. para dar estilo e graça!
                     df_worst["Nível de Perda"] = df_worst["Nível de Perda"].replace("1º", "💀 Pior de Todos")
-                    st.dataframe(df_worst, use_container_width=True, hide_index=True)
+                    st.dataframe(df_worst, width='stretch', hide_index=True)
             else:
                 st.info("Ainda não existem recordes gravados na Arena. Termine um jogo para inaugurar a leaderboard!")
 # =========================================================================
@@ -3309,3 +3375,7 @@ with tab_bot_brain:
                         pass
             st.toast("🧠 Cérebro limpo e redefinido com sucesso!")
             st.rerun()
+
+with tab_alpaca:
+    import tab_alpaca as _tab_alpaca
+    _tab_alpaca.render()

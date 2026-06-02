@@ -1,8 +1,22 @@
+import os
+import json
 import streamlit as st
 import pandas as pd
 
+
 class QuantVariable:
-    def __init__(self, key, name, category, description, formula, default_value, min_val=None, max_val=None, step=None, is_toggleable=False):
+    def __init__(
+    self,
+    key,
+    name,
+    category,
+    description,
+    formula,
+    default_value,
+    min_val=None,
+    max_val=None,
+    step=None,
+     is_toggleable=False):
         self.key = key
         self.name = name
         self.category = category
@@ -14,33 +28,181 @@ class QuantVariable:
         self.step = step
         self.is_toggleable = is_toggleable
 
+
 # Registo central das variáveis do sistema
 VARIABLES = [
     # Médias Móveis (Fibonacci & Clássicas)
-    QuantVariable("tg_p2", "Período SMA Rápida (P2)", "Médias Móveis (Lab/Jogo)", "Média móvel rápida imediata (cabeça do feixe). Representa a velocidade do momentum curto.", "SMA(Close, P2)", 9, 1, 999, 1),
-    QuantVariable("tg_p3", "Período SMA Sinal (P3)", "Médias Móveis (Lab/Jogo)", "Média móvel usada para cruzamentos rápidos com P2 para gatilho.", "SMA(Close, P3)", 21, 1, 999, 1),
-    QuantVariable("tg_p4", "Período SMA Intermédia (P4)", "Médias Móveis (Lab/Jogo)", "Média intermédia que define o alinhamento de curto/médio prazo.", "SMA(Close, P4)", 50, 1, 999, 1),
-    QuantVariable("tg_p5", "Período SMA Lenta 1 (P5)", "Médias Móveis (Lab/Jogo)", "Média institucional lenta. Atua como primeiro trampolim de suporte.", "SMA(Close, P5)", 100, 1, 999, 1),
-    QuantVariable("tg_p6", "Período SMA Lenta 2 (P6)", "Médias Móveis (Lab/Jogo)", "Média institucional profunda. Atua como o suporte gravitacional final.", "SMA(Close, P6)", 200, 1, 999, 1),
-    
+    QuantVariable(
+    "tg_p2",
+    "Período SMA Rápida (P2)",
+    "Médias Móveis (Lab/Jogo)",
+    "Média móvel rápida imediata (cabeça do feixe). Representa a velocidade do momentum curto.",
+    "SMA(Close, P2)",
+    9,
+    1,
+    999,
+     1),
+    QuantVariable(
+    "tg_p3",
+    "Período SMA Sinal (P3)",
+    "Médias Móveis (Lab/Jogo)",
+    "Média móvel usada para cruzamentos rápidos com P2 para gatilho.",
+    "SMA(Close, P3)",
+    21,
+    1,
+    999,
+     1),
+    QuantVariable(
+    "tg_p4",
+    "Período SMA Intermédia (P4)",
+    "Médias Móveis (Lab/Jogo)",
+    "Média intermédia que define o alinhamento de curto/médio prazo.",
+    "SMA(Close, P4)",
+    50,
+    1,
+    999,
+     1),
+    QuantVariable(
+    "tg_p5",
+    "Período SMA Lenta 1 (P5)",
+    "Médias Móveis (Lab/Jogo)",
+    "Média institucional lenta. Atua como primeiro trampolim de suporte.",
+    "SMA(Close, P5)",
+    100,
+    1,
+    999,
+     1),
+    QuantVariable(
+    "tg_p6",
+    "Período SMA Lenta 2 (P6)",
+    "Médias Móveis (Lab/Jogo)",
+    "Média institucional profunda. Atua como o suporte gravitacional final.",
+    "SMA(Close, P6)",
+    200,
+    1,
+    999,
+     1),
+
     # Médias Móveis Clássicas (PAULO_GOLD & Cruzamentos)
-    QuantVariable("short_window_val", "Janela Curta Clássica (Rápida)", "Estratégias Clássicas", "Número de candles para a média curta móvel das estratégias clássicas.", "SMA(Close, Short)", 9, 1, 999, 1),
-    QuantVariable("long_window_val", "Janela Longa Clássica (Lenta)", "Estratégias Clássicas", "Número de candles para a média longa móvel das estratégias clássicas.", "SMA(Close, Long)", 21, 1, 999, 1),
-    QuantVariable("paulo_gold_min_dist_pct_val", "PG: Distância Mínima de Médias (%)", "Estratégias Clássicas", "Distância mínima exigida em % entre as médias rápidas/lentas na estratégia PAULO_GOLD.", "SMA_Rápida > SMA_Lenta * (1 + Dist%)", 0.0, 0.0, 2.0, 0.05),
-    
+    QuantVariable(
+    "short_window_val",
+    "Janela Curta Clássica (Rápida)",
+    "Estratégias Clássicas",
+    "Número de candles para a média curta móvel das estratégias clássicas.",
+    "SMA(Close, Short)",
+    9,
+    1,
+    999,
+     1),
+    QuantVariable(
+    "long_window_val",
+    "Janela Longa Clássica (Lenta)",
+    "Estratégias Clássicas",
+    "Número de candles para a média longa móvel das estratégias clássicas.",
+    "SMA(Close, Long)",
+    21,
+    1,
+    999,
+     1),
+    QuantVariable(
+    "paulo_gold_min_dist_pct_val",
+    "PG: Distância Mínima de Médias (%)",
+    "Estratégias Clássicas",
+    "Distância mínima exigida em % entre as médias rápidas/lentas na estratégia PAULO_GOLD.",
+    "SMA_Rápida > SMA_Lenta * (1 + Dist%)",
+    0.0,
+    0.0,
+    2.0,
+     0.05),
+
     # Indicadores do Cockpit e Gatilhos
-    QuantVariable("tg_bot_compress_thresh", "Compressão Mola (Limite)", "Indicadores Cockpit", "Limite máximo de Stretching (esticamento) para detetar compressão extrema da mola (consolidação).", "Stretching < Limite", 0.6, 0.1, 5.0, 0.1),
-    QuantVariable("tg_min_confidence_pct", "Confiança Mínima de Entrada (%)", "Filtros e Decisão", "Percentagem mínima de regras que têm de estar válidas (verdes) para o Bot autorizar o trade.", "Regras Válidas / Total >= Confiança", 80.0, 50.0, 100.0, 5.0),
-    
+    QuantVariable(
+    "tg_bot_compress_thresh",
+    "Compressão Mola (Limite)",
+    "Indicadores Cockpit",
+    "Limite máximo de Stretching (esticamento) para detetar compressão extrema da mola (consolidação).",
+    "Stretching < Limite",
+    0.6,
+    0.1,
+    5.0,
+     0.1),
+    QuantVariable(
+    "tg_min_confidence_pct",
+    "Confiança Mínima de Entrada (%)",
+    "Filtros e Decisão",
+    "Percentagem mínima de regras que têm de estar válidas (verdes) para o Bot autorizar o trade.",
+    "Regras Válidas / Total >= Confiança",
+    80.0,
+    50.0,
+    100.0,
+     5.0),
+
     # Gestão de Risco
-    QuantVariable("tg_sl_pct", "Stop Loss (SL) %", "Gestão de Risco", "Limite máximo de perda percentual admitida por operação.", "Preço de Entrada * (1 - SL%)", 2.0, 0.5, 10.0, 0.1, is_toggleable=True),
-    QuantVariable("tg_tp_pct", "Take Profit (TP) %", "Gestão de Risco", "Alvo de lucro percentual definido para saída automática.", "Preço de Entrada * (1 + TP%)", 7.0, 1.0, 25.0, 0.1, is_toggleable=True),
-    QuantVariable("tg_ts_pct", "Trailing Stop (TS) %", "Gestão de Risco", "Trailing Stop para acompanhamento de ganhos acumulados.", "Stop dinâmico a partir do máximo", 1.5, 0.5, 5.0, 0.1, is_toggleable=True),
-    
+    QuantVariable(
+    "tg_sl_pct",
+    "Stop Loss (SL) %",
+    "Gestão de Risco",
+    "Limite máximo de perda percentual admitida por operação.",
+    "Preço de Entrada * (1 - SL%)",
+    2.0,
+    0.5,
+    10.0,
+    0.1,
+     is_toggleable=True),
+    QuantVariable(
+    "tg_tp_pct",
+    "Take Profit (TP) %",
+    "Gestão de Risco",
+    "Alvo de lucro percentual definido para saída automática.",
+    "Preço de Entrada * (1 + TP%)",
+    7.0,
+    1.0,
+    25.0,
+    0.1,
+     is_toggleable=True),
+    QuantVariable(
+    "tg_ts_pct",
+    "Trailing Stop (TS) %",
+    "Gestão de Risco",
+    "Trailing Stop para acompanhamento de ganhos acumulados.",
+    "Stop dinâmico a partir do máximo",
+    1.5,
+    0.5,
+    5.0,
+    0.1,
+     is_toggleable=True),
+
     # Fricções e Custos de Mercado
-    QuantVariable("fee_pct_val", "Taxa Operacional API (%)", "Custos de Mercado", "Comissão cobrada pela exchange em cada compra e venda.", "Valor da Ordem * Taxa%", 0.1, 0.0, 1.0, 0.01),
-    QuantVariable("tax_pct_val", "Imposto Mais-Valias (%)", "Custos de Mercado", "Percentagem de imposto deduzida automaticamente sobre lucros líquidos pós-jogo.", "Lucro Líquido * Imposto%", 28.0, 0.0, 50.0, 1.0),
-    QuantVariable("slippage_pct_val", "Deslizamento (Slippage) (%)", "Custos de Mercado", "Fricção que simula pior preço de execução por atraso ou liquidez.", "Compra + Slippage%, Venda - Slippage%", 0.05, 0.0, 0.5, 0.01)
+    QuantVariable(
+    "fee_pct_val",
+    "Taxa Operacional API (%)",
+    "Custos de Mercado",
+    "Comissão cobrada pela exchange em cada compra e venda.",
+    "Valor da Ordem * Taxa%",
+    0.1,
+    0.0,
+    1.0,
+     0.01),
+    QuantVariable(
+    "tax_pct_val",
+    "Imposto Mais-Valias (%)",
+    "Custos de Mercado",
+    "Percentagem de imposto deduzida automaticamente sobre lucros líquidos pós-jogo.",
+    "Lucro Líquido * Imposto%",
+    28.0,
+    0.0,
+    50.0,
+     1.0),
+    QuantVariable(
+    "slippage_pct_val",
+    "Deslizamento (Slippage) (%)",
+    "Custos de Mercado",
+    "Fricção que simula pior preço de execução por atraso ou liquidez.",
+    "Compra + Slippage%, Venda - Slippage%",
+    0.05,
+    0.0,
+    0.5,
+     0.01)
 ]
 
 
@@ -56,10 +218,12 @@ def load_user_preferences():
             return {}
     return {}
 
+
 def save_user_preferences(prefs):
     import json
     with open("user_preferences.json", "w", encoding="utf-8") as f:
         json.dump(prefs, f, indent=4)
+
 
 def initialize_variables_registry():
     """Garante que todas as variáveis quantitativas estão presentes no st.session_state."""
@@ -71,14 +235,17 @@ def initialize_variables_registry():
             toggle_key = f"{var.key}_active"
             if toggle_key not in st.session_state:
                 if var.key == "tg_sl_pct":
-                    st.session_state[toggle_key] = prefs.get(toggle_key, st.session_state.get("tg_sl_active", True))
+                    st.session_state[toggle_key] = prefs.get(
+                        toggle_key, st.session_state.get("tg_sl_active", True))
                 elif var.key == "tg_tp_pct":
-                    st.session_state[toggle_key] = prefs.get(toggle_key, st.session_state.get("tg_tp_active", False))
+                    st.session_state[toggle_key] = prefs.get(
+                        toggle_key, st.session_state.get("tg_tp_active", False))
                 elif var.key == "tg_ts_pct":
-                    st.session_state[toggle_key] = prefs.get(toggle_key, st.session_state.get("tg_ts_active", False))
+                    st.session_state[toggle_key] = prefs.get(
+                        toggle_key, st.session_state.get("tg_ts_active", False))
                 else:
                     st.session_state[toggle_key] = prefs.get(toggle_key, True)
-                    
+
         # Inicializar valor principal
         if var.key not in st.session_state:
             if var.key == "tg_p2": st.session_state[var.key] = prefs.get(var.key, st.session_state.get("p2_window_val", var.default_value))
@@ -87,21 +254,26 @@ def initialize_variables_registry():
             elif var.key == "tg_p5": st.session_state[var.key] = prefs.get(var.key, st.session_state.get("p5_window_val", var.default_value))
             elif var.key == "tg_p6": st.session_state[var.key] = prefs.get(var.key, st.session_state.get("p6_window_val", var.default_value))
             else:
-                st.session_state[var.key] = prefs.get(var.key, var.default_value)
-                
+                st.session_state[var.key] = prefs.get(
+                    var.key, var.default_value)
+
     # Variáveis booleanas manuais adicionais
     if "paulo_gold_trend_filter_val" not in st.session_state:
-        st.session_state.paulo_gold_trend_filter_val = prefs.get('paulo_gold_trend_filter_val', False)
+        st.session_state.paulo_gold_trend_filter_val = prefs.get(
+            'paulo_gold_trend_filter_val', False)
     if "allow_reentry_val" not in st.session_state:
-        st.session_state.allow_reentry_val = prefs.get('allow_reentry_val', True)
+        st.session_state.allow_reentry_val = prefs.get(
+            'allow_reentry_val', True)
+
 
 def render_variable_widget(var):
-    # Se for toggleable (ex: Stop Loss, Take Profit), desenhar toggle and slider
+    # Se for toggleable (ex: Stop Loss, Take Profit), desenhar toggle and
+    # slider
     if var.is_toggleable:
         toggle_key = f"{var.key}_active"
         st.session_state[toggle_key] = st.toggle(
-            f"Ativar {var.name.split(' ')[0]}", 
-            value=st.session_state.get(toggle_key, True), 
+            f"Ativar {var.name.split(' ')[0]}",
+            value=st.session_state.get(toggle_key, True),
             key=f"tg_toggle_{var.key}"
         )
         # Sincronizar com variáveis antigas do jogo
@@ -111,13 +283,13 @@ def render_variable_widget(var):
             st.session_state.tg_tp_active = st.session_state[toggle_key]
         elif var.key == "tg_ts_pct":
             st.session_state.tg_ts_active = st.session_state[toggle_key]
-            
+
         if st.session_state[toggle_key]:
             st.session_state[var.key] = st.slider(
-                var.name, 
-                min_value=var.min_val, 
-                max_value=var.max_val, 
-                value=float(st.session_state.get(var.key, var.default_value)), 
+                var.name,
+                min_value=var.min_val,
+                max_value=var.max_val,
+                value=float(st.session_state.get(var.key, var.default_value)),
                 step=var.step,
                 key=f"tg_slide_{var.key}"
             )
@@ -126,15 +298,25 @@ def render_variable_widget(var):
             elif var.key == "tg_tp_pct": st.session_state.tg_tp_pct = st.session_state[var.key]
             elif var.key == "tg_ts_pct": st.session_state.tg_ts_pct = st.session_state[var.key]
         else:
-            st.markdown(f"<p style='color:#64748b; font-style:italic; font-size:12px;'>{var.name} desativado.</p>", unsafe_allow_html=True)
+            st.markdown(
+    f"<p style='color:#64748b; font-style:italic; font-size:12px;'>{var.name} desativado.</p>",
+     unsafe_allow_html=True)
     else:
         # Variável numérica padrão
         if var.step is not None:
             st.session_state[var.key] = st.slider(
-                var.name, 
-                min_value=var.min_val, 
-                max_value=var.max_val, 
-                value=float(st.session_state.get(var.key, var.default_value)) if isinstance(var.default_value, float) else int(st.session_state.get(var.key, var.default_value)), 
+                var.name,
+                min_value=var.min_val,
+                max_value=var.max_val,
+                value=float(
+    st.session_state.get(
+        var.key,
+        var.default_value)) if isinstance(
+            var.default_value,
+            float) else int(
+                st.session_state.get(
+                    var.key,
+                     var.default_value)),
                 step=var.step,
                 key=f"tg_slide_{var.key}"
             )
@@ -145,29 +327,40 @@ def render_variable_widget(var):
                 key=f"tg_num_{var.key}"
             )
 
+
 def render_variables_dashboard(compact=False):
     """Desenha a Central & Dicionário de Variáveis. Suporta compact=True para ecrãs de topo."""
     import os
     import json
     initialize_variables_registry()
-    
+
     if not compact:
-        st.markdown("<h2 style='text-align: center; color: #7c3aed;'>🔧 Central & Dicionário de Variáveis</h2>", unsafe_allow_html=True)
-        st.markdown("<p style='text-align: center; color: #64748b;'>A fonte única de verdade e painel de comando quantitativo do OlimpoTrade.</p>", unsafe_allow_html=True)
+        st.markdown(
+    "<h2 style='text-align: center; color: #7c3aed;'>🔧 Central & Dicionário de Variáveis</h2>",
+     unsafe_allow_html=True)
+        st.markdown(
+    "<p style='text-align: center; color: #64748b;'>A fonte única de verdade e painel de comando quantitativo do OlimpoTrade.</p>",
+     unsafe_allow_html=True)
         st.markdown("---")
 
     # Renderizar os ajustadores divididos em 5 Colunas horizontais
     col1, col2, col3, col4, col5 = st.columns([1.2, 1.2, 1.2, 1.2, 1.2])
-    
+
     # 🌏 COLUNA 1: Mercado & Ativo
     with col1:
         st.markdown("##### 🌏 Mercado & Ativo")
-        
-        options_list = ["BTC/USDT", "ETH/USDT", "SOL/USDT", "BNB/USDT", "🧪 Cenário Didático (Fictício)"]
-        symbol_val = st.session_state.get('symbol_val', '🧪 Cenário Didático (Fictício)')
+
+        options_list = [
+    "BTC/USDT",
+    "ETH/USDT",
+    "SOL/USDT",
+    "BNB/USDT",
+     "🧪 Cenário Didático (Fictício)"]
+        symbol_val = st.session_state.get(
+    'symbol_val', '🧪 Cenário Didático (Fictício)')
         if symbol_val not in options_list:
             symbol_val = '🧪 Cenário Didático (Fictício)'
-            
+
         selected_symbol = st.selectbox(
             "Par de Trading",
             options_list,
@@ -179,14 +372,21 @@ def render_variables_dashboard(compact=False):
             st.session_state.symbol_val = selected_symbol
             st.rerun()
 
-            
         # Exibição dinâmica de sliders didáticos
         if st.session_state.symbol_val == "🧪 Cenário Didático (Fictício)":
-            st.markdown("<div style='margin-top:10px;'></div>", unsafe_allow_html=True)
-            
+            st.markdown(
+    "<div style='margin-top:10px;'></div>",
+     unsafe_allow_html=True)
+
             # 1. Cenário Didático
-            scenarios = ["Didatico Classico", "Montanha Russa", "Flash Crash", "Lateralizacao Eterna", "Tendencia Saudavel (Bull)"]
-            current_scenario = st.session_state.get('math_scenario', 'Didatico Classico')
+            scenarios = [
+    "Didatico Classico",
+    "Montanha Russa",
+    "Flash Crash",
+    "Lateralizacao Eterna",
+     "Tendencia Saudavel (Bull)"]
+            current_scenario = st.session_state.get(
+                'math_scenario', 'Didatico Classico')
             if current_scenario not in scenarios:
                 current_scenario = 'Didatico Classico'
             selected_scenario = st.selectbox(
@@ -197,7 +397,7 @@ def render_variables_dashboard(compact=False):
             )
             if selected_scenario != st.session_state.get('math_scenario'):
                 st.session_state.math_scenario = selected_scenario
-                
+
             # 2. Ruído do Mercado
             current_noise = float(st.session_state.get('math_noise', 1.0))
             selected_noise = st.slider(
@@ -209,7 +409,7 @@ def render_variables_dashboard(compact=False):
             )
             if selected_noise != st.session_state.get('math_noise'):
                 st.session_state.math_noise = selected_noise
-                
+
             # 3. Tamanho da Série
             current_size = int(st.session_state.get('math_size', 500))
             selected_size = st.slider(
@@ -224,128 +424,78 @@ def render_variables_dashboard(compact=False):
 
     # 🎯 COLUNA 2: Algoritmo & Gatilhos
     with col2:
-        st.markdown("##### 🎯 Algoritmo & Gatilhos")
-        
-        # Dropdown Estratégia Ativa
-        _base_strategies = ["PAULO_GOLD", "SMA_CROSSOVER", "EMA_CROSSOVER", "MULTIPOINT_VECTOR"]
-        _caterpillar_keys = []
-        if "game_trained_caterpillars" in st.session_state:
-            _caterpillar_keys = ["🎓 " + k for k in st.session_state.game_trained_caterpillars.keys()]
-        _all_strategies = _base_strategies + _caterpillar_keys
-        
-        def _fmt_strategy(x):
-            if x == "SMA_CROSSOVER":      return "Média Simples (SMA Crossover)"
-            if x == "EMA_CROSSOVER":      return "Média Exponencial (EMA Crossover)"
-            if x == "MULTIPOINT_VECTOR":  return "Vetor de 5 Pontos (MultiPoint)"
-            if x == "PAULO_GOLD":         return "✨ Estratégia Exclusiva PAULO_GOLD"
-            return x
-            
-        current_strategy = st.session_state.get('strategy_type_val', 'PAULO_GOLD')
-        if current_strategy not in _all_strategies:
-            current_strategy = 'PAULO_GOLD'
-            
-        selected_strategy = st.selectbox(
-            "Estratégia Ativa",
-            _all_strategies,
-            index=_all_strategies.index(current_strategy),
-            format_func=_fmt_strategy,
-            key="cc_global_strategy"
-        )
-        if selected_strategy != st.session_state.get('strategy_type_val'):
-            st.session_state.strategy_type_val = selected_strategy
-            if selected_strategy.startswith("🎓 "):
-                _caterpillar_name = selected_strategy[2:].strip()
-                if _caterpillar_name in st.session_state.get("game_trained_caterpillars", {}):
-                    _active_caterpillar_dna = st.session_state.game_trained_caterpillars[_caterpillar_name]
-                    st.session_state.stop_loss_pct_val = float(round(_active_caterpillar_dna["stop_loss_pct"], 1))
-                    st.session_state.sl_active_val = True
-            st.rerun()
-
-            
-        # Checkbox PG: Filtro Macro
-        st.session_state.paulo_gold_trend_filter_val = st.checkbox(
-            "PG: Filtro Macro", 
-            value=st.session_state.get('paulo_gold_trend_filter_val', False),
-            key="tg_chk_pg_filter"
-        )
-        
-        # Checkbox Re-Entrada Tendência
-        st.session_state.allow_reentry_val = st.checkbox(
-            "Re-Entrada Tendência", 
-            value=st.session_state.get('allow_reentry_val', True),
-            key="tg_chk_reentry"
-        )
-        
-        # Sliders clássicos da estratégia
-        class_vars = [v for v in VARIABLES if v.category in ["Estratégias Clássicas", "Indicadores Cockpit"]]
-        for var in class_vars:
-            render_variable_widget(var)
-
-
-        # Separador visual
-        st.markdown('<hr style="margin: 12px 0; border-color: rgba(124,58,237,0.2);"/>', unsafe_allow_html=True)
-        st.markdown("##### 🎮 Estratégia da Arena")
+        st.markdown("##### 🧠 Algoritmo & Gatilhos")
 
         # Inicializar tg_strategy_type se necessario
         if 'tg_strategy_type' not in st.session_state:
-            st.session_state.tg_strategy_type = 'Default (Fórmula do Jogo)'
+            st.session_state.tg_strategy_type = 'Default (Manual)'
 
         _arena_strategies = [
-            'Default (Fórmula do Jogo)',
-            'Cérebro de Consenso (Lab)',
-            'Estratégia da Estratégia da Lagarta (Linha Única)',
-            'Estratégia Média Camadas (Duas Linhas)',
+            'Default (Manual)',
+            'Cérebro de Consenso (IA)',
+            'Lagarta (Linha Única)',
+            'Média Camadas (Duas Linhas)'
         ]
-        _arena_current = st.session_state.get('tg_strategy_type', 'Default (Fórmula do Jogo)')
+        _arena_current = st.session_state.get(
+            'tg_strategy_type', 'Default (Manual)')
         if _arena_current not in _arena_strategies:
-            _arena_current = 'Default (Fórmula do Jogo)'
+            _arena_current = 'Default (Manual)'
 
         _arena_selected = st.selectbox(
-            'Modelo de Decisão Arena:',
+            'Modelo de Decisão:',
             _arena_strategies,
             index=_arena_strategies.index(_arena_current),
             key='cc_arena_strategy'
         )
-        if _arena_selected != st.session_state.get('tg_strategy_type'):
-            st.session_state.tg_strategy_type = _arena_selected
 
-            # Auto-configurar risco por estrategia
-            if 'Lagarta' in _arena_selected or 'Cruzamento' in _arena_selected:
-                st.session_state.tg_sl_pct_active = True
-                st.session_state.tg_sl_active = True
-                st.session_state.tg_sl_pct = 1.0
-                st.session_state.tg_ts_pct_active = True
-                st.session_state.tg_ts_active = True
-                st.session_state.tg_ts_pct = 1.0
-                st.session_state.tg_tp_pct_active = False
-                st.session_state.tg_tp_active = False
-                st.toast('Linha Única: SL=1% e TS=1% ativados automaticamente!')
-            elif 'Camadas' in _arena_selected or 'Esmigalhador' in _arena_selected:
-                st.session_state.tg_sl_pct_active = True
-                st.session_state.tg_sl_active = True
-                st.session_state.tg_sl_pct = 1.0
-                st.session_state.tg_ts_pct_active = True
-                st.session_state.tg_ts_active = True
-                st.session_state.tg_ts_pct = 0.5
-                st.session_state.tg_tp_pct_active = False
-                st.session_state.tg_tp_active = False
-                st.toast('Média Camadas: SL=1% e TS=0.5% ativados automaticamente!')
-            elif 'Cérebro' in _arena_selected:
-                if os.path.exists('bot_consensus_dna.json'):
-                    try:
-                        import json as _json
-                        with open('bot_consensus_dna.json', 'r', encoding='utf-8') as _f_dna:
-                            _dna = _json.load(_f_dna)
-                        _smas = _dna.get('smas', [5, 13, 21, 55, 144])
-                        st.session_state.tg_p2 = _smas[0]
-                        st.session_state.tg_p3 = _smas[1]
-                        st.session_state.tg_p4 = _smas[2]
-                        st.session_state.tg_p5 = _smas[3]
-                        st.session_state.tg_p6 = _smas[4]
-                        st.toast('Médias sincronizadas com o Cérebro de Consenso!')
-                    except Exception:
-                        pass
-            st.rerun()
+        # Sync old variables to avoid breaking other parts immediately
+        st.session_state.strategy_type_val = _arena_selected
+
+        if _arena_selected != st.session_state.get('tg_strategy_type'):
+          st.session_state.tg_strategy_type = _arena_selected
+
+          # Auto-configurar risco e modo do bot por estratégia
+          if 'Lagarta' in _arena_selected or 'Cruzamento' in _arena_selected:
+              st.session_state.tg_sl_pct_active = True
+              st.session_state.tg_sl_active = True
+              st.session_state.tg_sl_pct = 1.0
+              st.session_state.tg_ts_pct_active = True
+              st.session_state.tg_ts_active = True
+              st.session_state.tg_ts_pct = 1.0
+              st.session_state.tg_tp_pct_active = False
+              st.session_state.tg_tp_active = False
+              st.session_state.tg_bot_mode = "Bot Autonomo"
+              st.toast('Lagarta: SL=1% e TS=1% ativados. Bot Autónomo ligado!')
+          elif 'Camadas' in _arena_selected or 'Esmigalhador' in _arena_selected:
+              st.session_state.tg_sl_pct_active = True
+              st.session_state.tg_sl_active = True
+              st.session_state.tg_sl_pct = 1.0
+              st.session_state.tg_ts_pct_active = True
+              st.session_state.tg_ts_active = True
+              st.session_state.tg_ts_pct = 0.5
+              st.session_state.tg_tp_pct_active = False
+              st.session_state.tg_tp_active = False
+              st.session_state.tg_bot_mode = "Bot Autonomo"
+              st.toast('Média Camadas: SL=1% e TS=0.5% ativados. Bot Autónomo ligado!')
+          elif 'Cérebro' in _arena_selected:
+              st.session_state.tg_bot_mode = "Bot Autonomo"
+              if os.path.exists('bot_consensus_dna.json'):
+                  try:
+                      with open('bot_consensus_dna.json', 'r', encoding='utf-8') as _f_dna:
+                          _dna = json.load(_f_dna)
+                      _smas = _dna.get('smas', [5, 13, 21, 55, 144])
+                      st.session_state.tg_p2 = _smas[0]
+                      st.session_state.tg_p3 = _smas[1]
+                      st.session_state.tg_p4 = _smas[2]
+                      st.session_state.tg_p5 = _smas[3]
+                      st.session_state.tg_p6 = _smas[4]
+                      st.toast('Cérebro: Médias sincronizadas. Bot Autónomo ligado!')
+                  except Exception:
+                      st.toast('Cérebro: Bot Autónomo ligado!')
+          elif 'Default' in _arena_selected or 'Manual' in _arena_selected:
+              st.session_state.tg_bot_mode = "Manual"
+              st.toast('Modo Manual ativado.')
+          st.rerun()
 
         with st.expander("📖 Ler as Regras das Estratégias", expanded=False):
             st.markdown('''
@@ -366,17 +516,34 @@ def render_variables_dashboard(compact=False):
 * Modo puramente Manual.
 ''')
 
-        # Sub-opcao: Linha de Referencia (so para Cruzamento)
-        if st.session_state.get('tg_strategy_type', '') == 'Estratégia da Estratégia da Lagarta (Linha Única)':
-            _ref_options = ['SMA Rápida (P2)', 'SMA Sinal (P3)', 'SMA Intermédia (P4)', 'SMA Lenta 1 (P5)', 'SMA Lenta 2 (P6)', 'Média do Vetor (avg_sma)', 'Desvio Padrão (sma_std)']
-            _current_ref = st.session_state.get('tg_single_line_ref', 'SMA Rápida (P2)')
+        # Sub-opcao: Linha de Referencia (so para Lagarta)
+        if 'Lagarta' in st.session_state.get('tg_strategy_type', ''):
+            _ref_options = [
+                'Qualquer SMA Ativa',
+                'SMA Rápida (P2)', 'SMA Sinal (P3)', 'SMA Intermédia (P4)',
+                'SMA Lenta 1 (P5)', 'SMA Lenta 2 (P6)',
+                'Média do Vetor (avg_sma)', 'Desvio Padrão (sma_std)'
+            ]
+            # Se P2=1, a SMA Rápida = preço → default para "Qualquer SMA Ativa"
+            _p2 = st.session_state.get('tg_p2', 5)
+            _smart_default = 'Qualquer SMA Ativa' if _p2 <= 1 else 'SMA Sinal (P3)'
+            _current_ref = st.session_state.get('tg_single_line_ref', _smart_default)
             if _current_ref not in _ref_options:
-                _current_ref = 'SMA Rápida (P2)'
+                _current_ref = _smart_default
             st.selectbox(
-                'Linha de Referência:',
+                'Linha de Referência (Lagarta):',
                 _ref_options,
                 index=_ref_options.index(_current_ref),
-                key='tg_single_line_ref'
+                key='tg_single_line_ref',
+                help='«Qualquer SMA Ativa» reage ao cruzamento de qualquer uma das 5 SMAs em jogo.'
+            )
+            st.slider(
+                'Dispersão Mínima (Lagarta)',
+                min_value=0.0, max_value=2.0,
+                value=float(st.session_state.get('tg_lagarta_min_disp', 0.3)),
+                step=0.05,
+                key='tg_lagarta_min_disp',
+                help='Suspende entradas quando o desvio padrão das SMAs é inferior a este valor. 0=sem filtro, 0.30=recomendado, 0.50=mais restritivo.'
             )
 
     # 🧬 COLUNA 3: Vetor de Médias Móveis
@@ -410,7 +577,7 @@ def render_variables_dashboard(compact=False):
         st.markdown("<p style='font-size:12px; color:#64748b; margin-bottom:15px;'>Configure e guarde as suas variáveis favoritas ou reponha os valores padrões.</p>", unsafe_allow_html=True)
         
         # Botão Guardar DNA Consenso (💾 Guardar)
-        if st.button("💾 Guardar", use_container_width=True, key="tg_btn_save_global"):
+        if st.button("💾 Guardar", width='stretch', key="tg_btn_save_global"):
             rebuild_consensus_dna()
             # Guardar preferências do utilizador
             prefs_to_save = {}
@@ -428,19 +595,18 @@ def render_variables_dashboard(compact=False):
             st.success("Configurações do painel e Cérebro guardadas com sucesso na memória local!")
             
         # Botão Repor Padrões (🔁 Repor Padrões)
-        if st.button("🔁 Repor Padrões", use_container_width=True, key="tg_btn_reset_global"):
-            import os
+        if st.button("🔁 Repor Padrões", width='stretch', key="tg_btn_reset_global"):
             if os.path.exists("user_preferences.json"):
                 os.remove("user_preferences.json")
             for var in VARIABLES:
-                st.session_state[var.key] = prefs.get(var.key, var.default_value)
+                st.session_state[var.key] = var.default_value
                 if var.is_toggleable:
                     st.session_state[f"{var.key}_active"] = (var.key == "tg_sl_pct")
                     if var.key == "tg_sl_pct": st.session_state.tg_sl_active = True
                     elif var.key == "tg_tp_pct": st.session_state.tg_tp_active = False
                     elif var.key == "tg_ts_pct": st.session_state.tg_ts_active = False
-            st.session_state.paulo_gold_trend_filter_val = prefs.get('paulo_gold_trend_filter_val', False)
-            st.session_state.allow_reentry_val = prefs.get('allow_reentry_val', True)
+            st.session_state.paulo_gold_trend_filter_val = False
+            st.session_state.allow_reentry_val = True
             st.session_state.symbol_val = "🧪 Cenário Didático (Fictício)"
             st.toast("Valores padrões repostos com sucesso!")
             st.rerun()
@@ -449,7 +615,7 @@ def render_variables_dashboard(compact=False):
         # Botão extra para ver valores do Cérebro Ativo
         if os.path.exists("bot_consensus_dna.json"):
             st.markdown("<div style='margin-top:10px;'></div>", unsafe_allow_html=True)
-            if st.button("🧠 Carregar Cérebro", use_container_width=True, key="tg_btn_load_dna_global"):
+            if st.button("🧠 Carregar Cérebro", width='stretch', key="tg_btn_load_dna_global"):
                 try:
                     with open("bot_consensus_dna.json", "r", encoding="utf-8") as f_dna:
                         dna = json.load(f_dna)
