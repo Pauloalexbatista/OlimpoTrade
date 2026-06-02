@@ -2143,6 +2143,58 @@ with tab_trader_game:
                     json.dump(scores, f, indent=2, ensure_ascii=False)
             except Exception:
                 pass
+        def save_game_session():
+            """Guarda sessão completa (com todos os trades e indicadores) em game_sessions.json."""
+            sessions_file = "game_sessions.json"
+            try:
+                sessions = json.load(open(sessions_file, "r", encoding="utf-8")) if os.path.exists(sessions_file) else {}
+            except Exception:
+                sessions = {}
+
+            _trades = st.session_state.get("tg_trades", [])
+            _strat  = st.session_state.get("tg_strategy_type", "Default")
+            _ref    = st.session_state.get("tg_single_line_ref", "-")
+            _name   = st.session_state.get("tg_trader_name", "Trader")
+            _ts_now = pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S")
+            _session_key = f"{_name} | {_ts_now}"
+
+            _l_trades = [t for t in _trades if t.get("type") == "LONG"]
+            _s_trades = [t for t in _trades if t.get("type") == "SHORT"]
+            _l_wins   = sum(1 for t in _l_trades if t.get("pnl_pct", 0) > 0)
+            _s_wins   = sum(1 for t in _s_trades if t.get("pnl_pct", 0) > 0)
+            _total_pnl = sum(t.get("pnl_pct", 0) for t in _trades)
+
+            sessions[_session_key] = {
+                "timestamp":   _ts_now,
+                "trader_name": _name,
+                "strategy":    _strat,
+                "ref_line":    _ref,
+                "smas": [
+                    st.session_state.get("tg_p2", 5),
+                    st.session_state.get("tg_p3", 13),
+                    st.session_state.get("tg_p4", 21),
+                    st.session_state.get("tg_p5", 55),
+                    st.session_state.get("tg_p6", 144),
+                ],
+                "sl_pct":   st.session_state.get("tg_sl_pct", 2.0)  if st.session_state.get("tg_sl_active") else None,
+                "ts_pct":   st.session_state.get("tg_ts_pct", 1.5)  if st.session_state.get("tg_ts_active") else None,
+                "tp_pct":   st.session_state.get("tg_tp_pct", 7.0)  if st.session_state.get("tg_tp_active") else None,
+                "disp_filter": st.session_state.get("tg_lagarta_min_disp", 0.0),
+                "final_capital": float(st.session_state.tg_capital),
+                "return_pct":    float(st.session_state.tg_capital - 100.0),
+                "total_trades":  len(_trades),
+                "win_rate_long":  round(_l_wins / max(1, len(_l_trades)) * 100, 1),
+                "win_rate_short": round(_s_wins / max(1, len(_s_trades)) * 100, 1),
+                "total_pnl_sum":  round(_total_pnl, 3),
+                "avg_pnl_per_trade": round(_total_pnl / max(1, len(_trades)), 3),
+                "trades": _trades,   # lista completa com todos os 12 indicadores
+            }
+            try:
+                with open(sessions_file, "w", encoding="utf-8") as f:
+                    json.dump(sessions, f, indent=2, ensure_ascii=False)
+            except Exception:
+                pass
+
         def save_last_game_persistent(df):
             try:
                 df.to_csv("last_game_data.csv", index=True)
@@ -2705,6 +2757,7 @@ with tab_trader_game:
                     st.session_state.tg_position = "NONE"
                 save_highscore(st.session_state.tg_trader_name, st.session_state.tg_capital, len(st.session_state.tg_trades))
                 save_last_game_persistent(df)
+                save_game_session()   # guarda sessão completa para análise multi-jogo
                 # Transicao para modo revisao (nao apaga os dados!)
                 st.session_state.tg_active = False
                 st.session_state.tg_game_finished = True
