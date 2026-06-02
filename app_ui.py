@@ -1740,6 +1740,17 @@ with tab_trader_game:
             """Calcula sinal do bot: LONG / SHORT / HOLD com confianca 0-100%."""
             if step < 10:
                 return "HOLD", 0.0, {}
+
+            # ── FILTRO UNIVERSAL DE DISPERSÃO (todas as estratégias) ──────────────
+            _disp_min = st.session_state.get('tg_lagarta_min_disp', 0.0)
+            if _disp_min > 0.0 and 'sma_std' in df.columns:
+                _disp_now = float(df['sma_std'].iloc[step])
+                if _disp_now < _disp_min:
+                    return "HOLD", 0.0, {
+                        "Dispersão SMAs": f"{_disp_now:.3f}",
+                        f"Mínimo ({_disp_min:.2f})": "⏸ SMAs comprimidas — aguardar expansão",
+                    }
+
             # --- ESTRATÉGIA CUSTOMIZADA: ESTRATÉGIA MÉDIA CAMADAS (DUAS LINHAS) ---
             if "Camadas" in st.session_state.get("tg_strategy_type", "Default") or "Esmigalhador" in st.session_state.get("tg_strategy_type", "Default"):
                 p2_per = st.session_state.get("tg_p2", 5)
@@ -1816,15 +1827,6 @@ with tab_trader_game:
 
                 is_growing = price_now > price_prev
                 is_falling = price_now < price_prev
-
-                # Filtro de dispersão: suspende entradas quando SMAs estão demasiado comprimidas
-                _disp_min = st.session_state.get('tg_lagarta_min_disp', 0.3)
-                _disp_now = float(df['sma_std'].iloc[step]) if 'sma_std' in df.columns else 0.0
-                if _disp_now < _disp_min:
-                    return "HOLD", 0.0, {
-                        "Dispersão SMAs": f"{_disp_now:.3f}",
-                        f"Mínimo ({_disp_min:.2f})": "❌ SMAs comprimidas — aguardar expansão",
-                    }
 
                 # Lógica especial para Desvio Padrão (Breakout de Volatilidade)
                 if ref_line_name == "Desvio Padrão (sma_std)":

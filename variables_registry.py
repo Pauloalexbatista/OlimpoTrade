@@ -465,7 +465,8 @@ def render_variables_dashboard(compact=False):
               st.session_state.tg_tp_pct_active = False
               st.session_state.tg_tp_active = False
               st.session_state.tg_bot_mode = "Bot Autonomo"
-              st.toast('Lagarta: SL=1% e TS=1% ativados. Bot Autónomo ligado!')
+              st.session_state.tg_lagarta_min_disp = 0.3  # filtro recomendado para Lagarta
+              st.toast('Lagarta: SL=1% TS=1% Dispersão≥0.30 — Bot Autónomo ligado!')
           elif 'Camadas' in _arena_selected or 'Esmigalhador' in _arena_selected:
               st.session_state.tg_sl_pct_active = True
               st.session_state.tg_sl_active = True
@@ -476,9 +477,11 @@ def render_variables_dashboard(compact=False):
               st.session_state.tg_tp_pct_active = False
               st.session_state.tg_tp_active = False
               st.session_state.tg_bot_mode = "Bot Autonomo"
-              st.toast('Média Camadas: SL=1% e TS=0.5% ativados. Bot Autónomo ligado!')
+              st.session_state.tg_lagarta_min_disp = 0.0  # desativado por defeito (ajustar manualmente)
+              st.toast('Média Camadas: SL=1% TS=0.5% — Bot Autónomo ligado!')
           elif 'Cérebro' in _arena_selected:
               st.session_state.tg_bot_mode = "Bot Autonomo"
+              st.session_state.tg_lagarta_min_disp = 0.0  # desativado por defeito
               if os.path.exists('bot_consensus_dna.json'):
                   try:
                       with open('bot_consensus_dna.json', 'r', encoding='utf-8') as _f_dna:
@@ -537,15 +540,6 @@ def render_variables_dashboard(compact=False):
                 key='tg_single_line_ref',
                 help='«Qualquer SMA Ativa» reage ao cruzamento de qualquer uma das 5 SMAs em jogo.'
             )
-            st.slider(
-                'Dispersão Mínima (Lagarta)',
-                min_value=0.0, max_value=2.0,
-                value=float(st.session_state.get('tg_lagarta_min_disp', 0.3)),
-                step=0.05,
-                key='tg_lagarta_min_disp',
-                help='Suspende entradas quando o desvio padrão das SMAs é inferior a este valor. 0=sem filtro, 0.30=recomendado, 0.50=mais restritivo.'
-            )
-
     # 🧬 COLUNA 3: Vetor de Médias Móveis
     with col3:
         st.markdown("##### 🧬 Vetor de Médias Móveis")
@@ -562,10 +556,22 @@ def render_variables_dashboard(compact=False):
         render_variable_widget(conf_var)
         
         # Stop Loss, Take Profit, Trailing Stop
+        # Filtro universal de dispersão (todas as estratégias)
+        _cur_disp = float(st.session_state.get('tg_lagarta_min_disp', 0.0))
+        st.slider(
+            '📐 Dispersão Mínima das SMAs',
+            min_value=0.0, max_value=2.0,
+            value=_cur_disp,
+            step=0.05,
+            key='tg_lagarta_min_disp',
+            help='Suspende entradas de QUALQUER estratégia quando as SMAs estão demasiado comprimidas. 0 = sem filtro (desativado). Recomendado: 0.30 para Lagarta.'
+        )
+        st.markdown("<p style='font-size:11px;color:#64748b;margin-top:-8px;'>0 = desativado | 0.30 = recomendado | 0.50 = conservador</p>", unsafe_allow_html=True)
+
         risk_vars = [v for v in VARIABLES if v.key in ["tg_sl_pct", "tg_tp_pct", "tg_ts_pct"]]
         for var in risk_vars:
             render_variable_widget(var)
-            
+
         # Custos & Fricções de Mercado
         cost_vars = [v for v in VARIABLES if v.category == "Custos de Mercado"]
         for var in cost_vars:
