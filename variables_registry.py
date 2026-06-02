@@ -434,7 +434,8 @@ def render_variables_dashboard(compact=False):
             'Default (Manual)',
             'Cérebro de Consenso (IA)',
             'Lagarta (Linha Única)',
-            'Média Camadas (Duas Linhas)'
+            'Média Camadas (Duas Linhas)',
+            '🤖 Claude — Pirâmide Fibonacci'
         ]
         _arena_current = st.session_state.get(
             'tg_strategy_type', 'Default (Manual)')
@@ -495,6 +496,24 @@ def render_variables_dashboard(compact=False):
                       st.toast('Cérebro: Médias sincronizadas. Bot Autónomo ligado!')
                   except Exception:
                       st.toast('Cérebro: Bot Autónomo ligado!')
+          elif 'Claude' in _arena_selected:
+              # Configuração otimizada Estratégia Claude — Pirâmide Fibonacci
+              st.session_state.tg_p2 = 3
+              st.session_state.tg_p3 = 5
+              st.session_state.tg_p4 = 8
+              st.session_state.tg_p5 = 13
+              st.session_state.tg_p6 = 21
+              st.session_state.tg_sl_pct_active = True
+              st.session_state.tg_sl_active = True
+              st.session_state.tg_sl_pct = 2.5
+              st.session_state.tg_ts_pct_active = True
+              st.session_state.tg_ts_active = True
+              st.session_state.tg_ts_pct = 2.0
+              st.session_state.tg_tp_pct_active = False
+              st.session_state.tg_tp_active = False
+              st.session_state.tg_lagarta_min_disp = 0.4
+              st.session_state.tg_bot_mode = "Bot Autonomo"
+              st.toast('🤖 Claude Pirâmide: Fibonacci [3,5,8,13,21] SL=2.5% TS=2.0% — Bot Autónomo ligado!')
           elif 'Default' in _arena_selected or 'Manual' in _arena_selected:
               st.session_state.tg_bot_mode = "Manual"
               st.toast('Modo Manual ativado.')
@@ -515,7 +534,14 @@ def render_variables_dashboard(compact=False):
 * **DNA de 6 Sensores:** Usa Tendência, Aceleração, Volatilidade, Distância ao Chão, Saturação e Stop Loss.
 * **Consenso:** Só ataca se a confiança coletiva dos sensores passar os 80%.
 
-**4. Default (Fórmula do Jogo)**
+**4. 🤖 Claude — Pirâmide Fibonacci**
+* **Médias:** Fibonacci [P2=3, P3=5, P4=8, P5=13, P6=21] — cobrem velocidades naturais do mercado.
+* **Entrada LONG:** P2 cruza P3 para cima E P2 já está acima de P4 (pirâmide alinhada) E velocidade positiva.
+* **Entrada SHORT:** P2 cruza P3 para baixo E P2 já está abaixo de P4 E velocidade negativa.
+* **Seletividade:** Só entra quando os 3 primeiros SMAs estão em ordem — confirma tendência antes de agir.
+* **Saída:** Quando a pirâmide parte na direção oposta (P2 cruza P3 de volta), TS ou SL.
+
+**5. Default (Fórmula do Jogo)**
 * Modo puramente Manual.
 ''')
 

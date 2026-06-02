@@ -1751,6 +1751,56 @@ with tab_trader_game:
                         f"Mínimo ({_disp_min:.2f})": "⏸ SMAs comprimidas — aguardar expansão",
                     }
 
+            # ─── ESTRATÉGIA CLAUDE — PIRÂMIDE FIBONACCI ───────────────────────────────
+            # Entra quando P2 cruza P3 E P2 já está acima de P4 (pirâmide alinhada)
+            # + velocidade confirma a direção. Mais seletivo, menos ruído.
+            if "Claude" in st.session_state.get("tg_strategy_type", "Default"):
+                p2_now  = df['sma_5'].iloc[step];   p2_prev = df['sma_5'].iloc[step-1]
+                p3_now  = df['sma_13'].iloc[step];  p3_prev = df['sma_13'].iloc[step-1]
+                p4_now  = df['sma_21'].iloc[step]
+                vel     = df['velocity'].iloc[step] if 'velocity' in df.columns else 0.0
+                disp    = df['sma_std'].iloc[step]  if 'sma_std'  in df.columns else 0.0
+
+                # Cruzamento fresco de P2 sobre P3
+                cross_p2p3_long  = (p2_prev <= p3_prev) and (p2_now > p3_now)
+                cross_p2p3_short = (p2_prev >= p3_prev) and (p2_now < p3_now)
+
+                cond = {
+                    "P2 > P3 (alinhamento)":  bool(p2_now > p3_now),
+                    "P2 > P4 (pirâmide)":     bool(p2_now > p4_now),
+                    "Cruzamento P2↑P3":       bool(cross_p2p3_long),
+                    "Velocidade +":           bool(vel > 0),
+                    f"Dispersão {disp:.2f}":  bool(disp >= st.session_state.get('tg_lagarta_min_disp', 0.3)),
+                }
+
+                _cur = st.session_state.get("tg_position", "NONE")
+
+                # LONG: cruzamento P2>P3 E P2 já acima de P4 E velocidade positiva
+                if cross_p2p3_long and p2_now > p4_now and vel > 0:
+                    if _cur == "LONG":
+                        return "HOLD", 0.0, {**cond, "Estado": "Teimosia — já em LONG"}
+                    return "LONG", 100.0, {**cond, "Gatilho": "Pirâmide LONG ▲"}
+
+                # SHORT: cruzamento P2<P3 E P2 já abaixo de P4 E velocidade negativa
+                elif cross_p2p3_short and p2_now < p4_now and vel < 0:
+                    if _cur == "SHORT":
+                        return "HOLD", 0.0, {**cond, "Estado": "Teimosia — já em SHORT"}
+                    return "SHORT", 100.0, {**cond, "Gatilho": "Pirâmide SHORT ▼"}
+
+                # Saída: pirâmide partiu na direção oposta à posição
+                elif _cur == "LONG" and cross_p2p3_short:
+                    return "SHORT", 100.0, {**cond, "Gatilho": "Pirâmide partiu → reverter SHORT"}
+                elif _cur == "SHORT" and cross_p2p3_long:
+                    return "LONG", 100.0, {**cond, "Gatilho": "Pirâmide partiu → reverter LONG"}
+
+                else:
+                    cond_short = {
+                        "P2 < P3":        bool(p2_now < p3_now),
+                        "P2 < P4":        bool(p2_now < p4_now),
+                        "Velocidade −":   bool(vel < 0),
+                    }
+                    return "HOLD", 0.0, {**cond, **cond_short, "Estado": "A aguardar alinhamento"}
+
             # --- ESTRATÉGIA CUSTOMIZADA: ESTRATÉGIA MÉDIA CAMADAS (DUAS LINHAS) ---
             if "Camadas" in st.session_state.get("tg_strategy_type", "Default") or "Esmigalhador" in st.session_state.get("tg_strategy_type", "Default"):
                 p2_per = st.session_state.get("tg_p2", 5)
