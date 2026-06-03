@@ -763,3 +763,27 @@ def evaluate_strategy_signal(df, _cur_pos="NONE"):
         return "SHORT", round(short_score * 100), cond_short
     else:
         return "HOLD", round(max(long_score, short_score) * 100), cond_long if long_score >= short_score else cond_short
+
+
+def _show_env_help():
+    with st.expander("🛠️ Como configurar as chaves Binance Futures (Testnet)"):
+        st.markdown("""
+### Opção A: No Servidor VPS (Coolify) - Recomendado
+1. Acede ao teu painel do **Coolify**.
+2. Abre a aplicação **OlimpoTrade**.
+3. Vai ao menu lateral **Environment Variables** (Variáveis de Ambiente).
+4. Adiciona as seguintes variáveis com as tuas chaves da Binance Testnet:
+   * **Key**: `BINANCE_API_KEY` | **Value**: *[a tua API Key]*
+   * **Key**: `BINANCE_SECRET_KEY` | **Value**: *[a tua Secret Key]*
+   * **Key**: `BINANCE_TESTNET` | **Value**: `true`
+5. Clica em **Save** (Gravar) e depois em **Redeploy** no topo.
+
+### Opção B: No Computador Local (.env)
+1. Abre ou cria o ficheiro `.env` na raiz do projeto e preenche:
+   ```env
+   BINANCE_API_KEY=cola_aqui_a_api
+   BINANCE_SECRET_KEY=cola_aqui_a_secret
+   BINANCE_TESTNET=true
+   ```
+2. Guarda o ficheiro.
+""")
