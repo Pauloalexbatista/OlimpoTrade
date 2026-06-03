@@ -442,11 +442,11 @@ def load_uploaded_csv(uploaded_file):
 
 def render():
     st.markdown("""
-    <div style='background: linear-gradient(135deg, #1e3a8a 0%, #0d1b2a 100%); padding: 25px; border-radius: 12px; margin-bottom: 20px; color: white;'>
-        <h1 style='margin:0; font-size: 2.2rem;'>🧪 Laboratorio Matematico & Regimes Adaptativos</h1>
-        <p style='margin: 5px 0 0 0; opacity: 0.8;'>Simulador quantico de regimes de mercado, derivadas e mineracao de padroes estatisticos em tempo real.</p>
-    </div>
-    """, unsafe_allow_html=True)
+<div style='background: linear-gradient(135deg, #1e3a8a 0%, #0d1b2a 100%); padding: 25px; border-radius: 12px; margin-bottom: 20px; color: white;'>
+<h1 style='margin:0; font-size: 2.2rem;'>🧪 Laboratorio Matematico & Regimes Adaptativos</h1>
+<p style='margin: 5px 0 0 0; opacity: 0.8;'>Simulador quantico de regimes de mercado, derivadas e mineracao de padroes estatisticos em tempo real.</p>
+</div>
+""", unsafe_allow_html=True)
     
     # 1. Setup Session States
     if 'math_prices' not in st.session_state:
@@ -487,64 +487,64 @@ def render():
         size = st.session_state.get('math_size', 500)
         
         st.markdown(f"""
-        <div style="background: rgba(124, 58, 237, 0.05); border: 1px solid rgba(124, 58, 237, 0.15); padding: 20px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 20px rgba(31, 38, 135, 0.03);">
-            <h4 style="margin: 0 0 10px 0; color: #5b21b6; display: flex; align-items: center; gap: 8px;">🧪 Simulacao de Cenario Didatico (Ficticio) Ativa</h4>
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; font-size: 13.5px; color: #475569;">
-                <div>
-                    📈 <strong>Cenario Didatico Activo:</strong><br>
-                    <span style="font-weight: bold; color: #7c3aed;">{scenario}</span>
-                </div>
-                <div>
-                    📏 <strong>Amostra / Ruido:</strong><br>
-                    <span style="font-weight: bold; color: #475569;">{size} velas | Ruido: {noise}</span>
-                </div>
-                <div>
-                    📐 <strong>Vetor de Medias Ativas:</strong><br>
-                    <span style="background: #f3e8ff; color: #7e22ce; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 12.5px;">P2:{p2}</span>
-                    <span style="background: #f3e8ff; color: #7e22ce; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 12.5px;">P3:{p3}</span>
-                    <span style="background: #f3e8ff; color: #7e22ce; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 12.5px;">P4:{p4}</span>
-                    <span style="background: #f3e8ff; color: #7e22ce; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 12.5px;">P5:{p5}</span>
-                    <span style="background: #f3e8ff; color: #7e22ce; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 12.5px;">P6:{p6}</span>
-                </div>
-            </div>
-            <div style="font-size: 12px; color: #6b7280; margin-top: 10px; font-style: italic;">
-                Nota: O simulador esta a rodar uma serie artificial pedagogica baseada nas suas configuracoes no Centro de Comando no topo do ecra.
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+<div style="background: rgba(124, 58, 237, 0.05); border: 1px solid rgba(124, 58, 237, 0.15); padding: 20px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 20px rgba(31, 38, 135, 0.03);">
+<h4 style="margin: 0 0 10px 0; color: #5b21b6; display: flex; align-items: center; gap: 8px;">🧪 Simulacao de Cenario Didatico (Ficticio) Ativa</h4>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; font-size: 13.5px; color: #475569;">
+<div>
+📈 <strong>Cenario Didatico Activo:</strong><br>
+<span style="font-weight: bold; color: #7c3aed;">{scenario}</span>
+</div>
+<div>
+📏 <strong>Amostra / Ruido:</strong><br>
+<span style="font-weight: bold; color: #475569;">{size} velas | Ruido: {noise}</span>
+</div>
+<div>
+📐 <strong>Vetor de Medias Ativas:</strong><br>
+<span style="background: #f3e8ff; color: #7e22ce; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 12.5px;">P2:{p2}</span>
+<span style="background: #f3e8ff; color: #7e22ce; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 12.5px;">P3:{p3}</span>
+<span style="background: #f3e8ff; color: #7e22ce; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 12.5px;">P4:{p4}</span>
+<span style="background: #f3e8ff; color: #7e22ce; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 12.5px;">P5:{p5}</span>
+<span style="background: #f3e8ff; color: #7e22ce; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 12.5px;">P6:{p6}</span>
+</div>
+</div>
+<div style="font-size: 12px; color: #6b7280; margin-top: 10px; font-style: italic;">
+Nota: O simulador esta a rodar uma serie artificial pedagogica baseada nas suas configuracoes no Centro de Comando no topo do ecra.
+</div>
+</div>
+""", unsafe_allow_html=True)
     else:
         symbol = st.session_state.get('symbol_val', 'BTC/USDT')
         timeframe = st.session_state.get('timeframe_val', '1h')
         limit = st.session_state.get('limit_candles_val', 500)
         
         st.markdown(f"""
-        <div style="background: rgba(2, 132, 199, 0.05); border: 1px solid rgba(2, 132, 199, 0.15); padding: 20px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 20px rgba(31, 38, 135, 0.03);">
-            <h4 style="margin: 0 0 10px 0; color: #1e3b8b; display: flex; align-items: center; gap: 8px;">🌎 Analise Quantitativa Real Ativa (Binance API)</h4>
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; font-size: 13.5px; color: #334155;">
-                <div>
-                    🌎 <strong>Mercado Global Activo:</strong><br>
-                    <span style="font-weight: bold; color: #0284c7;">{symbol} ({timeframe})</span>
-                </div>
-                <div>
-                    📏 <strong>Amostra de Backtest:</strong><br>
-                    <span style="font-weight: bold; color: #475569;">{limit} candles</span>
-                </div>
-                <div>
-                    📐 <strong>Vetor de Medias Ativas:</strong><br>
-                    <span style="background: #f0fdf4; color: #15803d; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 12.5px;">P2:{p2}</span>
-                    <span style="background: #f0fdf4; color: #15803d; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 12.5px;">P3:{p3}</span>
-                    <span style="background: #f0fdf4; color: #15803d; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 12.5px;">P4:{p4}</span>
-                    <span style="background: #f0fdf4; color: #15803d; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 12.5px;">P5:{p5}</span>
-                    <span style="background: #f0fdf4; color: #15803d; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 12.5px;">P6:{p6}</span>
-                </div>
-            </div>
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 15px; padding-top: 10px; border-top: 1px dashed rgba(2, 132, 199, 0.15);">
-                <span style="font-size: 12px; color: #0f172a; font-weight: bold;">
-                    💡 Dica: Para alterar as medias, timeframe ou ativo, basta abrir o painel 🎛️ Centro de Comando no topo!
-                </span>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+<div style="background: rgba(2, 132, 199, 0.05); border: 1px solid rgba(2, 132, 199, 0.15); padding: 20px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 20px rgba(31, 38, 135, 0.03);">
+<h4 style="margin: 0 0 10px 0; color: #1e3b8b; display: flex; align-items: center; gap: 8px;">🌎 Analise Quantitativa Real Ativa (Binance API)</h4>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; font-size: 13.5px; color: #334155;">
+<div>
+🌎 <strong>Mercado Global Activo:</strong><br>
+<span style="font-weight: bold; color: #0284c7;">{symbol} ({timeframe})</span>
+</div>
+<div>
+📏 <strong>Amostra de Backtest:</strong><br>
+<span style="font-weight: bold; color: #475569;">{limit} candles</span>
+</div>
+<div>
+📐 <strong>Vetor de Medias Ativas:</strong><br>
+<span style="background: #f0fdf4; color: #15803d; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 12.5px;">P2:{p2}</span>
+<span style="background: #f0fdf4; color: #15803d; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 12.5px;">P3:{p3}</span>
+<span style="background: #f0fdf4; color: #15803d; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 12.5px;">P4:{p4}</span>
+<span style="background: #f0fdf4; color: #15803d; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 12.5px;">P5:{p5}</span>
+<span style="background: #f0fdf4; color: #15803d; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 12.5px;">P6:{p6}</span>
+</div>
+</div>
+<div style="display: flex; justify-content: space-between; align-items: center; margin-top: 15px; padding-top: 10px; border-top: 1px dashed rgba(2, 132, 199, 0.15);">
+<span style="font-size: 12px; color: #0f172a; font-weight: bold;">
+💡 Dica: Para alterar as medias, timeframe ou ativo, basta abrir o painel 🎛️ Centro de Comando no topo!
+</span>
+</div>
+</div>
+""", unsafe_allow_html=True)
         
         col_binance_btn, col_void = st.columns([1.2, 2.8])
         with col_binance_btn:
@@ -661,11 +661,11 @@ def render():
     label, bg_color = regime_display.get(regime, ("🟡 LATERAL", "rgba(241, 196, 15, 0.15)"))
     
     st.markdown(f"""
-    <div class="glass-card" style="background: {bg_color}; padding: 20px; border-radius: 12px; margin-bottom: 25px; border: 1px solid rgba(255,255,255,0.3); text-align: center;">
-        <span style="font-size: 1.1rem; letter-spacing: 1px; color:#1e293b; font-weight:bold;">REGIME DE MERCADO ATUAL</span>
-        <h2 style="margin: 5px 0 0 0; font-size: 2.2rem; font-weight: 800; color:#0f172a;">{label}</h2>
-    </div>
-    """, unsafe_allow_html=True)
+<div class="glass-card" style="background: {bg_color}; padding: 20px; border-radius: 12px; margin-bottom: 25px; border: 1px solid rgba(255,255,255,0.3); text-align: center;">
+<span style="font-size: 1.1rem; letter-spacing: 1px; color:#1e293b; font-weight:bold;">REGIME DE MERCADO ATUAL</span>
+<h2 style="margin: 5px 0 0 0; font-size: 2.2rem; font-weight: 800; color:#0f172a;">{label}</h2>
+</div>
+""", unsafe_allow_html=True)
     
     col_m1, col_m2, col_m3, col_m4 = st.columns(4)
     with col_m1:
@@ -869,10 +869,10 @@ def show_golden_rules(filtered_opp, filtered_thr, selected_regime):
     # --- PROCESSAR COMPRAS (LONG / FUNDOS) ---
     with col_left:
         st.markdown(f'''
-        <div style="background: rgba(34, 197, 94, 0.05); border-left: 5px solid #2ecc71; border-radius: 12px; padding: 16px; border: 1px solid rgba(34,197,94,0.15); margin-bottom: 20px;">
-            <h4 style="color:#2ecc71; margin-top:0; margin-bottom:10px;">🟢 Diagnóstico de LONG (Compra - Fundos)</h4>
-        </div>
-        ''', unsafe_allow_html=True)
+<div style="background: rgba(34, 197, 94, 0.05); border-left: 5px solid #2ecc71; border-radius: 12px; padding: 16px; border: 1px solid rgba(34,197,94,0.15); margin-bottom: 20px;">
+<h4 style="color:#2ecc71; margin-top:0; margin-bottom:10px;">🟢 Diagnóstico de LONG (Compra - Fundos)</h4>
+</div>
+''', unsafe_allow_html=True)
         
         if filtered_opp.empty:
             st.info(f"Sem fundos suficientes para o regime {selected_regime}.")
@@ -932,18 +932,18 @@ def show_golden_rules(filtered_opp, filtered_thr, selected_regime):
                 verdict = "⚡ **Regime Caótico / Ruído:** Volatilidade extrema sem direção. Os indicadores fractais falham com frequência. Recomenda-se **inação completa (HOLD)** ou redução do risco em 70%."
                 
             st.markdown(f'''
-            <div style="background: rgba(2, 132, 199, 0.05); border: 1px dashed rgba(2, 132, 199, 0.3); border-radius: 8px; padding: 12px; font-size: 13px; color:#1e293b; line-height:1.5;">
-                {verdict}
-            </div>
-            ''', unsafe_allow_html=True)
+<div style="background: rgba(2, 132, 199, 0.05); border: 1px dashed rgba(2, 132, 199, 0.3); border-radius: 8px; padding: 12px; font-size: 13px; color:#1e293b; line-height:1.5;">
+{verdict}
+</div>
+''', unsafe_allow_html=True)
 
     # --- PROCESSAR VENDAS (SHORT / TOPOS) ---
     with col_right:
         st.markdown(f'''
-        <div style="background: rgba(239, 68, 68, 0.05); border-left: 5px solid #e74c3c; border-radius: 12px; padding: 16px; border: 1px solid rgba(239,68,68,0.15); margin-bottom: 20px;">
-            <h4 style="color:#e74c3c; margin-top:0; margin-bottom:10px;">🔴 Diagnóstico de SHORT (Venda - Topos)</h4>
-        </div>
-        ''', unsafe_allow_html=True)
+<div style="background: rgba(239, 68, 68, 0.05); border-left: 5px solid #e74c3c; border-radius: 12px; padding: 16px; border: 1px solid rgba(239,68,68,0.15); margin-bottom: 20px;">
+<h4 style="color:#e74c3c; margin-top:0; margin-bottom:10px;">🔴 Diagnóstico de SHORT (Venda - Topos)</h4>
+</div>
+''', unsafe_allow_html=True)
         
         if filtered_thr.empty:
             st.info(f"Sem topos de alerta para o regime {selected_regime}.")
@@ -1003,10 +1003,10 @@ def show_golden_rules(filtered_opp, filtered_thr, selected_regime):
                 verdict_t = "⚡ **Volatilidade Caótica:** Ruído extremo e dispersão descontrolada. Picos falsos de venda frequentes. Recomenda-se **fechar posições abertas manualmente** e aguardar a coesão das médias."
                 
             st.markdown(f'''
-            <div style="background: rgba(239, 68, 68, 0.05); border: 1px dashed rgba(239, 68, 68, 0.3); border-radius: 8px; padding: 12px; font-size: 13px; color:#1e293b; line-height:1.5;">
-                {verdict_t}
-            </div>
-            ''', unsafe_allow_html=True)
+<div style="background: rgba(239, 68, 68, 0.05); border: 1px dashed rgba(239, 68, 68, 0.3); border-radius: 8px; padding: 12px; font-size: 13px; color:#1e293b; line-height:1.5;">
+{verdict_t}
+</div>
+''', unsafe_allow_html=True)
 
 def save_current_test_rules(test_name, df, fundos_list, topos_list):
     filepath = "bot_knowledge_base.json"

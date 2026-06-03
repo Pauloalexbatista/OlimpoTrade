@@ -130,40 +130,40 @@ def check_password():
 
     # Interface de Login Centrada e Minimalista (Estética Premium)
     st.markdown(
-        """
-        <style>
-        .login-wrapper {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 70vh;
-        }
-        .login-container {
-            max-width: 450px;
-            width: 100%;
-            padding: 40px;
-            background: rgba(30, 41, 59, 0.7);
-            backdrop-filter: blur(16px);
-            border-radius: 16px;
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            text-align: center;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
-        }
-        .login-title {
-            color: #f8fafc;
-            font-family: 'Outfit', 'Inter', sans-serif;
-            font-weight: 700;
-            font-size: 1.8rem;
-            margin-bottom: 8px;
-        }
-        .login-subtitle {
-            color: #94a3b8;
-            font-family: 'Inter', sans-serif;
-            font-size: 0.95rem;
-            margin-bottom: 24px;
-        }
-        </style>
-        """,
+        """
+<style>
+.login-wrapper {
+display: flex;
+justify-content: center;
+align-items: center;
+height: 70vh;
+}
+.login-container {
+max-width: 450px;
+width: 100%;
+padding: 40px;
+background: rgba(30, 41, 59, 0.7);
+backdrop-filter: blur(16px);
+border-radius: 16px;
+border: 1px solid rgba(255, 255, 255, 0.08);
+text-align: center;
+box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+}
+.login-title {
+color: #f8fafc;
+font-family: 'Outfit', 'Inter', sans-serif;
+font-weight: 700;
+font-size: 1.8rem;
+margin-bottom: 8px;
+}
+.login-subtitle {
+color: #94a3b8;
+font-family: 'Inter', sans-serif;
+font-size: 0.95rem;
+margin-bottom: 24px;
+}
+</style>
+""",
         unsafe_allow_html=True
     )
 
@@ -269,159 +269,159 @@ if "backtest_results" not in st.session_state:
 if "optimizer_results" not in st.session_state:
     st.session_state.optimizer_results = None
 # 3. Injeção de CSS Customizado para Estética Premium Glassmorphic (Tema Claro / Light Mode)
-st.markdown("""
+st.markdown("""
 <style>
-    /* Importar Fonte Outfit do Google Fonts */
-    @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap');
-    /* Configuração de Fontes e Fundo Principal */
-    html, body, [class*="css"], .stApp {
-        font-family: 'Outfit', sans-serif;
-        background-color: #f1f5f9;
-        color: #0f172a;
-    }
-    /* Efeito de Fundo Gradiente Suave Claro */
-    .stApp {
-        background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
-    }
-    /* Estilo do Menu Lateral (Sidebar) com alto contraste */
-    section[data-testid="stSidebar"] {
-        background-color: #ffffff;
-        border-right: 1px solid rgba(0, 0, 0, 0.08);
-        box-shadow: 4px 0 16px rgba(0, 0, 0, 0.02);
-    }
-    /* Cabeçalho Principal */
-    .main-title {
-        font-size: 3rem;
-        font-weight: 800;
-        background: linear-gradient(135deg, #0284c7 0%, #7c3aed 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        text-align: center;
-        margin-bottom: 0.2rem;
-        letter-spacing: -1px;
-    }
-    .sub-title {
-        font-size: 1.1rem;
-        font-weight: 400;
-        color: #475569;
-        text-align: center;
-        margin-bottom: 2rem;
-    }
-    /* Cards Glassmorphic Light Premium */
-    .glass-card {
-        background: rgba(255, 255, 255, 0.75);
-        backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
-        border-radius: 16px;
-        border: 1px solid rgba(255, 255, 255, 0.6);
-        padding: 24px;
-        margin-bottom: 20px;
-        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.04);
-        transition: transform 0.3s ease, border 0.3s ease;
-        color: #0f172a;
-    }
-    .glass-card:hover {
-        border: 1px solid rgba(2, 132, 199, 0.2);
-        transform: translateY(-2px);
-    }
-    /* Cards de Métricas Rápidas */
-    .metric-container {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-        gap: 15px;
-        margin-bottom: 25px;
-    }
-    .metric-card {
-        background: rgba(255, 255, 255, 0.9);
-        border-radius: 12px;
-        border: 1px solid rgba(0, 0, 0, 0.05);
-        padding: 18px;
-        text-align: center;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.01);
-        transition: all 0.2s ease;
-    }
-    .metric-card:hover {
-        border-color: rgba(124, 58, 237, 0.2);
-        box-shadow: 0 4px 15px rgba(124, 58, 237, 0.06);
-    }
-    .metric-value {
-        font-size: 1.6rem;
-        font-weight: 700;
-        margin-top: 5px;
-    }
-    .metric-label {
-        font-size: 0.85rem;
-        font-weight: 600;
-        color: #64748b;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-    }
-    /* Cores de Alto Contraste */
-    .text-green { color: #059669; font-weight: bold; }
-    .text-red { color: #e11d48; font-weight: bold; }
-    .text-cyan { color: #0369a1; font-weight: bold; }
-    .text-purple { color: #6d28d9; font-weight: bold; }
-    .text-orange { color: #c2410c; font-weight: bold; }
-    /* Indicador de Conexão */
-    .status-badge {
-        display: inline-block;
-        padding: 4px 12px;
-        border-radius: 9999px;
-        font-size: 0.8rem;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        margin-bottom: 20px;
-    }
-    .status-active {
-        background-color: rgba(5, 150, 105, 0.1);
-        color: #059669;
-        border: 1px solid rgba(5, 150, 105, 0.25);
-    }
-    /* Estilizar inputs e botões do Streamlit */
-    div.stButton > button {
-        background: linear-gradient(135deg, #0284c7 0%, #7c3aed 100%) !important;
-        color: white !important;
-        font-weight: 600 !important;
-        border: none !important;
-        padding: 10px 24px !important;
-        border-radius: 8px !important;
-        box-shadow: 0 4px 15px rgba(124, 58, 237, 0.25) !important;
-        transition: all 0.3s ease !important;
-        width: 100% !important;
-    }
-    div.stButton > button:hover {
-        transform: translateY(-2px) !important;
-        box-shadow: 0 6px 20px rgba(124, 58, 237, 0.4) !important;
-    }
+/* Importar Fonte Outfit do Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap');
+/* Configuração de Fontes e Fundo Principal */
+html, body, [class*="css"], .stApp {
+font-family: 'Outfit', sans-serif;
+background-color: #f1f5f9;
+color: #0f172a;
+}
+/* Efeito de Fundo Gradiente Suave Claro */
+.stApp {
+background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+}
+/* Estilo do Menu Lateral (Sidebar) com alto contraste */
+section[data-testid="stSidebar"] {
+background-color: #ffffff;
+border-right: 1px solid rgba(0, 0, 0, 0.08);
+box-shadow: 4px 0 16px rgba(0, 0, 0, 0.02);
+}
+/* Cabeçalho Principal */
+.main-title {
+font-size: 3rem;
+font-weight: 800;
+background: linear-gradient(135deg, #0284c7 0%, #7c3aed 100%);
+-webkit-background-clip: text;
+-webkit-text-fill-color: transparent;
+text-align: center;
+margin-bottom: 0.2rem;
+letter-spacing: -1px;
+}
+.sub-title {
+font-size: 1.1rem;
+font-weight: 400;
+color: #475569;
+text-align: center;
+margin-bottom: 2rem;
+}
+/* Cards Glassmorphic Light Premium */
+.glass-card {
+background: rgba(255, 255, 255, 0.75);
+backdrop-filter: blur(12px);
+-webkit-backdrop-filter: blur(12px);
+border-radius: 16px;
+border: 1px solid rgba(255, 255, 255, 0.6);
+padding: 24px;
+margin-bottom: 20px;
+box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.04);
+transition: transform 0.3s ease, border 0.3s ease;
+color: #0f172a;
+}
+.glass-card:hover {
+border: 1px solid rgba(2, 132, 199, 0.2);
+transform: translateY(-2px);
+}
+/* Cards de Métricas Rápidas */
+.metric-container {
+display: grid;
+grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+gap: 15px;
+margin-bottom: 25px;
+}
+.metric-card {
+background: rgba(255, 255, 255, 0.9);
+border-radius: 12px;
+border: 1px solid rgba(0, 0, 0, 0.05);
+padding: 18px;
+text-align: center;
+box-shadow: 0 4px 12px rgba(0, 0, 0, 0.01);
+transition: all 0.2s ease;
+}
+.metric-card:hover {
+border-color: rgba(124, 58, 237, 0.2);
+box-shadow: 0 4px 15px rgba(124, 58, 237, 0.06);
+}
+.metric-value {
+font-size: 1.6rem;
+font-weight: 700;
+margin-top: 5px;
+}
+.metric-label {
+font-size: 0.85rem;
+font-weight: 600;
+color: #64748b;
+text-transform: uppercase;
+letter-spacing: 1px;
+}
+/* Cores de Alto Contraste */
+.text-green { color: #059669; font-weight: bold; }
+.text-red { color: #e11d48; font-weight: bold; }
+.text-cyan { color: #0369a1; font-weight: bold; }
+.text-purple { color: #6d28d9; font-weight: bold; }
+.text-orange { color: #c2410c; font-weight: bold; }
+/* Indicador de Conexão */
+.status-badge {
+display: inline-block;
+padding: 4px 12px;
+border-radius: 9999px;
+font-size: 0.8rem;
+font-weight: 600;
+text-transform: uppercase;
+letter-spacing: 0.5px;
+margin-bottom: 20px;
+}
+.status-active {
+background-color: rgba(5, 150, 105, 0.1);
+color: #059669;
+border: 1px solid rgba(5, 150, 105, 0.25);
+}
+/* Estilizar inputs e botões do Streamlit */
+div.stButton > button {
+background: linear-gradient(135deg, #0284c7 0%, #7c3aed 100%) !important;
+color: white !important;
+font-weight: 600 !important;
+border: none !important;
+padding: 10px 24px !important;
+border-radius: 8px !important;
+box-shadow: 0 4px 15px rgba(124, 58, 237, 0.25) !important;
+transition: all 0.3s ease !important;
+width: 100% !important;
+}
+div.stButton > button:hover {
+transform: translateY(-2px) !important;
+box-shadow: 0 6px 20px rgba(124, 58, 237, 0.4) !important;
+}
 </style>
 """, unsafe_allow_html=True)
 # 4. Cabeçalho da Aplicação - Compacto & Premium
-st.markdown("""
+st.markdown("""
 <style>
-    /* Reduzir paddings e margens padrão do Streamlit para maximizar espaço vertical */
-    .block-container {
-        padding-top: 1rem !important;
-        padding-bottom: 1rem !important;
-        padding-left: 2rem !important;
-        padding-right: 2rem !important;
-    }
-    /* Espaçador entre elementos do Streamlit */
-    div[data-testid="stVerticalBlock"] > div {
-        padding-bottom: 0.35rem !important;
-        padding-top: 0.35rem !important;
-    }
-    /* Reduzir margens dos selectboxes e sliders */
-    .stSelectbox, .stSlider, .stButton {
-        margin-bottom: 0px !important;
-    }
-    /* Tornar cabeçalhos dos expanders mais compactos */
-    .streamlit-expanderHeader {
-        font-size: 0.88rem !important;
-        padding: 0.35rem 0.7rem !important;
-        background-color: rgba(255, 255, 255, 0.5) !important;
-        border-radius: 8px !important;
-    }
+/* Reduzir paddings e margens padrão do Streamlit para maximizar espaço vertical */
+.block-container {
+padding-top: 1rem !important;
+padding-bottom: 1rem !important;
+padding-left: 2rem !important;
+padding-right: 2rem !important;
+}
+/* Espaçador entre elementos do Streamlit */
+div[data-testid="stVerticalBlock"] > div {
+padding-bottom: 0.35rem !important;
+padding-top: 0.35rem !important;
+}
+/* Reduzir margens dos selectboxes e sliders */
+.stSelectbox, .stSlider, .stButton {
+margin-bottom: 0px !important;
+}
+/* Tornar cabeçalhos dos expanders mais compactos */
+.streamlit-expanderHeader {
+font-size: 0.88rem !important;
+padding: 0.35rem 0.7rem !important;
+background-color: rgba(255, 255, 255, 0.5) !important;
+border-radius: 8px !important;
+}
 </style>
 <div style="display: flex; align-items: center; justify-content: space-between; background: rgba(255,255,255,0.75); padding: 6px 14px; border-radius: 12px; border: 1px solid rgba(0,0,0,0.06); gap: 15px; margin-bottom: 8px; flex-wrap: wrap;">
 <div style="display: flex; align-items: center; gap: 10px;">
@@ -627,22 +627,22 @@ with tab_backtest:
             "CAOTICO": ("#9333ea", "#f3e8ff"),  # roxo
         }
         _c_border, _c_bg = _mkt_colors.get(_mkt["type"], ("#6b7280", "#f9fafb"))
-        st.markdown(f"""
-        <div style="border-left: 5px solid {_c_border}; background: {_c_bg}; padding: 12px 18px;
-                    border-radius: 8px; margin-bottom: 16px;">
-            <div style="font-size: 1.1rem; font-weight: 700; color: {_c_border};">
-                {_mkt['emoji']} Mercado Detetado: {_mkt['type_pt']}
-                <span style="font-size:0.85rem; font-weight:400; margin-left:12px;">
-                    Confiança: {_mkt['confidence']}% · {_mkt['n_candles']} velas analisadas
-                </span>
-            </div>
-            <div style="font-size: 0.85rem; margin-top: 4px; color: #374151;">
-                📈 Inclinação: <b>{_mkt['slope_pct']:+.2f}%</b> &nbsp;|&nbsp;
-                📊 Volatilidade: <b>{_mkt['volatility_pct']:.3f}%/vela</b> &nbsp;|&nbsp;
-                📏 Amplitude: <b>{_mkt['range_pct']:.1f}%</b>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(f"""
+<div style="border-left: 5px solid {_c_border}; background: {_c_bg}; padding: 12px 18px;
+border-radius: 8px; margin-bottom: 16px;">
+<div style="font-size: 1.1rem; font-weight: 700; color: {_c_border};">
+{_mkt['emoji']} Mercado Detetado: {_mkt['type_pt']}
+<span style="font-size:0.85rem; font-weight:400; margin-left:12px;">
+Confiança: {_mkt['confidence']}% · {_mkt['n_candles']} velas analisadas
+</span>
+</div>
+<div style="font-size: 0.85rem; margin-top: 4px; color: #374151;">
+📈 Inclinação: <b>{_mkt['slope_pct']:+.2f}%</b> &nbsp;|&nbsp;
+📊 Volatilidade: <b>{_mkt['volatility_pct']:.3f}%/vela</b> &nbsp;|&nbsp;
+📏 Amplitude: <b>{_mkt['range_pct']:.1f}%</b>
+</div>
+</div>
+""", unsafe_allow_html=True)
         # Mostrar lagartas recomendadas (se existirem)
         if _matching_caterpillars:
             _rec_col1, _rec_col2 = st.columns([3, 1])
@@ -718,34 +718,34 @@ with tab_backtest:
         total_pnl = metrics["total_pnl"]
         pnl_class = "text-green" if total_pnl >= 0 else "text-red"
         pnl_sign = "+" if total_pnl >= 0 else ""
-        st.markdown(f"""
-        <div class="metric-container">
-            <div class="metric-card">
-                <div class="metric-label">Capital Final</div>
-                <div class="metric-value text-cyan">{metrics['final_capital']:.2f} EUR</div>
-            </div>
-            <div class="metric-card">
-                <div class="metric-label">Retorno Total</div>
-                <div class="metric-value {pnl_class}">{pnl_sign}{total_pnl:.2f} EUR ({pnl_sign}{metrics['total_return_pct']:.2f}%)</div>
-            </div>
-            <div class="metric-card">
-                <div class="metric-label">Taxa de Vitória</div>
-                <div class="metric-value text-purple">{metrics['win_rate']*100:.1f}%</div>
-            </div>
-            <div class="metric-card">
-                <div class="metric-label">Max Drawdown</div>
-                <div class="metric-value text-red">{metrics['max_drawdown_pct']:.2f}%</div>
-            </div>
-            <div class="metric-card">
-                <div class="metric-label">Sharpe / Sortino</div>
-                <div class="metric-value text-orange">{metrics['sharpe_ratio']:.2f} / {metrics['sortino_ratio']:.2f}</div>
-            </div>
-            <div class="metric-card">
-                <div class="metric-label">Fator de Lucro</div>
-                <div class="metric-value text-cyan">{metrics['profit_factor']:.2f}</div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(f"""
+<div class="metric-container">
+<div class="metric-card">
+<div class="metric-label">Capital Final</div>
+<div class="metric-value text-cyan">{metrics['final_capital']:.2f} EUR</div>
+</div>
+<div class="metric-card">
+<div class="metric-label">Retorno Total</div>
+<div class="metric-value {pnl_class}">{pnl_sign}{total_pnl:.2f} EUR ({pnl_sign}{metrics['total_return_pct']:.2f}%)</div>
+</div>
+<div class="metric-card">
+<div class="metric-label">Taxa de Vitória</div>
+<div class="metric-value text-purple">{metrics['win_rate']*100:.1f}%</div>
+</div>
+<div class="metric-card">
+<div class="metric-label">Max Drawdown</div>
+<div class="metric-value text-red">{metrics['max_drawdown_pct']:.2f}%</div>
+</div>
+<div class="metric-card">
+<div class="metric-label">Sharpe / Sortino</div>
+<div class="metric-value text-orange">{metrics['sharpe_ratio']:.2f} / {metrics['sortino_ratio']:.2f}</div>
+</div>
+<div class="metric-card">
+<div class="metric-label">Fator de Lucro</div>
+<div class="metric-value text-cyan">{metrics['profit_factor']:.2f}</div>
+</div>
+</div>
+""", unsafe_allow_html=True)
         # Outras métricas rápidas
         st.markdown(
             f"**Total de Operações:** {metrics['num_trades']} | "
@@ -2393,130 +2393,130 @@ with tab_trader_game:
             except Exception:
                 pass
         # CSS dos botoes casino - ARCADE LED STYLE
-        st.markdown("""
-        <style>
-        div[data-testid="column"]:has(div.game-control-anchor) {
-            background: linear-gradient(160deg, rgba(15,23,42,0.95) 0%, rgba(30,41,59,0.98) 100%) !important;
-            backdrop-filter: blur(20px) !important;
-            border-radius: 18px !important;
-            border: 1px solid rgba(124,58,237,0.35) !important;
-            padding: 16px !important;
-            box-shadow: 0 0 0 1px rgba(124,58,237,0.15), 0 8px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06) !important;
-        }
-        @keyframes pulse-green-led {
-            0%   { box-shadow: 0 0 10px 3px #10b981, 0 0 28px 8px rgba(16,185,129,0.5), inset 0 0 16px rgba(16,185,129,0.25); }
-            50%  { box-shadow: 0 0 22px 9px #10b981, 0 0 55px 18px rgba(16,185,129,0.8), inset 0 0 28px rgba(16,185,129,0.55); }
-            100% { box-shadow: 0 0 10px 3px #10b981, 0 0 28px 8px rgba(16,185,129,0.5), inset 0 0 16px rgba(16,185,129,0.25); }
-        }
-        @keyframes pulse-red-led {
-            0%   { box-shadow: 0 0 10px 3px #ef4444, 0 0 28px 8px rgba(239,68,68,0.5), inset 0 0 16px rgba(239,68,68,0.25); }
-            50%  { box-shadow: 0 0 22px 9px #ef4444, 0 0 55px 18px rgba(239,68,68,0.8), inset 0 0 28px rgba(239,68,68,0.55); }
-            100% { box-shadow: 0 0 10px 3px #ef4444, 0 0 28px 8px rgba(239,68,68,0.5), inset 0 0 16px rgba(239,68,68,0.25); }
-        }
-        /* --- LAYOUT ALIGNMENT HACKS PERFECTED --- */
-        div.element-container:has(.arena-row-marker),
-        div.element-container:has(.casino-buttons-marker),
-        div.element-container:has(.advisor-bottom-marker) {
-            display: none !important;
-        }
-        div.element-container:has(.arena-row-marker) + div.element-container > div[data-testid="stHorizontalBlock"] {
-            align-items: stretch !important;
-        }
-        div.element-container:has(.arena-row-marker) + div.element-container > div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
-            display: flex !important;
-            flex-direction: column !important;
-        }
-        div.element-container:has(.arena-row-marker) + div.element-container > div[data-testid="stHorizontalBlock"] > div[data-testid="column"] > div[data-testid="stVerticalBlock"] {
-            height: 100% !important;
-            display: flex !important;
-            flex-direction: column !important;
-        }
-        div[data-testid="column"]:has(div.game-control-anchor) div[data-testid="stVerticalBlock"] {
-            gap: 4px !important;
-        }
-        div.element-container:has(.casino-buttons-marker) + div.element-container {
-            margin-top: auto !important;
-            padding-top: 10px !important;
-        }
-        div.element-container:has(.advisor-bottom-marker) + div.element-container {
-            margin-top: auto !important;
-            padding-top: 10px !important;
-        }
-        
-        div.element-container:has(.casino-long-active) + div.element-container .stButton button,
-        div.element-container:has(.casino-long-inactive) + div.element-container .stButton button,
-        div.element-container:has(.casino-short-active) + div.element-container .stButton button,
-        div.element-container:has(.casino-short-inactive) + div.element-container .stButton button,
-        div.element-container:has(.casino-blocked) + div.element-container .stButton button {
-            border-radius: 4px !important;
-            font-weight: 900 !important;
-            font-size: 14px !important;
-            letter-spacing: 0.5px !important;
-            text-transform: uppercase !important;
-            transition: all 0.2s ease !important;
-            height: 72px !important;
-            min-height: 72px !important;
-            border: none !important;
-        }
-        div.element-container:has(.casino-long-active) + div.element-container .stButton button {
-            background: #4ade80 !important;
-            color: #064e3b !important;
-            box-shadow: 0 0 25px 8px rgba(74, 222, 128, 0.6) !important;
-            animation: pulse-green-led 1.5s ease-in-out infinite !important;
-            border: 2px solid #86efac !important;
-        }
-        div.element-container:has(.casino-long-inactive) + div.element-container .stButton button {
-            background: #16a34a !important;
-            color: #ffffff !important;
-            border: 2px solid #14532d !important;
-        }
-        div.element-container:has(.casino-long-inactive) + div.element-container .stButton button:hover {
-            background: #15803d !important;
-        }
-        div.element-container:has(.casino-short-active) + div.element-container .stButton button {
-            background: #f87171 !important;
-            color: #450a0a !important;
-            box-shadow: 0 0 25px 8px rgba(248, 113, 113, 0.6) !important;
-            animation: pulse-red-led 1.5s ease-in-out infinite !important;
-            border: 2px solid #fca5a5 !important;
-        }
-        div.element-container:has(.casino-short-inactive) + div.element-container .stButton button {
-            background: #dc2626 !important;
-            color: #ffffff !important;
-            border: 2px solid #7f1d1d !important;
-        }
-        div.element-container:has(.casino-short-inactive) + div.element-container .stButton button:hover {
-            background: #b91c1c !important;
-        }
-        div.element-container:has(.casino-blocked) + div.element-container .stButton button {
-            background: #334155 !important;
-            color: #64748b !important;
-            cursor: not-allowed !important;
-            border: 2px solid #1e293b !important;
-        }
-        div.element-container:has(.casino-blocked) + div.element-container .stButton button:hover {
-            background: #334155 !important;
-        }
-        .casino-blocked button {
-            background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%) !important;
-            color: #334155 !important;
-            border: 3px solid #1e293b !important;
-            opacity: 0.4 !important;
-            cursor: not-allowed !important;
-        }
-        .review-banner {
-            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-            border-radius: 14px; padding: 18px 24px; margin-bottom: 14px;
-            border: 1px solid rgba(99,102,241,0.4);
-            box-shadow: 0 0 40px rgba(99,102,241,0.15);
-        }
-        .review-stat {
-            text-align: center; padding: 8px 12px;
-            background: rgba(255,255,255,0.05); border-radius: 10px;
-            border: 1px solid rgba(255,255,255,0.08);
-        }
-        </style>
-        """, unsafe_allow_html=True)
+        st.markdown("""
+<style>
+div[data-testid="column"]:has(div.game-control-anchor) {
+background: linear-gradient(160deg, rgba(15,23,42,0.95) 0%, rgba(30,41,59,0.98) 100%) !important;
+backdrop-filter: blur(20px) !important;
+border-radius: 18px !important;
+border: 1px solid rgba(124,58,237,0.35) !important;
+padding: 16px !important;
+box-shadow: 0 0 0 1px rgba(124,58,237,0.15), 0 8px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06) !important;
+}
+@keyframes pulse-green-led {
+0%   { box-shadow: 0 0 10px 3px #10b981, 0 0 28px 8px rgba(16,185,129,0.5), inset 0 0 16px rgba(16,185,129,0.25); }
+50%  { box-shadow: 0 0 22px 9px #10b981, 0 0 55px 18px rgba(16,185,129,0.8), inset 0 0 28px rgba(16,185,129,0.55); }
+100% { box-shadow: 0 0 10px 3px #10b981, 0 0 28px 8px rgba(16,185,129,0.5), inset 0 0 16px rgba(16,185,129,0.25); }
+}
+@keyframes pulse-red-led {
+0%   { box-shadow: 0 0 10px 3px #ef4444, 0 0 28px 8px rgba(239,68,68,0.5), inset 0 0 16px rgba(239,68,68,0.25); }
+50%  { box-shadow: 0 0 22px 9px #ef4444, 0 0 55px 18px rgba(239,68,68,0.8), inset 0 0 28px rgba(239,68,68,0.55); }
+100% { box-shadow: 0 0 10px 3px #ef4444, 0 0 28px 8px rgba(239,68,68,0.5), inset 0 0 16px rgba(239,68,68,0.25); }
+}
+/* --- LAYOUT ALIGNMENT HACKS PERFECTED --- */
+div.element-container:has(.arena-row-marker),
+div.element-container:has(.casino-buttons-marker),
+div.element-container:has(.advisor-bottom-marker) {
+display: none !important;
+}
+div.element-container:has(.arena-row-marker) + div.element-container > div[data-testid="stHorizontalBlock"] {
+align-items: stretch !important;
+}
+div.element-container:has(.arena-row-marker) + div.element-container > div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
+display: flex !important;
+flex-direction: column !important;
+}
+div.element-container:has(.arena-row-marker) + div.element-container > div[data-testid="stHorizontalBlock"] > div[data-testid="column"] > div[data-testid="stVerticalBlock"] {
+height: 100% !important;
+display: flex !important;
+flex-direction: column !important;
+}
+div[data-testid="column"]:has(div.game-control-anchor) div[data-testid="stVerticalBlock"] {
+gap: 4px !important;
+}
+div.element-container:has(.casino-buttons-marker) + div.element-container {
+margin-top: auto !important;
+padding-top: 10px !important;
+}
+div.element-container:has(.advisor-bottom-marker) + div.element-container {
+margin-top: auto !important;
+padding-top: 10px !important;
+}
+
+div.element-container:has(.casino-long-active) + div.element-container .stButton button,
+div.element-container:has(.casino-long-inactive) + div.element-container .stButton button,
+div.element-container:has(.casino-short-active) + div.element-container .stButton button,
+div.element-container:has(.casino-short-inactive) + div.element-container .stButton button,
+div.element-container:has(.casino-blocked) + div.element-container .stButton button {
+border-radius: 4px !important;
+font-weight: 900 !important;
+font-size: 14px !important;
+letter-spacing: 0.5px !important;
+text-transform: uppercase !important;
+transition: all 0.2s ease !important;
+height: 72px !important;
+min-height: 72px !important;
+border: none !important;
+}
+div.element-container:has(.casino-long-active) + div.element-container .stButton button {
+background: #4ade80 !important;
+color: #064e3b !important;
+box-shadow: 0 0 25px 8px rgba(74, 222, 128, 0.6) !important;
+animation: pulse-green-led 1.5s ease-in-out infinite !important;
+border: 2px solid #86efac !important;
+}
+div.element-container:has(.casino-long-inactive) + div.element-container .stButton button {
+background: #16a34a !important;
+color: #ffffff !important;
+border: 2px solid #14532d !important;
+}
+div.element-container:has(.casino-long-inactive) + div.element-container .stButton button:hover {
+background: #15803d !important;
+}
+div.element-container:has(.casino-short-active) + div.element-container .stButton button {
+background: #f87171 !important;
+color: #450a0a !important;
+box-shadow: 0 0 25px 8px rgba(248, 113, 113, 0.6) !important;
+animation: pulse-red-led 1.5s ease-in-out infinite !important;
+border: 2px solid #fca5a5 !important;
+}
+div.element-container:has(.casino-short-inactive) + div.element-container .stButton button {
+background: #dc2626 !important;
+color: #ffffff !important;
+border: 2px solid #7f1d1d !important;
+}
+div.element-container:has(.casino-short-inactive) + div.element-container .stButton button:hover {
+background: #b91c1c !important;
+}
+div.element-container:has(.casino-blocked) + div.element-container .stButton button {
+background: #334155 !important;
+color: #64748b !important;
+cursor: not-allowed !important;
+border: 2px solid #1e293b !important;
+}
+div.element-container:has(.casino-blocked) + div.element-container .stButton button:hover {
+background: #334155 !important;
+}
+.casino-blocked button {
+background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%) !important;
+color: #334155 !important;
+border: 3px solid #1e293b !important;
+opacity: 0.4 !important;
+cursor: not-allowed !important;
+}
+.review-banner {
+background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+border-radius: 14px; padding: 18px 24px; margin-bottom: 14px;
+border: 1px solid rgba(99,102,241,0.4);
+box-shadow: 0 0 40px rgba(99,102,241,0.15);
+}
+.review-stat {
+text-align: center; padding: 8px 12px;
+background: rgba(255,255,255,0.05); border-radius: 10px;
+border: 1px solid rgba(255,255,255,0.08);
+}
+</style>
+""", unsafe_allow_html=True)
         # =========================================================================
         # PAINEL DE LANCAMENTO - premium, sempre visivel, sem expander
         # =========================================================================
@@ -2657,43 +2657,43 @@ with tab_trader_game:
             ret_after_tax = ret_pct - _tax_eur
             ret_color = "#10B981" if ret_pct >= 0 else "#EF4444"
             emoji_result = "🏆" if ret_pct > 0 else ("😐" if ret_pct == 0 else "💀")
-            st.markdown(f"""
-            <div class="review-banner">
-                <div style="color:#94a3b8; font-size:13px; margin-bottom:12px; letter-spacing:2px; text-transform:uppercase;">
-                    {emoji_result} Sessao concluida — {st.session_state.tg_trader_name} &nbsp;&nbsp;•&nbsp;&nbsp; Grafico completo disponivel para consulta
-                </div>
-                <div style="display:flex; gap:16px; flex-wrap:wrap;">
-                    <div class="review-stat" style="flex:1;">
-                        <div style="color:#64748b; font-size:11px; text-transform:uppercase;">Banca Final</div>
-                        <div style="color:#10B981; font-size:22px; font-weight:900; font-family:monospace;">{st.session_state.tg_capital:.2f} EUR</div>
-                    </div>
-                    <div class="review-stat" style="flex:1;">
-                        <div style="color:#64748b; font-size:11px; text-transform:uppercase;">Retorno Bruto</div>
-                        <div style="color:{ret_color}; font-size:22px; font-weight:900; font-family:monospace;">{ret_pct:+.2f}%</div>
-                    </div>
-                    <div class="review-stat" style="flex:1;">
-                        <div style="color:#64748b; font-size:11px; text-transform:uppercase;">Líquido (após {_tax_pct:.0f}% IRS)</div>
-                        <div style="color:{'#10B981' if ret_after_tax >= 0 else '#EF4444'}; font-size:22px; font-weight:900; font-family:monospace;">{ret_after_tax:+.2f}%</div>
-                    </div>
-                    <div class="review-stat" style="flex:1;">
-                        <div style="color:#64748b; font-size:11px; text-transform:uppercase;">Operacoes</div>
-                        <div style="color: #ffffff; font-size:22px; font-weight:900; font-family:monospace;">{len(st.session_state.tg_trades)}</div>
-                    </div>
-                    <div class="review-stat" style="flex:1;">
-                        <div style="color:#64748b; font-size:11px; text-transform:uppercase;">Win Rate LONG</div>
-                        <div style="color:#10B981; font-size:22px; font-weight:900; font-family:monospace;">
-                            {long_wr:.0f}% <span style='font-size:11px; color:#64748b;'>({long_len})</span>
-                        </div>
-                    </div>
-                    <div class="review-stat" style="flex:1;">
-                        <div style="color:#64748b; font-size:11px; text-transform:uppercase;">Win Rate SHORT</div>
-                        <div style="color:#EF4444; font-size:22px; font-weight:900; font-family:monospace;">
-                            {short_wr:.0f}% <span style='font-size:11px; color:#64748b;'>({short_len})</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown(f"""
+<div class="review-banner">
+<div style="color:#94a3b8; font-size:13px; margin-bottom:12px; letter-spacing:2px; text-transform:uppercase;">
+{emoji_result} Sessao concluida — {st.session_state.tg_trader_name} &nbsp;&nbsp;•&nbsp;&nbsp; Grafico completo disponivel para consulta
+</div>
+<div style="display:flex; gap:16px; flex-wrap:wrap;">
+<div class="review-stat" style="flex:1;">
+<div style="color:#64748b; font-size:11px; text-transform:uppercase;">Banca Final</div>
+<div style="color:#10B981; font-size:22px; font-weight:900; font-family:monospace;">{st.session_state.tg_capital:.2f} EUR</div>
+</div>
+<div class="review-stat" style="flex:1;">
+<div style="color:#64748b; font-size:11px; text-transform:uppercase;">Retorno Bruto</div>
+<div style="color:{ret_color}; font-size:22px; font-weight:900; font-family:monospace;">{ret_pct:+.2f}%</div>
+</div>
+<div class="review-stat" style="flex:1;">
+<div style="color:#64748b; font-size:11px; text-transform:uppercase;">Líquido (após {_tax_pct:.0f}% IRS)</div>
+<div style="color:{'#10B981' if ret_after_tax >= 0 else '#EF4444'}; font-size:22px; font-weight:900; font-family:monospace;">{ret_after_tax:+.2f}%</div>
+</div>
+<div class="review-stat" style="flex:1;">
+<div style="color:#64748b; font-size:11px; text-transform:uppercase;">Operacoes</div>
+<div style="color: #ffffff; font-size:22px; font-weight:900; font-family:monospace;">{len(st.session_state.tg_trades)}</div>
+</div>
+<div class="review-stat" style="flex:1;">
+<div style="color:#64748b; font-size:11px; text-transform:uppercase;">Win Rate LONG</div>
+<div style="color:#10B981; font-size:22px; font-weight:900; font-family:monospace;">
+{long_wr:.0f}% <span style='font-size:11px; color:#64748b;'>({long_len})</span>
+</div>
+</div>
+<div class="review-stat" style="flex:1;">
+<div style="color:#64748b; font-size:11px; text-transform:uppercase;">Win Rate SHORT</div>
+<div style="color:#EF4444; font-size:22px; font-weight:900; font-family:monospace;">
+{short_wr:.0f}% <span style='font-size:11px; color:#64748b;'>({short_len})</span>
+</div>
+</div>
+</div>
+</div>
+""", unsafe_allow_html=True)
             # --- Gráfico + painel lateral com nome e botão ---
             col_rev_chart, col_rev_btn = st.columns([8, 2])
             with col_rev_btn:
@@ -2981,38 +2981,38 @@ with tab_trader_game:
             # =========================================================
             # BARRA DE ESTADO TOPO - dark header bar
             # =========================================================
-            st.markdown(f"""
-            <div style="background:linear-gradient(90deg,#0f172a,#1e293b,#0f172a);
-                        border-radius:12px; padding:14px 24px; margin-bottom:14px;
-                        display:flex; justify-content:space-between; align-items:center;
-                        border:1px solid rgba(124,58,237,0.3);
-                        box-shadow:0 4px 24px rgba(0,0,0,0.4);">
-                <div style="text-align:center;">
-                    <div style="color:#64748b;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:3px;">Banca Final</div>
-                    <div style="color:#10B981;font-size:20px;font-weight:900;font-family:monospace;">{st.session_state.tg_capital:.2f} EUR</div>
-                </div>
-                <div style="text-align:center;">
-                    <div style="color:#64748b;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:3px;">Retorno Total</div>
-                    <div style="color:{ret_color};font-size:20px;font-weight:900;font-family:monospace;">{ret_pct:+.2f}%</div>
-                </div>
-                <div style="text-align:center;">
-                    <div style="color:#64748b;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:3px;">Eficiencia de Sessao</div>
-                    <div style="font-size:13px;font-weight:700;font-family:monospace;">
-                        <span style="color:#10B981;">LONG {_l_eff:.0f}% ({_l_wins}/{len(_l_trades)})</span>
-                        &nbsp;&nbsp;|&nbsp;&nbsp;
-                        <span style="color:#EF4444;">SHORT {_s_eff:.0f}% ({_s_wins}/{len(_s_trades)})</span>
-                    </div>
-                </div>
-                <div style="text-align:center;">
-                    <div style="color:#64748b;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:3px;">Posicao</div>
-                    <div style="color:{pos_color};font-size:16px;font-weight:900;font-family:monospace;">{pos_str}</div>
-                </div>
-                <div style="text-align:center;">
-                    <div style="color:#64748b;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:3px;">Progresso</div>
-                    <div style="color:#e2e8f0;font-size:18px;font-weight:900;font-family:monospace;">{progress_candles} <span style="font-size:11px;color:#64748b;">/ 100</span></div>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown(f"""
+<div style="background:linear-gradient(90deg,#0f172a,#1e293b,#0f172a);
+border-radius:12px; padding:14px 24px; margin-bottom:14px;
+display:flex; justify-content:space-between; align-items:center;
+border:1px solid rgba(124,58,237,0.3);
+box-shadow:0 4px 24px rgba(0,0,0,0.4);">
+<div style="text-align:center;">
+<div style="color:#64748b;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:3px;">Banca Final</div>
+<div style="color:#10B981;font-size:20px;font-weight:900;font-family:monospace;">{st.session_state.tg_capital:.2f} EUR</div>
+</div>
+<div style="text-align:center;">
+<div style="color:#64748b;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:3px;">Retorno Total</div>
+<div style="color:{ret_color};font-size:20px;font-weight:900;font-family:monospace;">{ret_pct:+.2f}%</div>
+</div>
+<div style="text-align:center;">
+<div style="color:#64748b;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:3px;">Eficiencia de Sessao</div>
+<div style="font-size:13px;font-weight:700;font-family:monospace;">
+<span style="color:#10B981;">LONG {_l_eff:.0f}% ({_l_wins}/{len(_l_trades)})</span>
+&nbsp;&nbsp;|&nbsp;&nbsp;
+<span style="color:#EF4444;">SHORT {_s_eff:.0f}% ({_s_wins}/{len(_s_trades)})</span>
+</div>
+</div>
+<div style="text-align:center;">
+<div style="color:#64748b;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:3px;">Posicao</div>
+<div style="color:{pos_color};font-size:16px;font-weight:900;font-family:monospace;">{pos_str}</div>
+</div>
+<div style="text-align:center;">
+<div style="color:#64748b;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:3px;">Progresso</div>
+<div style="color:#e2e8f0;font-size:18px;font-weight:900;font-family:monospace;">{progress_candles} <span style="font-size:11px;color:#64748b;">/ 100</span></div>
+</div>
+</div>
+""", unsafe_allow_html=True)
             # =========================================================
             # LAYOUT PRINCIPAL: 3 colunas
             # col_chart | col_ctrl | col_advisor
