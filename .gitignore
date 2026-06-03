@@ -27,3 +27,9 @@ trader_highscores.json
 bot_consensus_dna.json
 *.sqlite
 
+
+# Additional ignores
+temp_scripts/
+game_sessions.json
+trainer/
+*.bak

@@ -1,4 +1,3 @@
-
 import ccxt
 import pandas as pd
 import time
@@ -7,36 +6,41 @@ from datetime import datetime
 from market_database import MarketDatabase
 
 class DataCollector:
-    def __init__(self, exchange_id='binance', symbol='BTC/USDT', timeframe='1h'):
-        self.exchange_id = exchange_id
-        self.symbol = symbol
-        self.timeframe = timeframe
-        self.exchange = getattr(ccxt, exchange_id)()
+    def __init__(self, config=None, logger=None):
+        # Support both initialization styles
+        if isinstance(config, str):
+            # Old style: DataCollector(exchange_id, symbol, timeframe)
+            self.exchange_id = config
+            self.symbol = logger if logger else 'BTC/USDT'
+            self.timeframe = 'BTC/USDT'  # placeholder
+            self.logger = None
+        else:
+            # New style: DataCollector(config, logger)
+            self.exchange_id = config.get("EXCHANGE_NAME", "binance") if config else "binance"
+            self.symbol = config.get("SYMBOL", "BTC/USDT") if config else "BTC/USDT"
+            self.timeframe = config.get("TIMEFRAME", "1h") if config else "1h"
+            self.logger = logger
+
+        self.exchange = getattr(ccxt, self.exchange_id)()
         self.db = MarketDatabase()
-        
-        # Public API access doesn't require keys
-        # If private data (e.g., balance, open orders) were needed, keys would be loaded
-        # from os.getenv('BINANCE_API_KEY') and os.getenv('BINANCE_SECRET_KEY')
+
+    async def get_latest_data(self, limit=100):
+        """Async wrapper para get_ohlcv"""
+        return self.get_ohlcv(limit)
 
     def get_ohlcv(self, limit=100):
-        """
-        Obtém dados OHLCV (candlesticks) para o símbolo e timeframe especificados.
-        """
+        """Obtém dados OHLCV (candlesticks) para o símbolo e timeframe especificados."""
         try:
-            # 1. Tentar ler os últimos dados gravados na DB para ver qual foi o último timestamp
             last_ts = self.db.get_last_timestamp(self.symbol, self.timeframe)
             
-            # Fetch apenas dos dados novos (ou atualizar a última vela aberta)
             if last_ts is not None:
                 ohlcv = self.exchange.fetch_ohlcv(self.symbol, self.timeframe, since=last_ts, limit=1000)
             else:
                 ohlcv = self.exchange.fetch_ohlcv(self.symbol, self.timeframe, limit=limit)
             
-            # 2. Convert to DataFrame and save to DB
             df_new = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
             self.db.upsert_data(self.symbol, self.timeframe, df_new)
             
-            # 3. Read the complete required block directly from local DB
             df = self.db.get_data(self.symbol, self.timeframe, limit=limit)
             
             print(f"Dados sincronizados e lidos da BD para {self.symbol} ({self.timeframe}): {len(df)} candles.")
@@ -52,33 +56,29 @@ class DataCollector:
             return None
 
     def test_connection(self):
-        """
-        Testa a conexão com a exchange, verificando se a exchange está carregada.
-        """
+        """Testa a conexão com a exchange."""
         try:
             markets = self.exchange.load_markets()
-            print(f"Conectado com sucesso à {self.exchange_id}. Total de mercados: {len(markets)}")
+            print(f"Conectado com sucesso a {self.exchange_id}. Total de mercados: {len(markets)}")
             return True
         except ccxt.NetworkError as e:
-            print(f"Erro de rede ao conectar à exchange: {e}")
+            print(f"Erro de rede ao conectar a exchange: {e}")
             return False
         except ccxt.ExchangeError as e:
             print(f"Erro da exchange ao conectar: {e}")
             return False
         except Exception as e:
-            print(f"Ocorreu um erro inesperado ao conectar à exchange: {e}")
+            print(f"Ocorreu um erro inesperado ao conectar a exchange: {e}")
             return False
 
 if __name__ == "__main__":
-    # Exemplo de uso
     collector = DataCollector(exchange_id='binance', symbol='BTC/USDT', timeframe='1h')
     
     if collector.test_connection():
-        # Obter os últimos 100 candles de 1 hora para BTC/USDT
         data = collector.get_ohlcv(limit=100)
         if data is not None:
             print("\nPrimeiras 5 linhas dos dados obtidos:")
             print(data.head())
-            print("\nÚltimas 5 linhas dos dados obtidos:")
+            print("\nUltimas 5 linhas dos dados obtidos:")
             print(data.tail())
             print(f"Total de candles: {len(data)}")

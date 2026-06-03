@@ -5,7 +5,7 @@ class RiskManager:
         self.logger = logger
         self.current_capital = config["INITIAL_CAPITAL"]
         self.daily_profit_loss = 0.0
-        self.logger.info(f"RiskManager initialized. Capital: {self.current_capital} EUR")
+        self.logger.info(f"RiskManager initialized. Capital: {self.current_capital} USDT")
 
     def evaluate_signal(self, signal, current_price=None):
         if signal["action"] == "HOLD":
@@ -19,8 +19,8 @@ class RiskManager:
         max_daily_loss = abs(self.current_capital * (self.config["MAX_DAILY_LOSS_PERCENT"] / 100))
         if self.daily_profit_loss <= -max_daily_loss:
             self.logger.warning(
-                f"Daily loss limit reached (-{max_daily_loss:.2f} EUR). "
-                f"Trading suspended. Current Daily P/L: {self.daily_profit_loss:.2f} EUR"
+                f"Daily loss limit reached (-{max_daily_loss:.2f} USDT). "
+                f"Trading suspended. Current Daily P/L: {self.daily_profit_loss:.2f} USDT"
             )
             return None
 
@@ -39,7 +39,7 @@ class RiskManager:
         # 4. Verificação de Margem e Capital Disponível (Spot trading limite)
         if position_value > self.current_capital:
             self.logger.debug(
-                f"Calculated position value ({position_value:.2f} EUR) exceeds available capital ({self.current_capital:.2f} EUR). "
+                f"Calculated position value ({position_value:.2f} USDT) exceeds available capital ({self.current_capital:.2f} USDT). "
                 f"Adjusting quantity to maximum available Spot capital."
             )
             quantity = (self.current_capital * 0.98) / current_price
@@ -62,8 +62,8 @@ class RiskManager:
         
         self.logger.info(
             f"Signal APPROVED by RiskManager: {signal['action']} {quantity:.6f} {self.config['SYMBOL']} "
-            f"@ {current_price:.2f} (Value: {position_value:.2f} EUR, SL: {order_details['stop_loss']:.2f}, "
-            f"TP: {order_details['take_profit']:.2f}, Risked: {risk_amount:.2f} EUR)"
+            f"@ {current_price:.2f} (Value: {position_value:.2f} USDT, SL: {order_details['stop_loss']:.2f}, "
+            f"TP: {order_details['take_profit']:.2f}, Risked: {risk_amount:.2f} USDT)"
         )
         return order_details
 
@@ -71,8 +71,8 @@ class RiskManager:
         self.daily_profit_loss += realized_pnl
         self.current_capital += realized_pnl
         self.logger.info(
-            f"Capital updated. Current Capital: {self.current_capital:.2f} EUR. "
-            f"Daily P/L: {self.daily_profit_loss:.2f} EUR"
+            f"Capital updated. Current Capital: {self.current_capital:.2f} USDT. "
+            f"Daily P/L: {self.daily_profit_loss:.2f} USDT"
         )
 
     def reset_daily_metrics(self):

@@ -388,11 +388,11 @@ with st.expander("💛 Centro de Comando Global & Configurações", expanded=Fal
         "P4_WINDOW": st.session_state.get('tg_p4', 21),
         "P5_WINDOW": st.session_state.get('tg_p5', 55),
         "P6_WINDOW": st.session_state.get('tg_p6', 144),
-        "STOP_LOSS_ACTIVE": st.session_state.get('tg_sl_pct_active', True),
+        "STOP_LOSS_ACTIVE": (st.session_state.get("tg_sl_pct", 0) > 0),
         "STOP_LOSS_PERCENT": st.session_state.get('tg_sl_pct', 2.0),
-        "TAKE_PROFIT_ACTIVE": st.session_state.get('tg_tp_pct_active', False),
+        "TAKE_PROFIT_ACTIVE": (st.session_state.get("tg_tp_pct", 0) > 0),
         "TAKE_PROFIT_PERCENT": st.session_state.get('tg_tp_pct', 7.0),
-        "TRAILING_STOP_ACTIVE": st.session_state.get('tg_ts_pct_active', False),
+        "TRAILING_STOP_ACTIVE": (st.session_state.get("tg_ts_pct", 0) > 0),
         "TRAILING_STOP_PERCENT": st.session_state.get('tg_ts_pct', 1.5),
         "ALLOW_REENTRY": st.session_state.get('allow_reentry_val', True),
         "PAULO_GOLD_TREND_FILTER": st.session_state.get('paulo_gold_trend_filter_val', False),
@@ -431,13 +431,15 @@ logger = setup_logging()
 import variables_registry as _vr_global
 _vr_global.initialize_variables_registry()
 # 7. Abas Principais do Laboratório (TABS SIMPLIFICADAS)
-tab_backtest, tab_simulator, tab_math_lab, tab_trader_game, tab_bot_brain, tab_alpaca = st.tabs([
+tab_backtest, tab_simulator, tab_math_lab, tab_trader_game, tab_bot_brain, tab_alpaca, tab_binance = st.tabs([
     "📈 Simulação & Gráficos Real",
     "🔬 Laboratório de Simulação & Otimização",
     "🎛️ Laboratório Matemático & Regimes",
     "🎮 Arena de Jogo & Auto-Treino",
     "🧠 Cérebro do Bot (DNA)",
     "🚀 Deploy Alpaca",
+
+    "🔶 Deploy Binance",
 ])
 # Ação do Botão Principal do Backtester
 if run_button:
@@ -1492,11 +1494,11 @@ with tab_trader_game:
         if "tg_p6" not in st.session_state: st.session_state.tg_p6 = 144
         # Visibilidade persistente entre batimentos
         # Gestao de risco
-        if "tg_sl_active" not in st.session_state: st.session_state.tg_sl_active = True
+        pass
         if "tg_sl_pct" not in st.session_state: st.session_state.tg_sl_pct = 2.0
-        if "tg_tp_active" not in st.session_state: st.session_state.tg_tp_active = False
+        pass
         if "tg_tp_pct" not in st.session_state: st.session_state.tg_tp_pct = 4.0
-        if "tg_ts_active" not in st.session_state: st.session_state.tg_ts_active = False
+        pass
         if "tg_ts_pct" not in st.session_state: st.session_state.tg_ts_pct = 1.5
         if "tg_highest_price" not in st.session_state: st.session_state.tg_highest_price = 0.0
         if "tg_lowest_price" not in st.session_state: st.session_state.tg_lowest_price = 999999.0
@@ -1551,9 +1553,60 @@ with tab_trader_game:
                         if entry_time in sub_df.index: game_sell_x.append(entry_time); game_sell_y.append(tr['entry_price'])
                         if exit_time in sub_df.index: game_buy_x.append(exit_time); game_buy_y.append(tr['exit_price'])
             if game_buy_x:
-                fig.add_trace(go.Scatter(x=game_buy_x, y=game_buy_y, mode='markers', name='Compra / Fecho Short', marker=dict(symbol='triangle-up', size=14, color='#10b981')), row=1, col=1)
+                fig.add_trace(go.Scatter(x=game_buy_x, y=game_buy_y, mode='markers', name='Compra / Fecho Short', marker=dict(symbol='triangle-up', size=16, color='#10b981', line=dict(color='white', width=1))), row=1, col=1)
             if game_sell_x:
-                fig.add_trace(go.Scatter(x=game_sell_x, y=game_sell_y, mode='markers', name='Venda / Fecho Long', marker=dict(symbol='triangle-down', size=14, color='#ef4444')), row=1, col=1)
+                fig.add_trace(go.Scatter(x=game_sell_x, y=game_sell_y, mode='markers', name='Venda / Fecho Long', marker=dict(symbol='triangle-down', size=16, color='#ef4444', line=dict(color='white', width=1))), row=1, col=1)
+
+            # Linhas conectando entrada e sada com PnL
+            for tr in st.session_state.tg_trades:
+                if "entry_step" in tr and "exit_step" in tr:
+                    entry_time = df_full.index[tr['entry_step']]
+                    exit_time = df_full.index[tr['exit_step']]
+                    if entry_time in sub_df.index or exit_time in sub_df.index:
+                        t_type = tr.get('type', 'LONG')
+                        en_p = tr.get('entry_price', 0)
+                        ex_p = tr.get('exit_price', 0)
+                        
+                        pnl_pct = tr.get('pnl_pct', 0)
+                        pnl_val = tr.get('pnl', 0)
+                        if pnl_pct == 0 and en_p > 0:
+                            if t_type == 'LONG': pnl_pct = (ex_p - en_p) / en_p * 100
+                            else: pnl_pct = (en_p - ex_p) / en_p * 100
+                        
+                        is_win = pnl_pct >= 0
+                        color = '#10b981' if is_win else '#ef4444'
+                        
+                        # Reta ligando os dois pontos
+                        fig.add_shape(
+                            type="line",
+                            x0=entry_time, y0=en_p,
+                            x1=exit_time, y1=ex_p,
+                            line=dict(color=color, width=2, dash='dot'),
+                            row=1, col=1
+                        )
+                        
+                        # Anotao com os valores
+                        sign = "+" if is_win else ""
+                        annot_text = f"<b>{t_type}</b><br>{sign}{pnl_pct:.2f}%"
+                        if abs(pnl_val) > 0.001:
+                            annot_text += f"<br>{sign}{pnl_val:.2f} €"
+                            
+                        fig.add_annotation(
+                            x=exit_time, y=ex_p,
+                            text=annot_text,
+                            showarrow=True,
+                            arrowhead=1,
+                            arrowsize=1.5,
+                            arrowwidth=2,
+                            arrowcolor=color,
+                            ax=0, ay=-50 if is_win else 50,
+                            font=dict(size=11, color="white"),
+                            bgcolor=color,
+                            bordercolor="rgba(255,255,255,0.4)",
+                            borderwidth=1,
+                            borderpad=4,
+                            row=1, col=1
+                        )
             vel_dir = sub_df['velocity'].apply(lambda x: 1.0 if x > 0 else (-1.0 if x < 0 else 0.0)).tolist()
             acc_dir = sub_df['acceleration'].apply(lambda x: 1.0 if x > 0 else (-1.0 if x < 0 else 0.0)).tolist()
             fig.add_trace(go.Heatmap(
@@ -1842,8 +1895,12 @@ with tab_trader_game:
                     return "HOLD", 0.0, cond_dict
 
             # --- ESTRATÉGIA CUSTOMIZADA: CRUZAMENTO DE LINHA ÚNICA ---
-            if "Lagarta" in st.session_state.get("tg_strategy_type", "Default") or "Cruzamento" in st.session_state.get("tg_strategy_type", "Default"):
-                ref_line_name = st.session_state.get("tg_single_line_ref", "SMA Rápida (P2)")
+            _s_typ = st.session_state.get("tg_strategy_type", "Default")
+            if "Lagarta" in _s_typ or "Linha Solitária" in _s_typ or "Cruzamento" in _s_typ:
+                if "Lagarta" in _s_typ:
+                    ref_line_name = "Qualquer SMA Ativa"
+                else:
+                    ref_line_name = st.session_state.get("tg_single_line_ref", "SMA Rápida (P2)")
                 mapping = {
                     "SMA Rápida (P2)": "sma_5",
                     "SMA Sinal (P3)": "sma_13",
@@ -1892,17 +1949,17 @@ with tab_trader_game:
                     }
 
                     if is_breakout and is_growing:
-                        if "Lagarta" in st.session_state.get("tg_strategy_type", "") and st.session_state.get("tg_position", "NONE") == "SHORT":
+                        if ("Lagarta" in st.session_state.get("tg_strategy_type", "") or "Linha Solitária" in st.session_state.get("tg_strategy_type", "")) and st.session_state.get("tg_position", "NONE") == "SHORT":
                             return "HOLD", 0.0, {**cond_dict, "Gatilho": "Ignorado pela Lagarta"}
                         return "LONG", 100.0, {**cond_dict, "Gatilho": "Breakout de Alta"}
                     elif is_breakout and is_falling:
-                        if "Lagarta" in st.session_state.get("tg_strategy_type", "") and st.session_state.get("tg_position", "NONE") == "LONG":
+                        if ("Lagarta" in st.session_state.get("tg_strategy_type", "") or "Linha Solitária" in st.session_state.get("tg_strategy_type", "")) and st.session_state.get("tg_position", "NONE") == "LONG":
                             return "HOLD", 0.0, {**cond_dict, "Gatilho": "Ignorado pela Lagarta"}
                         return "SHORT", 100.0, {**cond_dict, "Gatilho": "Breakout de Baixa"}
                     else:
                         return "HOLD", 0.0, cond_dict
                 else:
-                    _is_lagarta = "Lagarta" in st.session_state.get("tg_strategy_type", "")
+                    _is_lagarta = "Lagarta" in st.session_state.get("tg_strategy_type", "") or "Linha Solitária" in st.session_state.get("tg_strategy_type", "")
                     _cur_pos    = st.session_state.get("tg_position", "NONE")
 
                     # --- Modo "Qualquer SMA Ativa": verifica todas as 5 SMAs ---
@@ -2153,9 +2210,9 @@ with tab_trader_game:
             ref_line = st.session_state.get("tg_single_line_ref", "-") if "Cruzamento" in strat_type else "-"
             bot_mode = st.session_state.get("tg_bot_mode", "Manual")
             
-            sl_val = f"{st.session_state.tg_sl_pct:.1f}%" if st.session_state.tg_sl_active else "OFF"
-            tp_val = f"{st.session_state.tg_tp_pct:.1f}%" if st.session_state.tg_tp_active else "OFF"
-            ts_val = f"{st.session_state.tg_ts_pct:.1f}%" if st.session_state.tg_ts_active else "OFF"
+            sl_val = f"{st.session_state.tg_sl_pct:.1f}%" if (st.session_state.get("tg_sl_pct", 0) > 0) else "OFF"
+            tp_val = f"{st.session_state.tg_tp_pct:.1f}%" if (st.session_state.get("tg_tp_pct", 0) > 0) else "OFF"
+            ts_val = f"{st.session_state.tg_ts_pct:.1f}%" if (st.session_state.get("tg_ts_pct", 0) > 0) else "OFF"
             
             config_desc = (f"Médias:[{st.session_state.tg_p2},{st.session_state.tg_p3},{st.session_state.tg_p4},{st.session_state.tg_p5},{st.session_state.tg_p6}] "
                            f"SL={sl_val} TP={tp_val} TS={ts_val}")
@@ -2221,9 +2278,9 @@ with tab_trader_game:
                     st.session_state.get("tg_p5", 55),
                     st.session_state.get("tg_p6", 144),
                 ],
-                "sl_pct":   st.session_state.get("tg_sl_pct", 2.0)  if st.session_state.get("tg_sl_active") else None,
-                "ts_pct":   st.session_state.get("tg_ts_pct", 1.5)  if st.session_state.get("tg_ts_active") else None,
-                "tp_pct":   st.session_state.get("tg_tp_pct", 7.0)  if st.session_state.get("tg_tp_active") else None,
+                "sl_pct":   st.session_state.get("tg_sl_pct", 2.0)  if (st.session_state.get("tg_sl_pct", 0) > 0) else None,
+                "ts_pct":   st.session_state.get("tg_ts_pct", 1.5)  if (st.session_state.get("tg_ts_pct", 0) > 0) else None,
+                "tp_pct":   st.session_state.get("tg_tp_pct", 7.0)  if (st.session_state.get("tg_tp_pct", 0) > 0) else None,
                 "disp_filter": st.session_state.get("tg_lagarta_min_disp", 0.0),
                 "final_capital": float(st.session_state.tg_capital),
                 "return_pct":    float(st.session_state.tg_capital - 100.0),
@@ -2387,9 +2444,9 @@ with tab_trader_game:
         # =========================================================================
         _strat_d = st.session_state.get('tg_strategy_type', 'Default (Formulas do Jogo)')
         _ref_d   = st.session_state.get('tg_single_line_ref', 'SMA Rapida (P2)')
-        _sl_on   = st.session_state.get('tg_sl_pct_active', st.session_state.get('tg_sl_active', True))
-        _tp_on   = st.session_state.get('tg_tp_pct_active', st.session_state.get('tg_tp_active', False))
-        _ts_on   = st.session_state.get('tg_ts_pct_active', st.session_state.get('tg_ts_active', False))
+        _sl_on = (st.session_state.get('tg_sl_pct', 0) > 0)
+        _tp_on = (st.session_state.get('tg_tp_pct', 0) > 0)
+        _ts_on = (st.session_state.get('tg_ts_pct', 0) > 0)
         _sl_v    = st.session_state.get('tg_sl_pct', 2.0)
         _tp_v    = st.session_state.get('tg_tp_pct', 7.0)
         _ts_v    = st.session_state.get('tg_ts_pct', 1.5)
@@ -2398,8 +2455,8 @@ with tab_trader_game:
         _p4 = st.session_state.get('tg_p4', 50)
         _p5 = st.session_state.get('tg_p5', 100)
         _p6 = st.session_state.get('tg_p6', 200)
-        _tag_map = {'Default': 'EQ', 'Cerebro': 'DNA', 'Cruzamento': 'X-LINE', 'Lagarta': 'LAGARTA', 'Camadas': 'LAYERS'}
-        _clr_map = {'Default': '#64748b', 'Cerebro': '#7c3aed', 'Cruzamento': '#0284c7', 'Lagarta': '#10b981', 'Camadas': '#dc2626'}
+        _tag_map = {'Default': 'EQ', 'Cerebro': 'DNA', 'Cruzamento': 'X-LINE', 'Lagarta': 'LAGARTA', 'Linha Solitária': 'SOLO', 'Camadas': 'LAYERS'}
+        _clr_map = {'Default': '#64748b', 'Cerebro': '#7c3aed', 'Cruzamento': '#0284c7', 'Lagarta': '#10b981', 'Linha Solitária': '#22c55e', 'Camadas': '#dc2626'}
         _strat_tag = next((v for k, v in _tag_map.items() if k in _strat_d), '...')
         _strat_clr = next((v for k, v in _clr_map.items() if k in _strat_d), '#64748b')
         _strat_sub = ('Linha: ' + _ref_d) if 'Cruzamento' in _strat_d else ''
@@ -2677,7 +2734,7 @@ with tab_trader_game:
 
                         # Justificação da entrada
                         _justif = []
-                        if 'Lagarta' in _strat:
+                        if 'Lagarta' in _strat or 'Linha Solitária' in _strat:
                             _justif.append(f"Cruzamento {'↑ Alta' if _typ=='LONG' else '↓ Baixa'} ({_ref})")
                         elif 'Camadas' in _strat:
                             _justif.append(f"P2 {'rompe P4 ↑' if _typ=='LONG' else 'rompe P4 ↓'}")
@@ -2762,24 +2819,24 @@ with tab_trader_game:
                 executed_price = price_now
                 if st.session_state.tg_position == "LONG":
                     st.session_state.tg_highest_price = max(st.session_state.tg_highest_price, price_now)
-                    if st.session_state.tg_sl_active and price_now <= entry_p * (1 - st.session_state.tg_sl_pct/100.0):
+                    if (st.session_state.get("tg_sl_pct", 0) > 0) and price_now <= entry_p * (1 - st.session_state.tg_sl_pct/100.0):
                         triggered, trigger_reason = True, "STOP LOSS"
                         executed_price = entry_p * (1 - st.session_state.tg_sl_pct/100.0)
-                    elif st.session_state.tg_tp_active and price_now >= entry_p * (1 + st.session_state.tg_tp_pct/100.0):
+                    elif (st.session_state.get("tg_tp_pct", 0) > 0) and price_now >= entry_p * (1 + st.session_state.tg_tp_pct/100.0):
                         triggered, trigger_reason = True, "TAKE PROFIT"
                         executed_price = entry_p * (1 + st.session_state.tg_tp_pct/100.0)
-                    elif st.session_state.tg_ts_active and price_now <= st.session_state.tg_highest_price * (1 - st.session_state.tg_ts_pct/100.0):
+                    elif (st.session_state.get("tg_ts_pct", 0) > 0) and price_now <= st.session_state.tg_highest_price * (1 - st.session_state.tg_ts_pct/100.0):
                         triggered, trigger_reason = True, "TRAILING STOP"
                         executed_price = st.session_state.tg_highest_price * (1 - st.session_state.tg_ts_pct/100.0)
                 elif st.session_state.tg_position == "SHORT":
                     st.session_state.tg_lowest_price = min(st.session_state.tg_lowest_price, price_now)
-                    if st.session_state.tg_sl_active and price_now >= entry_p * (1 + st.session_state.tg_sl_pct/100.0):
+                    if (st.session_state.get("tg_sl_pct", 0) > 0) and price_now >= entry_p * (1 + st.session_state.tg_sl_pct/100.0):
                         triggered, trigger_reason = True, "STOP LOSS"
                         executed_price = entry_p * (1 + st.session_state.tg_sl_pct/100.0)
-                    elif st.session_state.tg_tp_active and price_now <= entry_p * (1 - st.session_state.tg_tp_pct/100.0):
+                    elif (st.session_state.get("tg_tp_pct", 0) > 0) and price_now <= entry_p * (1 - st.session_state.tg_tp_pct/100.0):
                         triggered, trigger_reason = True, "TAKE PROFIT"
                         executed_price = entry_p * (1 - st.session_state.tg_tp_pct/100.0)
-                    elif st.session_state.tg_ts_active and price_now >= st.session_state.tg_lowest_price * (1 + st.session_state.tg_ts_pct/100.0):
+                    elif (st.session_state.get("tg_ts_pct", 0) > 0) and price_now >= st.session_state.tg_lowest_price * (1 + st.session_state.tg_ts_pct/100.0):
                         triggered, trigger_reason = True, "TRAILING STOP"
                         executed_price = st.session_state.tg_lowest_price * (1 + st.session_state.tg_ts_pct/100.0)
                 if triggered:
@@ -2929,24 +2986,24 @@ with tab_trader_game:
                             
                             if st.session_state.tg_position == "LONG":
                                 st.session_state.tg_highest_price = max(st.session_state.tg_highest_price, price_now)
-                                if st.session_state.tg_sl_active and price_now <= entry_p * (1 - st.session_state.tg_sl_pct/100.0):
+                                if (st.session_state.get("tg_sl_pct", 0) > 0) and price_now <= entry_p * (1 - st.session_state.tg_sl_pct/100.0):
                                     triggered, trigger_reason = True, "STOP LOSS"
                                     executed_price = entry_p * (1 - st.session_state.tg_sl_pct/100.0)
-                                elif st.session_state.tg_tp_active and price_now >= entry_p * (1 + st.session_state.tg_tp_pct/100.0):
+                                elif (st.session_state.get("tg_tp_pct", 0) > 0) and price_now >= entry_p * (1 + st.session_state.tg_tp_pct/100.0):
                                     triggered, trigger_reason = True, "TAKE PROFIT"
                                     executed_price = entry_p * (1 + st.session_state.tg_tp_pct/100.0)
-                                elif st.session_state.tg_ts_active and price_now <= st.session_state.tg_highest_price * (1 - st.session_state.tg_ts_pct/100.0):
+                                elif (st.session_state.get("tg_ts_pct", 0) > 0) and price_now <= st.session_state.tg_highest_price * (1 - st.session_state.tg_ts_pct/100.0):
                                     triggered, trigger_reason = True, "TRAILING STOP"
                                     executed_price = st.session_state.tg_highest_price * (1 - st.session_state.tg_ts_pct/100.0)
                             elif st.session_state.tg_position == "SHORT":
                                 st.session_state.tg_lowest_price = min(st.session_state.tg_lowest_price, price_now)
-                                if st.session_state.tg_sl_active and price_now >= entry_p * (1 + st.session_state.tg_sl_pct/100.0):
+                                if (st.session_state.get("tg_sl_pct", 0) > 0) and price_now >= entry_p * (1 + st.session_state.tg_sl_pct/100.0):
                                     triggered, trigger_reason = True, "STOP LOSS"
                                     executed_price = entry_p * (1 + st.session_state.tg_sl_pct/100.0)
-                                elif st.session_state.tg_tp_active and price_now <= entry_p * (1 - st.session_state.tg_tp_pct/100.0):
+                                elif (st.session_state.get("tg_tp_pct", 0) > 0) and price_now <= entry_p * (1 - st.session_state.tg_tp_pct/100.0):
                                     triggered, trigger_reason = True, "TAKE PROFIT"
                                     executed_price = entry_p * (1 - st.session_state.tg_tp_pct/100.0)
-                                elif st.session_state.tg_ts_active and price_now >= st.session_state.tg_lowest_price * (1 + st.session_state.tg_ts_pct/100.0):
+                                elif (st.session_state.get("tg_ts_pct", 0) > 0) and price_now >= st.session_state.tg_lowest_price * (1 + st.session_state.tg_ts_pct/100.0):
                                     triggered, trigger_reason = True, "TRAILING STOP"
                                     executed_price = st.session_state.tg_lowest_price * (1 + st.session_state.tg_ts_pct/100.0)
                                     
@@ -3649,3 +3706,8 @@ with tab_bot_brain:
 with tab_alpaca:
     import tab_alpaca as _tab_alpaca
     _tab_alpaca.render()
+
+
+with tab_binance:
+    import tab_binance as _tab_binance
+    _tab_binance.render()

@@ -145,10 +145,10 @@ VARIABLES = [
     "Limite máximo de perda percentual admitida por operação.",
     "Preço de Entrada * (1 - SL%)",
     2.0,
-    0.5,
+    0.0,
     10.0,
     0.1,
-     is_toggleable=True),
+     is_toggleable=False),
     QuantVariable(
     "tg_tp_pct",
     "Take Profit (TP) %",
@@ -156,10 +156,10 @@ VARIABLES = [
     "Alvo de lucro percentual definido para saída automática.",
     "Preço de Entrada * (1 + TP%)",
     7.0,
-    1.0,
+    0.0,
     25.0,
     0.1,
-     is_toggleable=True),
+     is_toggleable=False),
     QuantVariable(
     "tg_ts_pct",
     "Trailing Stop (TS) %",
@@ -167,10 +167,10 @@ VARIABLES = [
     "Trailing Stop para acompanhamento de ganhos acumulados.",
     "Stop dinâmico a partir do máximo",
     1.5,
-    0.5,
+    0.0,
     5.0,
     0.1,
-     is_toggleable=True),
+     is_toggleable=False),
 
     # Fricções e Custos de Mercado
     QuantVariable(
@@ -433,7 +433,8 @@ def render_variables_dashboard(compact=False):
         _arena_strategies = [
             'Default (Manual)',
             'Cérebro de Consenso (IA)',
-            'Lagarta (Linha Única)',
+            'Lagarta (Todas as Linhas)',
+            'Linha Solitária',
             'Média Camadas (Duas Linhas)',
             '🤖 Claude — Pirâmide Fibonacci'
         ]
@@ -456,7 +457,7 @@ def render_variables_dashboard(compact=False):
           st.session_state.tg_strategy_type = _arena_selected
 
           # Auto-configurar risco e modo do bot por estratégia
-          if 'Lagarta' in _arena_selected or 'Cruzamento' in _arena_selected:
+          if 'Lagarta' in _arena_selected or 'Cruzamento' in _arena_selected or 'Linha Solitária' in _arena_selected:
               st.session_state.tg_sl_pct_active = True
               st.session_state.tg_sl_active = True
               st.session_state.tg_sl_pct = 1.0
@@ -546,25 +547,23 @@ def render_variables_dashboard(compact=False):
 ''')
 
         # Sub-opcao: Linha de Referencia (so para Lagarta)
-        if 'Lagarta' in st.session_state.get('tg_strategy_type', ''):
+        if 'Linha Solitária' in st.session_state.get('tg_strategy_type', ''):
             _ref_options = [
-                'Qualquer SMA Ativa',
                 'SMA Rápida (P2)', 'SMA Sinal (P3)', 'SMA Intermédia (P4)',
                 'SMA Lenta 1 (P5)', 'SMA Lenta 2 (P6)',
                 'Média do Vetor (avg_sma)', 'Desvio Padrão (sma_std)'
             ]
-            # Se P2=1, a SMA Rápida = preço → default para "Qualquer SMA Ativa"
-            _p2 = st.session_state.get('tg_p2', 5)
-            _smart_default = 'Qualquer SMA Ativa' if _p2 <= 1 else 'SMA Sinal (P3)'
+            # Apenas linhas específicas são válidas para a Linha Solitária
+            _smart_default = 'SMA Sinal (P3)'
             _current_ref = st.session_state.get('tg_single_line_ref', _smart_default)
             if _current_ref not in _ref_options:
                 _current_ref = _smart_default
             st.selectbox(
-                'Linha de Referência (Lagarta):',
+                'Linha de Referência (Linha Solitária):',
                 _ref_options,
                 index=_ref_options.index(_current_ref),
                 key='tg_single_line_ref',
-                help='«Qualquer SMA Ativa» reage ao cruzamento de qualquer uma das 5 SMAs em jogo.'
+                help='Escolha a linha única contra a qual o preço será avaliado.'
             )
     # 🧬 COLUNA 3: Vetor de Médias Móveis
     with col3:
