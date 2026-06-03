@@ -86,7 +86,8 @@ def render():
         with col_m1:
             manual_side = st.selectbox("Direção", ["Buy (LONG)", "Sell (SHORT)"], key="binance_manual_side")
         with col_m2:
-            manual_notional = st.number_input("Tamanho da Ordem (USDT)", min_value=5.0, max_value=5000.0, value=20.0, step=5.0)
+            manual_notional = st.number_input("Tamanho da Ordem (USDT)", min_value=50.0, max_value=5000.0, value=100.0, step=10.0)
+        st.caption("⚠️ Mínimo exigido pela Binance Futures Testnet: 50 USDT")
             
         if st.button("🚀 Executar Ordem Manual", type="primary"):
             side_str = "buy" if "LONG" in manual_side else "sell"
@@ -130,7 +131,8 @@ def render():
             default_i = all_syms.index("BTC/USDT") if "BTC/USDT" in all_syms else 0
             bot_symbol = st.selectbox("Ativo para o Bot", all_syms, index=default_i, key="binance_bot_sym")
         with c_exec2:
-            bot_capital = st.number_input("Tamanho da Posição por Sinal (USDT)", min_value=5.0, max_value=5000.0, value=20.0, step=5.0, key="binance_bot_capital")
+            bot_capital = st.number_input("Tamanho da Posição por Sinal (USDT)", min_value=50.0, max_value=5000.0, value=100.0, step=10.0, key="binance_bot_capital")
+            st.caption("⚠️ Mínimo exigido pela Binance Futures Testnet: 50 USDT")
         with c_exec3:
             interval_sec = st.number_input("Verificar mercado a cada (segundos)", min_value=5, max_value=300, value=30, key="binance_interval")
             
