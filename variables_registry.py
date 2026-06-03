@@ -902,8 +902,7 @@ def render_bot_brain_table():
     st.dataframe(df_dna, width='stretch', hide_index=True, height=550)
     
     # Nota Teórica e Explicativa sobre o Consenso de Regimes (Matemática Pura)
-    st.markdown("""
-<div style="background: linear-gradient(135deg, rgba(15,23,42,0.9) 0%, rgba(30,41,59,0.95) 100%);
+    st.markdown("""<div style="background: linear-gradient(135deg, rgba(15,23,42,0.9) 0%, rgba(30,41,59,0.95) 100%);
 padding: 20px; border-radius: 14px; border: 1px solid rgba(124,58,237,0.3);
 box-shadow: 0 8px 32px rgba(0,0,0,0.3); margin-top: 20px;">
 <h5 style="color: #a78bfa; margin-top: 0; font-weight: 800; display: flex; align-items: center; gap: 8px;">
@@ -924,8 +923,7 @@ Isto não é um erro, mas sim uma <b>consequência matemática pura e brilhante<
 <b>Conclusão Científica:</b> O Bot é estatisticamente consistente. Ele aprende regras de <b>LONG (Compra)</b> nos regimes <code style="color:#ef4444;">BEAR</code> (pullbacks extremos nos suportes), <code style="color:#60a5fa;">LATERAL</code> e <code style="color:#818cf8;">CAÓTICO</code>, e regras de <b>SHORT (Venda)</b> nos regimes <code style="color:#4ade80;">BULL</code> (picos de euforia e resistências), <code style="color:#60a5fa;">LATERAL</code> e <code style="color:#818cf8;">CAÓTICO</code>.
 </li>
 </ul>
-</div>
-""", unsafe_allow_html=True)
+</div>""", unsafe_allow_html=True)
 
 def rebuild_consensus_dna():
     import os

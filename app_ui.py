@@ -130,8 +130,7 @@ def check_password():
 
     # Interface de Login Centrada e Minimalista (Estética Premium)
     st.markdown(
-        """
-<style>
+        """<style>
 .login-wrapper {
 display: flex;
 justify-content: center;
@@ -162,8 +161,7 @@ font-family: 'Inter', sans-serif;
 font-size: 0.95rem;
 margin-bottom: 24px;
 }
-</style>
-""",
+</style>""",
         unsafe_allow_html=True
     )
 
@@ -269,8 +267,7 @@ if "backtest_results" not in st.session_state:
 if "optimizer_results" not in st.session_state:
     st.session_state.optimizer_results = None
 # 3. Injeção de CSS Customizado para Estética Premium Glassmorphic (Tema Claro / Light Mode)
-st.markdown("""
-<style>
+st.markdown("""<style>
 /* Importar Fonte Outfit do Google Fonts */
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap');
 /* Configuração de Fontes e Fundo Principal */
@@ -394,11 +391,9 @@ div.stButton > button:hover {
 transform: translateY(-2px) !important;
 box-shadow: 0 6px 20px rgba(124, 58, 237, 0.4) !important;
 }
-</style>
-""", unsafe_allow_html=True)
+</style>""", unsafe_allow_html=True)
 # 4. Cabeçalho da Aplicação - Compacto & Premium
-st.markdown("""
-<style>
+st.markdown("""<style>
 /* Reduzir paddings e margens padrão do Streamlit para maximizar espaço vertical */
 .block-container {
 padding-top: 1rem !important;
@@ -429,8 +424,7 @@ border-radius: 8px !important;
 <span style="background-color: rgba(5, 150, 105, 0.1); color: #059669; border: 1px solid rgba(5, 150, 105, 0.25); padding: 2px 8px; border-radius: 9999px; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.5px; display: inline-flex; align-items: center; gap: 4px;">🤖 SIMULADOR ATIVO</span>
 </div>
 <div style="font-size: 0.8rem; font-weight: 600; color: #64748b; letter-spacing: 0.5px;">Algorithmic Trading & Analytics Lab</div>
-</div>
-""", unsafe_allow_html=True)
+</div>""", unsafe_allow_html=True)
 # 1. VALORES GLOBAIS COMANDADOS CENTRALMENTE
 symbol_raw = st.session_state.get('symbol_val', '🧪 Cenário Didático (Fictício)')
 # Usar BTC/USDT como substituto para abas reais se o cenario didatico estiver ativo
@@ -627,8 +621,7 @@ with tab_backtest:
             "CAOTICO": ("#9333ea", "#f3e8ff"),  # roxo
         }
         _c_border, _c_bg = _mkt_colors.get(_mkt["type"], ("#6b7280", "#f9fafb"))
-        st.markdown(f"""
-<div style="border-left: 5px solid {_c_border}; background: {_c_bg}; padding: 12px 18px;
+        st.markdown(f"""<div style="border-left: 5px solid {_c_border}; background: {_c_bg}; padding: 12px 18px;
 border-radius: 8px; margin-bottom: 16px;">
 <div style="font-size: 1.1rem; font-weight: 700; color: {_c_border};">
 {_mkt['emoji']} Mercado Detetado: {_mkt['type_pt']}
@@ -641,8 +634,7 @@ Confiança: {_mkt['confidence']}% · {_mkt['n_candles']} velas analisadas
 📊 Volatilidade: <b>{_mkt['volatility_pct']:.3f}%/vela</b> &nbsp;|&nbsp;
 📏 Amplitude: <b>{_mkt['range_pct']:.1f}%</b>
 </div>
-</div>
-""", unsafe_allow_html=True)
+</div>""", unsafe_allow_html=True)
         # Mostrar lagartas recomendadas (se existirem)
         if _matching_caterpillars:
             _rec_col1, _rec_col2 = st.columns([3, 1])
@@ -718,8 +710,7 @@ Confiança: {_mkt['confidence']}% · {_mkt['n_candles']} velas analisadas
         total_pnl = metrics["total_pnl"]
         pnl_class = "text-green" if total_pnl >= 0 else "text-red"
         pnl_sign = "+" if total_pnl >= 0 else ""
-        st.markdown(f"""
-<div class="metric-container">
+        st.markdown(f"""<div class="metric-container">
 <div class="metric-card">
 <div class="metric-label">Capital Final</div>
 <div class="metric-value text-cyan">{metrics['final_capital']:.2f} EUR</div>
@@ -744,8 +735,7 @@ Confiança: {_mkt['confidence']}% · {_mkt['n_candles']} velas analisadas
 <div class="metric-label">Fator de Lucro</div>
 <div class="metric-value text-cyan">{metrics['profit_factor']:.2f}</div>
 </div>
-</div>
-""", unsafe_allow_html=True)
+</div>""", unsafe_allow_html=True)
         # Outras métricas rápidas
         st.markdown(
             f"**Total de Operações:** {metrics['num_trades']} | "
@@ -2393,8 +2383,7 @@ with tab_trader_game:
             except Exception:
                 pass
         # CSS dos botoes casino - ARCADE LED STYLE
-        st.markdown("""
-<style>
+        st.markdown("""<style>
 div[data-testid="column"]:has(div.game-control-anchor) {
 background: linear-gradient(160deg, rgba(15,23,42,0.95) 0%, rgba(30,41,59,0.98) 100%) !important;
 backdrop-filter: blur(20px) !important;
@@ -2442,7 +2431,6 @@ div.element-container:has(.advisor-bottom-marker) + div.element-container {
 margin-top: auto !important;
 padding-top: 10px !important;
 }
-
 div.element-container:has(.casino-long-active) + div.element-container .stButton button,
 div.element-container:has(.casino-long-inactive) + div.element-container .stButton button,
 div.element-container:has(.casino-short-active) + div.element-container .stButton button,
@@ -2515,8 +2503,7 @@ text-align: center; padding: 8px 12px;
 background: rgba(255,255,255,0.05); border-radius: 10px;
 border: 1px solid rgba(255,255,255,0.08);
 }
-</style>
-""", unsafe_allow_html=True)
+</style>""", unsafe_allow_html=True)
         # =========================================================================
         # PAINEL DE LANCAMENTO - premium, sempre visivel, sem expander
         # =========================================================================
@@ -2657,8 +2644,7 @@ border: 1px solid rgba(255,255,255,0.08);
             ret_after_tax = ret_pct - _tax_eur
             ret_color = "#10B981" if ret_pct >= 0 else "#EF4444"
             emoji_result = "🏆" if ret_pct > 0 else ("😐" if ret_pct == 0 else "💀")
-            st.markdown(f"""
-<div class="review-banner">
+            st.markdown(f"""<div class="review-banner">
 <div style="color:#94a3b8; font-size:13px; margin-bottom:12px; letter-spacing:2px; text-transform:uppercase;">
 {emoji_result} Sessao concluida — {st.session_state.tg_trader_name} &nbsp;&nbsp;•&nbsp;&nbsp; Grafico completo disponivel para consulta
 </div>
@@ -2692,8 +2678,7 @@ border: 1px solid rgba(255,255,255,0.08);
 </div>
 </div>
 </div>
-</div>
-""", unsafe_allow_html=True)
+</div>""", unsafe_allow_html=True)
             # --- Gráfico + painel lateral com nome e botão ---
             col_rev_chart, col_rev_btn = st.columns([8, 2])
             with col_rev_btn:
@@ -2981,8 +2966,7 @@ border: 1px solid rgba(255,255,255,0.08);
             # =========================================================
             # BARRA DE ESTADO TOPO - dark header bar
             # =========================================================
-            st.markdown(f"""
-<div style="background:linear-gradient(90deg,#0f172a,#1e293b,#0f172a);
+            st.markdown(f"""<div style="background:linear-gradient(90deg,#0f172a,#1e293b,#0f172a);
 border-radius:12px; padding:14px 24px; margin-bottom:14px;
 display:flex; justify-content:space-between; align-items:center;
 border:1px solid rgba(124,58,237,0.3);
@@ -3011,8 +2995,7 @@ box-shadow:0 4px 24px rgba(0,0,0,0.4);">
 <div style="color:#64748b;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:3px;">Progresso</div>
 <div style="color:#e2e8f0;font-size:18px;font-weight:900;font-family:monospace;">{progress_candles} <span style="font-size:11px;color:#64748b;">/ 100</span></div>
 </div>
-</div>
-""", unsafe_allow_html=True)
+</div>""", unsafe_allow_html=True)
             # =========================================================
             # LAYOUT PRINCIPAL: 3 colunas
             # col_chart | col_ctrl | col_advisor
