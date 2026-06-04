@@ -114,23 +114,14 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# ── CSS global aplicado SEMPRE (antes de qualquer conteúdo) ─────────────────
+# ── CSS global: APENAS esconder sidebar (antes do login, sem afectar o tema) ─
 st.markdown("""<style>
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap');
-/* Esconder sidebar de navegação multi-page — sempre, incluindo página de login */
 [data-testid="stSidebar"],
 [data-testid="collapsedControl"],
 section[data-testid="stSidebarNav"],
 div[data-testid="stSidebarNavItems"],
 button[data-testid="baseButton-headerNoPadding"],
 [data-testid="stSidebarNavSeparator"] { display: none !important; }
-/* Fundo escuro para página de login */
-html, body, [data-testid="stAppViewContainer"], .stApp {
-    background: linear-gradient(135deg, #0a0f1e 0%, #0d1b3e 50%, #0a0f1e 100%) !important;
-    font-family: 'Outfit', sans-serif;
-}
-/* Remove padding excessivo do bloco principal */
-.block-container { padding-top: 0 !important; }
 </style>""", unsafe_allow_html=True)
 
 # ── VERIFICAÇÃO DE PALAVRA-PASSE ─────────────────────────────────────────────
@@ -143,25 +134,42 @@ def check_password():
     if st.session_state.get("authenticated", False):
         return True
 
-    # ── Página de Login ──────────────────────────────────────────────────────
+    # ── Página de Login — CSS só activo nesta página ─────────────────────────
+    # Nota: usa IDs únicos para não "contaminar" o tema do app após login
     st.markdown("""<style>
-/* Esconder completamente o header do Streamlit na página de login */
 header[data-testid="stHeader"] { display: none !important; }
-/* Input de password */
-.login-input input {
-    background: rgba(255,255,255,0.06) !important;
-    border: 1px solid rgba(255,255,255,0.12) !important;
+/* Fundo escuro na página de login (sem !important para o app principal poder sobrepor) */
+html, body, [data-testid="stAppViewContainer"], .stApp {
+    background: linear-gradient(135deg, #07080f 0%, #0d1224 50%, #07080f 100%);
+}
+/* Input da password — texto branco sobre fundo escuro */
+div[data-testid="stTextInput"] input {
+    background: rgba(255,255,255,0.07) !important;
+    border: 1px solid rgba(99,179,237,0.25) !important;
     border-radius: 10px !important;
     color: #f1f5f9 !important;
-    font-size: 1rem !important;
-    padding: 12px 16px !important;
+    font-size: 1.1rem !important;
+    letter-spacing: 4px !important;
     text-align: center !important;
-    letter-spacing: 3px !important;
 }
-.login-input input:focus {
-    border-color: rgba(99,179,237,0.5) !important;
+div[data-testid="stTextInput"] input::placeholder { color: #475569 !important; letter-spacing: 2px; }
+div[data-testid="stTextInput"] input:focus {
+    border-color: rgba(99,179,237,0.6) !important;
     box-shadow: 0 0 0 3px rgba(99,179,237,0.15) !important;
 }
+/* Label do input — esconder (usamos placeholder) */
+div[data-testid="stTextInput"] label { display: none !important; }
+/* Botão de login */
+div[data-testid="stButton"] button {
+    background: linear-gradient(135deg, #2563eb, #7c3aed) !important;
+    color: white !important; border: none !important;
+    border-radius: 10px !important; font-size: 1rem !important;
+    font-weight: 600 !important; padding: 12px !important;
+    letter-spacing: 0.5px !important;
+}
+/* Mensagem de erro */
+div[data-testid="stAlert"] { background: rgba(239,68,68,0.12) !important; border-radius: 8px !important; }
+div[data-testid="stAlert"] p { color: #fca5a5 !important; }
 </style>""", unsafe_allow_html=True)
 
     # Centrar com colunas

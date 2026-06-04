@@ -49,9 +49,16 @@ def _check_auth():
 
     st.markdown("""<style>
 html,body,[data-testid="stAppViewContainer"],.stApp{
-    background:linear-gradient(135deg,#0a0f1e,#0d1b3e,#0a0f1e)!important;}
+    background:linear-gradient(135deg,#07080f,#0d1224,#07080f);}
 header[data-testid="stHeader"]{display:none!important;}
 .block-container{padding-top:0!important;}
+div[data-testid="stTextInput"] input{
+    background:rgba(255,255,255,0.07)!important;
+    border:1px solid rgba(99,179,237,0.25)!important;
+    border-radius:10px!important; color:#f1f5f9!important;
+    font-size:1.1rem!important; letter-spacing:4px!important; text-align:center!important;}
+div[data-testid="stTextInput"] input::placeholder{color:#475569!important;}
+div[data-testid="stTextInput"] label{display:none!important;}
 </style>""", unsafe_allow_html=True)
 
     st.markdown("<div style='height:80px'></div>", unsafe_allow_html=True)
