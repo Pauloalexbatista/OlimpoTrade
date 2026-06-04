@@ -1693,6 +1693,27 @@ with tab_trader_game:
                             borderpad=4,
                             row=1, col=1
                         )
+            # Linhas verticais nos batimentos (entrada e saída de cada trade)
+            y_min = float(sub_df['close'].min() * 0.995)
+            y_max = float(sub_df['close'].max() * 1.005)
+            for tr in st.session_state.tg_trades:
+                if "entry_step" in tr and "exit_step" in tr:
+                    entry_time = df_full.index[tr['entry_step']]
+                    exit_time  = df_full.index[tr['exit_step']]
+                    is_win     = tr.get('pnl_eur', tr.get('pnl', 0)) >= 0
+                    exit_color = 'rgba(16,185,129,0.5)' if is_win else 'rgba(239,68,68,0.5)'
+                    # Linha vertical de entrada — azul tracejado
+                    if entry_time in sub_df.index:
+                        fig.add_shape(type="line",
+                            x0=entry_time, x1=entry_time, y0=y_min, y1=y_max,
+                            line=dict(color='rgba(0,176,255,0.5)', width=1.5, dash='dash'),
+                            row=1, col=1)
+                    # Linha vertical de saída — verde/vermelho conforme resultado
+                    if exit_time in sub_df.index and exit_time != entry_time:
+                        fig.add_shape(type="line",
+                            x0=exit_time, x1=exit_time, y0=y_min, y1=y_max,
+                            line=dict(color=exit_color, width=1.5, dash='dash'),
+                            row=1, col=1)
             vel_dir = sub_df['velocity'].apply(lambda x: 1.0 if x > 0 else (-1.0 if x < 0 else 0.0)).tolist()
             acc_dir = sub_df['acceleration'].apply(lambda x: 1.0 if x > 0 else (-1.0 if x < 0 else 0.0)).tolist()
             fig.add_trace(go.Heatmap(
