@@ -425,7 +425,10 @@ border-radius: 8px !important;
 <span style="font-size: 1.5rem; font-weight: 800; background: linear-gradient(135deg, #0284c7 0%, #7c3aed 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; letter-spacing: -1px; line-height: 1;">OLIMPOTRADE</span>
 <span style="background-color: rgba(5, 150, 105, 0.1); color: #059669; border: 1px solid rgba(5, 150, 105, 0.25); padding: 2px 8px; border-radius: 9999px; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.5px; display: inline-flex; align-items: center; gap: 4px;">🤖 SIMULADOR ATIVO</span>
 </div>
+<div style="display:flex; align-items:center; gap:12px;">
 <div style="font-size: 0.8rem; font-weight: 600; color: #64748b; letter-spacing: 0.5px;">Algorithmic Trading & Analytics Lab</div>
+<a href="/strategy_lab" target="_self" style="display:inline-flex; align-items:center; gap:6px; background:linear-gradient(135deg,#1a237e,#283593); color:#90caf9; text-decoration:none; border:1px solid #3949ab; border-radius:7px; padding:5px 13px; font-size:0.75rem; font-weight:700; letter-spacing:0.5px; white-space:nowrap;">🔬 Strategy Lab</a>
+</div>
 </div>
 """, unsafe_allow_html=True)
 # 1. VALORES GLOBAIS COMANDADOS CENTRALMENTE
@@ -505,37 +508,6 @@ slippage_pct = st.session_state.get('slippage_pct_val', 0.05)
 logger = setup_logging()
 import variables_registry as _vr_global
 _vr_global.initialize_variables_registry()
-# Cabeçalho principal com título + link Strategy Lab integrado
-st.markdown("""
-<div style="
-    display:flex; align-items:center; justify-content:space-between;
-    padding:10px 4px 14px; border-bottom:1px solid rgba(0,0,0,0.07);
-    margin-bottom:6px;
-">
-    <div style="display:flex; align-items:center; gap:10px;">
-        <span style="font-size:26px;">⚡</span>
-        <div>
-            <div style="
-                font-size:1.4rem; font-weight:800; letter-spacing:-0.5px;
-                background:linear-gradient(135deg,#0284c7,#7c3aed);
-                -webkit-background-clip:text; -webkit-text-fill-color:transparent;
-                line-height:1.1;
-            ">OlimpoTrade</div>
-            <div style="font-size:11px; color:#94a3b8; letter-spacing:1.5px; text-transform:uppercase;">
-                Algorithmic Trading Lab
-            </div>
-        </div>
-    </div>
-    <a href="/strategy_lab" target="_self" style="
-        display:inline-flex; align-items:center; gap:7px;
-        background:linear-gradient(135deg,#1a237e,#283593);
-        color:#90caf9; text-decoration:none;
-        border:1px solid #3949ab; border-radius:7px;
-        padding:7px 16px; font-size:12px; font-weight:600;
-        letter-spacing:0.5px;
-    ">🔬 Strategy Lab</a>
-</div>
-""", unsafe_allow_html=True)
 # 7. Abas Principais do Laboratório (TABS SIMPLIFICADAS)
 tab_backtest, tab_simulator, tab_math_lab, tab_trader_game, tab_bot_brain, tab_alpaca, tab_binance = st.tabs([
     "📈 Simulação & Gráficos Real",
