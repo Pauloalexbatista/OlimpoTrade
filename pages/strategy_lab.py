@@ -930,77 +930,122 @@ with tab_bot:
         p = bot.progress
         running = bot.is_running()
 
-        # Status
-        dot_cls = "green" if running else ("red" if p["done"] > 0 else "grey")
-        status_txt = "A CORRER" if running else ("CONCLUÍDO" if p["done"] > 0 else "INACTIVO")
+        # ── Status ──────────────────────────────────────────────
+        done  = p["done"]
+        total = p["total"] or 1
+        pct   = done / total
+
+        if running:
+            dot_cls    = "green"
+            status_txt = "🟢 A CORRER"
+            status_col = "#00e676"
+        elif done > 0:
+            dot_cls    = "red"
+            status_txt = "✅ CONCLUÍDO"
+            status_col = "#e8eaf6"
+        else:
+            dot_cls    = "grey"
+            status_txt = "⏸ INACTIVO"
+            status_col = "#5c6080"
+
+        # Linha de estado + estratégia atual (só quando corre)
+        sub_line = ""
+        if running:
+            strat_now  = STRATEGY_LABELS_SHORT.get(p.get("current_strategy", ""), "")
+            params_now = str(p.get("current_params", ""))[:80]
+            sub_line   = f'<div style="font-size:11px; color:#5c6080; margin-top:4px;">{strat_now} · {params_now}</div>'
+
         st.markdown(f"""
 <div class="bot-status">
     <div class="dot {dot_cls}"></div>
-    <div>
-        <strong style="color:#e8eaf6; font-size:14px;">{status_txt}</strong>
-        {"<br><small style='color:#5c6080; font-size:11px;'>Par: " + p.get("current_strategy","") + " | " + str(p.get("current_params","")) + "</small>" if running else ""}
+    <div style="flex:1;">
+        <strong style="color:{status_col}; font-size:14px;">{status_txt}</strong>
+        {sub_line}
     </div>
 </div>""", unsafe_allow_html=True)
 
-        # Progress bar
-        total = p["total"] or 1
-        done  = p["done"]
-        pct   = done / total
+        # ── Barra de progresso ───────────────────────────────────
         st.progress(pct, text=f"{done}/{total} testes  ·  {pct*100:.1f}%")
 
-        # Stats row
-        eta_txt = ""
-        if running and p.get("eta_secs"):
-            m, s2 = divmod(p["eta_secs"], 60)
-            eta_txt = f"  ·  ETA {m}m {s2}s"
-
-        elapsed = ""
+        # ── Chips de métricas ────────────────────────────────────
+        elapsed = "—"
         if p.get("start_time"):
             e = int(time.time() - p["start_time"])
             em, es = divmod(e, 60)
             elapsed = f"{em}m {es}s"
 
+        best_score_txt = fmt_num(p['best_score']) if p['best_score'] > -900 else "—"
+        saved_col = "#00e676" if p['saved'] > 0 else "#5c6080"
+        err_col   = "#ff5252" if p['errors'] > 0 else "#5c6080"
+
         st.markdown(f"""
 <div class="metric-row">
-    <div class="metric-chip"><span class="chip-label">Guardados</span><span style="color:#00e676;">{p['saved']}</span></div>
-    <div class="metric-chip"><span class="chip-label">Erros</span><span style="color:#ff5252;">{p['errors']}</span></div>
-    <div class="metric-chip"><span class="chip-label">Melhor Score</span><span style="color:#ffd740;">{p['best_score'] if p['best_score'] > -900 else '—'}</span></div>
-    <div class="metric-chip"><span class="chip-label">Tempo</span><span style="color:#448aff;">{elapsed or '—'}</span></div>
+    <div class="metric-chip"><span class="chip-label">Guardados</span><span style="color:{saved_col}; font-weight:700;">{p['saved']}</span></div>
+    <div class="metric-chip"><span class="chip-label">Erros</span><span style="color:{err_col};">{p['errors']}</span></div>
+    <div class="metric-chip"><span class="chip-label">Melhor Score</span><span style="color:#ffd740;">{best_score_txt}</span></div>
+    <div class="metric-chip"><span class="chip-label">Tempo</span><span style="color:#448aff;">{elapsed}</span></div>
 </div>""", unsafe_allow_html=True)
 
-        # Melhor resultado encontrado
+        # ── Aviso quando 0 guardados após conclusão ──────────────
+        if not running and done > 0 and p['saved'] == 0:
+            best = p['best_score']
+            best_str = fmt_num(best) if best > -900 else "todas negativas ou sem trades suficientes"
+            st.markdown(f"""
+<div style="background:#130d00; border:1px solid #7c4f00; border-radius:8px; padding:14px 16px; margin-top:10px;">
+    <div style="color:#ffd740; font-weight:700; margin-bottom:6px;">⚠️ Nenhum resultado guardado</div>
+    <div style="font-size:13px; color:#c9a84c; line-height:1.6;">
+        Melhor score encontrado: <strong style="color:#ffd740;">{best_str}</strong><br>
+        Possíveis causas:
+        <ul style="margin:6px 0 0 16px; color:#a08040;">
+            <li>Período muito curto (1 mês) — poucos trades para avaliar</li>
+            <li>Score mínimo muito alto — tenta baixar para <strong>-10</strong></li>
+            <li>Estratégia não se adapta a este par/timeframe</li>
+        </ul>
+        <div style="margin-top:8px; color:#7c6030;">
+            💡 Tenta: <strong>3+ meses</strong> de dados, timeframe <strong>1h ou 4h</strong>, score mínimo <strong>-10</strong>
+        </div>
+    </div>
+</div>""", unsafe_allow_html=True)
+
+        # ── Melhor resultado encontrado ──────────────────────────
         if p["best_result"]:
             br = p["best_result"]
-            ret_cls = "green" if br["total_return_pct"] > 0 else "red"
+            ret_color = '#00e676' if br['total_return_pct'] > 0 else '#ff5252'
+            params_str = json.dumps(br['params'], ensure_ascii=False)
             st.markdown(f"""
 <div class="panel" style="border-color:#ffd740; margin-top:12px;">
-    <div class="panel-title" style="color:#ffd740;">🥇 Melhor Resultado Até Agora</div>
+    <div class="panel-title" style="color:#ffd740;">🥇 Melhor Resultado Encontrado</div>
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; font-family:'JetBrains Mono'; font-size:13px;">
-        <div><span style="color:#5c6080;">Estratégia</span><br><strong>{STRATEGY_LABELS_SHORT.get(br['strategy'], br['strategy'])}</strong></div>
-        <div><span style="color:#5c6080;">Score</span><br><strong style="color:#ffd740; font-size:18px;">{br['score']}</strong></div>
-        <div><span style="color:#5c6080;">Retorno</span><br><strong style="color:{'#00e676' if br['total_return_pct']>0 else '#ff5252'};">{fmt_pct(br['total_return_pct'])}</strong></div>
-        <div><span style="color:#5c6080;">Drawdown</span><br><strong style="color:#ff5252;">{fmt_pct(br['max_drawdown_pct'])}</strong></div>
-        <div><span style="color:#5c6080;">Sharpe</span><br><strong style="color:#448aff;">{fmt_num(br['sharpe_ratio'])}</strong></div>
-        <div><span style="color:#5c6080;">Win Rate</span><br><strong>{fmt_pct(br['win_rate']*100, 1)}</strong></div>
+        <div><span style="color:#5c6080;">Estratégia</span><br>
+             <strong>{STRATEGY_LABELS_SHORT.get(br['strategy'], br['strategy'])}</strong></div>
+        <div><span style="color:#5c6080;">Score</span><br>
+             <strong style="color:#ffd740; font-size:18px;">{br['score']}</strong></div>
+        <div><span style="color:#5c6080;">Retorno</span><br>
+             <strong style="color:{ret_color};">{fmt_pct(br['total_return_pct'])}</strong></div>
+        <div><span style="color:#5c6080;">Drawdown</span><br>
+             <strong style="color:#ff5252;">{fmt_pct(br['max_drawdown_pct'])}</strong></div>
+        <div><span style="color:#5c6080;">Sharpe</span><br>
+             <strong style="color:#448aff;">{fmt_num(br['sharpe_ratio'])}</strong></div>
+        <div><span style="color:#5c6080;">Win Rate</span><br>
+             <strong>{fmt_pct(br['win_rate']*100, 1)}</strong></div>
     </div>
-    <div style="margin-top:10px; font-size:11px; color:#5c6080;">
-        Params: {json.dumps(br['params'], ensure_ascii=False)}
+    <div style="margin-top:10px; font-size:11px; color:#5c6080; word-break:break-all;">
+        Params: {params_str}
     </div>
 </div>""", unsafe_allow_html=True)
 
-        # Último resultado
+        # ── Último teste (só quando corre) ───────────────────────
         if p["last_result"] and running:
-            lr = p["last_result"]
-            col_lr = "#00e676" if lr["total_return_pct"] > 0 else "#3a3d52"
+            lr     = p["last_result"]
+            lr_col = "#00e676" if lr["total_return_pct"] > 0 else "#3a3d52"
             st.markdown(f"""
 <div style="font-size:11px; color:#5c6080; font-family:'JetBrains Mono'; margin-top:8px;">
-    Último: {STRATEGY_LABELS_SHORT.get(lr['strategy'],lr['strategy'])} |
-    Ret: <span style="color:{col_lr};">{fmt_pct(lr['total_return_pct'])}</span> |
-    Score: {lr['score']} |
-    Trades: {lr['num_trades']}
+    Último: {STRATEGY_LABELS_SHORT.get(lr['strategy'], lr['strategy'])} |
+    Ret: <span style="color:{lr_col};">{fmt_pct(lr['total_return_pct'])}</span> |
+    Score: {lr['score']} | Trades: {lr['num_trades']}
 </div>""", unsafe_allow_html=True)
 
-        # Auto-refresh quando bot está a correr
+        # ── Auto-refresh quando corre ────────────────────────────
         if running:
             time.sleep(1.5)
             st.rerun()
