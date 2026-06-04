@@ -505,6 +505,21 @@ slippage_pct = st.session_state.get('slippage_pct_val', 0.05)
 logger = setup_logging()
 import variables_registry as _vr_global
 _vr_global.initialize_variables_registry()
+# Link para o Strategy Lab
+st.markdown("""
+<div style="display:flex; justify-content:flex-end; margin:-8px 0 8px;">
+    <a href="/strategy_lab" target="_self" style="
+        display:inline-flex; align-items:center; gap:8px;
+        background:linear-gradient(135deg,#1a237e,#283593);
+        color:#90caf9; text-decoration:none;
+        border:1px solid #3949ab; border-radius:8px;
+        padding:8px 18px; font-size:13px; font-weight:600;
+        letter-spacing:0.5px; transition:all 0.2s;
+    ">
+        🔬 Strategy Lab — Optimização de Estratégias
+    </a>
+</div>
+""", unsafe_allow_html=True)
 # 7. Abas Principais do Laboratório (TABS SIMPLIFICADAS)
 tab_backtest, tab_simulator, tab_math_lab, tab_trader_game, tab_bot_brain, tab_alpaca, tab_binance = st.tabs([
     "📈 Simulação & Gráficos Real",
