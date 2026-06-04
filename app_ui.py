@@ -1528,8 +1528,61 @@ with tab_trader_game:
         import pandas as pd
         import plotly.graph_objects as go
         from plotly.subplots import make_subplots
+        def train_markov_chain(df, threshold=0.03):
+            """
+            Treina uma Cadeia de Markov de 1a ordem com base nos retornos percentuais das velas.
+            Estados:
+              UP (Retorno > threshold)
+              DOWN (Retorno < -threshold)
+              FLAT (-threshold <= Retorno <= threshold)
+            Retorna a matriz de transicao de formato dict: {estado_atual: {proximo_estado: probabilidade}}
+            """
+            if df is None or len(df) < 2:
+                return {'UP': {'UP': 1/3, 'DOWN': 1/3, 'FLAT': 1/3},
+                        'DOWN': {'UP': 1/3, 'DOWN': 1/3, 'FLAT': 1/3},
+                        'FLAT': {'UP': 1/3, 'DOWN': 1/3, 'FLAT': 1/3}}
+            
+            close = df['close']
+            pct_returns = ((close - close.shift(1)) / close.shift(1)) * 100
+            
+            states = []
+            for ret in pct_returns:
+                if pd.isna(ret):
+                    states.append(None)
+                elif ret > threshold:
+                    states.append('UP')
+                elif ret < -threshold:
+                    states.append('DOWN')
+                else:
+                    states.append('FLAT')
+                    
+            transitions = {
+                'UP': {'UP': 0, 'DOWN': 0, 'FLAT': 0},
+                'DOWN': {'UP': 0, 'DOWN': 0, 'FLAT': 0},
+                'FLAT': {'UP': 0, 'DOWN': 0, 'FLAT': 0}
+            }
+            
+            for i in range(1, len(states)):
+                s_prev = states[i-1]
+                s_curr = states[i]
+                if s_prev is not None and s_curr is not None:
+                    transitions[s_prev][s_curr] += 1
+                    
+            matrix = {}
+            for state, next_states in transitions.items():
+                total = sum(next_states.values())
+                matrix[state] = {}
+                if total > 0:
+                    for ns, count in next_states.items():
+                        matrix[state][ns] = count / total
+                else:
+                    matrix[state] = {'UP': 1/3, 'DOWN': 1/3, 'FLAT': 1/3}
+                    
+            return matrix
+
         highscores_file = "trader_highscores.json"
         # --- ESTADO DO JOGO ---
+        if "tg_markov_matrix" not in st.session_state: st.session_state.tg_markov_matrix = None
         if "tg_active" not in st.session_state: st.session_state.tg_active = False
         if "tg_step" not in st.session_state: st.session_state.tg_step = 144
         if "tg_capital" not in st.session_state: st.session_state.tg_capital = 100.0
@@ -1540,6 +1593,7 @@ with tab_trader_game:
         if "tg_trades" not in st.session_state: st.session_state.tg_trades = []
         if "tg_data" not in st.session_state: st.session_state.tg_data = None
         if "tg_trader_name" not in st.session_state: st.session_state.tg_trader_name = "Trader Anon"
+        if "tg_max_candles" not in st.session_state: st.session_state.tg_max_candles = 100
         if "tg_running" not in st.session_state: st.session_state.tg_running = False
         if "tg_game_finished" not in st.session_state: st.session_state.tg_game_finished = False
         if "tg_strategy_type" not in st.session_state: st.session_state.tg_strategy_type = "Default"
@@ -1553,11 +1607,15 @@ with tab_trader_game:
                     st.session_state.tg_capital = meta.get("capital", 100.0)
                     st.session_state.tg_trades = meta.get("trades", [])
                     st.session_state.tg_trader_name = meta.get("trader_name", "Trader Anon")
+                    st.session_state.tg_max_candles = meta.get("max_candles", 100)
                     st.session_state.tg_p2 = meta.get("p2", 5)
                     st.session_state.tg_p3 = meta.get("p3", 13)
                     st.session_state.tg_p4 = meta.get("p4", 21)
                     st.session_state.tg_p5 = meta.get("p5", 55)
                     st.session_state.tg_p6 = meta.get("p6", 144)
+                    st.session_state.tg_markov_matrix = meta.get("markov_matrix", None)
+                    if st.session_state.tg_markov_matrix is None and st.session_state.tg_data is not None:
+                        st.session_state.tg_markov_matrix = train_markov_chain(st.session_state.tg_data)
                     st.session_state.tg_game_finished = True
                     st.session_state.tg_active = False
                 except Exception:
@@ -1638,6 +1696,8 @@ with tab_trader_game:
         if "tg_bot_vel_thresh" not in st.session_state: st.session_state.tg_bot_vel_thresh = 0.03
         def _build_chart(sub_df, df_full, title_str, show_full_range=False):
             """Constroi o grafico Plotly. Reutilizavel para modo jogo e modo revisao."""
+            y_min = float(sub_df['close'].min() * 0.995)
+            y_max = float(sub_df['close'].max() * 1.005)
             fig = make_subplots(rows=2, cols=1, shared_xaxes=True, row_heights=[0.82, 0.18], vertical_spacing=0.03)
             upper_band = sub_df['avg_sma'] + 1.0 * sub_df['sma_std']
             lower_band = sub_df['avg_sma'] - 1.0 * sub_df['sma_std']
@@ -1721,7 +1781,8 @@ with tab_trader_game:
                             arrowsize=1.5,
                             arrowwidth=2,
                             arrowcolor=color,
-                            ax=0, ay=-50 if is_win else 50,
+                            ax=exit_time, ay=y_max if is_win else y_min,
+                            axref='x', ayref='y',
                             font=dict(size=11, color="white"),
                             bgcolor=color,
                             bordercolor="rgba(255,255,255,0.4)",
@@ -1823,22 +1884,46 @@ with tab_trader_game:
             return fig
         def generate_game_market():
             np.random.seed(int(time.time() * 100) % 100000)
-            steps = 260
-            drift = np.random.choice([0.08, -0.04, 0.0, 0.12])
-            volatility = np.random.uniform(1.3, 3.2)
-            dt = 0.1
-            prices = [100.0]
-            for _ in range(steps - 1):
-                change = prices[-1] * (drift / 100.0 * dt + volatility / 100.0 * np.sqrt(dt) * np.random.normal())
-                prices.append(max(10.0, prices[-1] + change))
-            dates = pd.date_range(start="2026-01-01", periods=steps, freq="1h")
-            df = pd.DataFrame({
-                'close': prices,
-                'open': [p - np.random.normal(0, 0.1) for p in prices],
-                'high': [p + abs(np.random.normal(0, 0.15)) for p in prices],
-                'low': [p - abs(np.random.normal(0, 0.15)) for p in prices],
-                'volume': [1000] * steps
-            }, index=dates)
+            max_candles = st.session_state.get("tg_max_candles", 100)
+            steps = 144 + max_candles + 16
+            symbol_raw = st.session_state.get('symbol_val', '\U0001f9ea Cen\u00e1rio Did\u00e1tico (Fict\u00edcio)')
+            
+            def generate_synthetic_data(steps):
+                drift = np.random.choice([0.08, -0.04, 0.0, 0.12])
+                volatility = np.random.uniform(1.3, 3.2)
+                dt = 0.1
+                prices = [100.0]
+                for _ in range(steps - 1):
+                    change = prices[-1] * (drift / 100.0 * dt + volatility / 100.0 * np.sqrt(dt) * np.random.normal())
+                    prices.append(max(10.0, prices[-1] + change))
+                dates = pd.date_range(start="2026-01-01", periods=steps, freq="1h")
+                return pd.DataFrame({
+                    'close': prices,
+                    'open': [p - np.random.normal(0, 0.1) for p in prices],
+                    'high': [p + abs(np.random.normal(0, 0.15)) for p in prices],
+                    'low': [p - abs(np.random.normal(0, 0.15)) for p in prices],
+                    'volume': [1000] * steps
+                }, index=dates)
+
+            df = None
+            if symbol_raw != '\U0001f9ea Cen\u00e1rio Did\u00e1tico (Fict\u00edcio)':
+                try:
+                    collector = DataCollector({'EXCHANGE_NAME': 'binance', 'SYMBOL': symbol_raw, 'TIMEFRAME': '1h'})
+                    df_all = collector.get_ohlcv(limit=1500)
+                    if df_all is not None and len(df_all) >= steps:
+                        max_start = len(df_all) - steps
+                        start_idx = np.random.randint(0, max_start + 1)
+                        df = df_all.iloc[start_idx : start_idx + steps].copy()
+                        required_cols = ['open', 'high', 'low', 'close', 'volume']
+                        if not all(col in df.columns for col in required_cols):
+                            df = None
+                    else:
+                        st.sidebar.warning("Dados hist\u00f3ricos insuficientes na base de dados. Usando cen\u00e1rio fict\u00edcio.")
+                except Exception as e:
+                    st.sidebar.warning(f"Erro ao carregar dados do par real ({e}). Usando cen\u00e1rio fict\u00edcio.")
+            
+            if df is None:
+                df = generate_synthetic_data(steps)
             df['sma_5'] = df['close'].rolling(window=st.session_state.tg_p2).mean()
             df['sma_13'] = df['close'].rolling(window=st.session_state.tg_p3).mean()
             df['sma_21'] = df['close'].rolling(window=st.session_state.tg_p4).mean()
@@ -2371,6 +2456,7 @@ with tab_trader_game:
         
         def start_new_game():
             st.session_state.tg_data = generate_game_market()
+            st.session_state.tg_markov_matrix = train_markov_chain(st.session_state.tg_data)
             st.session_state.tg_step = 144
             st.session_state.tg_capital = 100.0
             st.session_state.tg_position = "NONE"
@@ -2491,11 +2577,13 @@ with tab_trader_game:
                     "capital": st.session_state.tg_capital,
                     "trades": st.session_state.tg_trades,
                     "trader_name": st.session_state.tg_trader_name,
+                    "max_candles": st.session_state.get("tg_max_candles", 100),
                     "p2": st.session_state.tg_p2,
                     "p3": st.session_state.tg_p3,
                     "p4": st.session_state.tg_p4,
                     "p5": st.session_state.tg_p5,
                     "p6": st.session_state.tg_p6,
+                    "markov_matrix": st.session_state.get("tg_markov_matrix", None),
                 }
                 with open("last_game_state.json", "w", encoding="utf-8") as f:
                     json.dump(game_meta, f, indent=2, ensure_ascii=False)
@@ -2702,7 +2790,7 @@ border: 1px solid rgba(255,255,255,0.08);
                 '</div>',
                 unsafe_allow_html=True
             )
-            _cn, _cb = st.columns([1, 1])
+            _cn, _cc, _cb = st.columns([2, 1, 1])
             with _cn:
                 _ni = st.text_input(
                     'Nome do Jogo / Teste:',
@@ -2712,6 +2800,17 @@ border: 1px solid rgba(255,255,255,0.08);
                 )
                 if _ni:
                     st.session_state.tg_trader_name = _ni
+            with _cc:
+                _mc = st.number_input(
+                    'Duração (Velas):',
+                    min_value=50,
+                    max_value=2000,
+                    value=st.session_state.get('tg_max_candles', 100),
+                    step=50,
+                    key='tg_max_candles_wdg'
+                )
+                if _mc:
+                    st.session_state.tg_max_candles = int(_mc)
             with _cb:
                 st.markdown('<div style="height:28px;"></div>', unsafe_allow_html=True)
                 if st.button('Iniciar Novo Jogo', type='primary', width='stretch', key='tg_btn_start_main'):
@@ -2812,14 +2911,26 @@ border: 1px solid rgba(255,255,255,0.08);
                 )
                 if _new_name:
                     st.session_state.tg_trader_name = _new_name
+                
+                _new_mc = st.number_input(
+                    "Duração do Jogo (Velas):",
+                    min_value=50,
+                    max_value=2000,
+                    value=st.session_state.get('tg_max_candles', 100),
+                    step=50,
+                    key='rv_max_candles_wdg'
+                )
+                if _new_mc:
+                    st.session_state.tg_max_candles = int(_new_mc)
                 if st.button("🔄 Novo Jogo", type="primary", width='stretch', key="rv_new_game"):
                     start_new_game()
                     st.rerun()
             with col_rev_chart:
-                full_game_df = df.iloc[144:245]
+                max_c = st.session_state.get('tg_max_candles', 100)
+                full_game_df = df.iloc[144 : 144 + max_c + 1]
                 fig_review = _build_chart(
                     full_game_df, df,
-                    title_str=f"Revisao Completa — {st.session_state.tg_trader_name} | 100 Velas Jogadas",
+                    title_str=f"Revisao Completa — {st.session_state.tg_trader_name} | {max_c} Velas Jogadas",
                     show_full_range=True
                 )
                 st.plotly_chart(fig_review, width='stretch')
@@ -3043,7 +3154,8 @@ border: 1px solid rgba(255,255,255,0.08);
                     st.toast(f"{trigger_reason} ativado! Posicao {old_pos} liquidada a {executed_price:.2f}")
                     st.rerun()
             # Fim do desafio (100 velas jogadas)
-            if progress_candles >= 100:
+            max_c = st.session_state.get("tg_max_candles", 100)
+            if progress_candles >= max_c:
                 # Fechar posicao aberta
                 if st.session_state.tg_position != "NONE":
                     entry_p = st.session_state.tg_entry_price
@@ -3115,7 +3227,7 @@ box-shadow:0 4px 24px rgba(0,0,0,0.4);">
 </div>
 <div style="text-align:center;">
 <div style="color:#64748b;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:3px;">Progresso</div>
-<div style="color:#e2e8f0;font-size:18px;font-weight:900;font-family:monospace;">{progress_candles} <span style="font-size:11px;color:#64748b;">/ 100</span></div>
+<div style="color:#e2e8f0;font-size:18px;font-weight:900;font-family:monospace;">{progress_candles} <span style="font-size:11px;color:#64748b;">/ {st.session_state.get('tg_max_candles', 100)}</span></div>
 </div>
 </div>
 """, unsafe_allow_html=True)
@@ -3131,9 +3243,10 @@ box-shadow:0 4px 24px rgba(0,0,0,0.4);">
             with col_chart:
                 start_idx_c = max(50, current_step - 49)
                 sub_df = df.iloc[start_idx_c:current_step+1]
+                max_c = st.session_state.get('tg_max_candles', 100)
                 fig = _build_chart(
                     sub_df, df,
-                    title_str=f"Arena Real \U0001f4c8 Batimento {progress_candles} / 100 Velas (ultimas {len(sub_df)})"
+                    title_str=f"Arena Real \U0001f4c8 Batimento {progress_candles} / {max_c} Velas (ultimas {len(sub_df)})"
                 )
                 st.plotly_chart(fig, width="stretch")
             # =========================================================
@@ -3156,7 +3269,8 @@ box-shadow:0 4px 24px rgba(0,0,0,0.4);">
                 # Botão premium para Simulação Instantânea até ao Fim do Jogo
                 if st.button("⚡ Simular Até ao Fim (Instantâneo)", width='stretch', key="tg_simulate_to_end_btn"):
                     st.session_state.tg_running = False  # Pausa o auto loop se estivesse a correr
-                    while (st.session_state.tg_step - 144) < 100:
+                    max_c = st.session_state.get('tg_max_candles', 100)
+                    while (st.session_state.tg_step - 144) < max_c:
                         st.session_state.tg_step += 1
                         current_step = st.session_state.tg_step
                         price_now = df['close'].iloc[current_step]
@@ -3454,20 +3568,85 @@ box-shadow:0 4px 24px rgba(0,0,0,0.4);">
                 st.markdown(conds_block, unsafe_allow_html=True)
                 
                 st.markdown("<div class='advisor-bottom-marker'></div>", unsafe_allow_html=True)
-                # --- Eficiencia ---
+                # --- Previsao de Markov (Vela Seguinte) ---
+                ret_prev = 0.0
+                if current_step > 0:
+                    val_curr = df['close'].iloc[current_step]
+                    val_prev = df['close'].iloc[current_step - 1]
+                    ret_prev = ((val_curr - val_prev) / val_prev) * 100
+                
+                threshold = 0.03
+                if ret_prev > threshold:
+                    current_state = 'UP'
+                elif ret_prev < -threshold:
+                    current_state = 'DOWN'
+                else:
+                    current_state = 'FLAT'
+                
+                markov_matrix = st.session_state.get("tg_markov_matrix", None)
+                if markov_matrix is None:
+                    markov_matrix = train_markov_chain(df, threshold=threshold)
+                    st.session_state.tg_markov_matrix = markov_matrix
+                
+                probs = markov_matrix.get(current_state, {'UP': 1/3, 'DOWN': 1/3, 'FLAT': 1/3})
+                prob_up = probs.get('UP', 0.0)
+                prob_down = probs.get('DOWN', 0.0)
+                prob_flat = probs.get('FLAT', 0.0)
+                
+                max_prob = max(prob_up, prob_down, prob_flat)
+                if max_prob == prob_up:
+                    pred_text = "Subir"
+                    pred_icon = "\u2197"
+                    pred_color = "#10B981"
+                elif max_prob == prob_down:
+                    pred_text = "Descer"
+                    pred_icon = "\u2198"
+                    pred_color = "#EF4444"
+                else:
+                    pred_text = "Manter"
+                    pred_icon = "\u2192"
+                    pred_color = "#F59E0B"
+                
+                curr_color = "#10B981" if current_state == "UP" else ("#EF4444" if current_state == "DOWN" else "#F59E0B")
+                
                 st.markdown(
-                    f'<div style="margin-top:8px;padding:8px 12px;background:rgba(15,23,42,0.7);'
-                    f'border-radius:8px;border:1px solid rgba(255,255,255,0.06);font-size:12.5px;">'
-                    f'<span style="color:#10B981;font-weight:bold;">LONG {_l_eff:.0f}% ({_l_wins}/{len(_l_trades)})</span>'
-                    f' &nbsp;|&nbsp; '
-                    f'<span style="color:#EF4444;font-weight:bold;">SHORT {_s_eff:.0f}% ({_s_wins}/{len(_s_trades)})</span>'
+                    f'<div style="background:rgba(15,23,42,0.85);border-radius:12px;padding:12px 16px;'
+                    f'border:1px solid rgba(124,58,237,0.25);box-shadow:0 4px 20px rgba(0,0,0,0.3);margin-top:10px;">'
+                    f'<div style="font-size:12px;font-weight:bold;color:#a78bfa;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">\U0001f52e Previs\u00e3o de Markov (Vela +1)</div>'
+                    f'<div style="font-size:14px;font-weight:900;color:{pred_color};display:flex;align-items:center;gap:6px;margin-bottom:10px;">'
+                    f'{pred_icon} {pred_text} <span style="font-size:11px;color:#94a3b8;font-weight:bold;">(confian\u00e7a {max_prob*100:.1f}%)</span>'
+                    f'</div>'
+                    f'<div style="font-size:11px;color:#94a3b8;margin-bottom:8px;">'
+                    f'Estado atual: <span style="color:{curr_color};font-weight:bold;">{current_state}</span> (retorno {ret_prev:+.3f}%)'
+                    f'</div>'
+                    f'<div style="display:flex;flex-direction:column;gap:4px;">'
+                    f'<div style="display:flex;justify-content:space-between;font-size:11px;color:#cbd5e1;">'
+                    f'<span>\u2197 Subir</span><span>{prob_up*100:.1f}%</span>'
+                    f'</div>'
+                    f'<div style="background:rgba(255,255,255,0.06);height:4px;border-radius:2px;">'
+                    f'<div style="background:#10B981;width:{prob_up*100}%;height:4px;border-radius:2px;"></div>'
+                    f'</div>'
+                    f'<div style="display:flex;justify-content:space-between;font-size:11px;color:#cbd5e1;margin-top:2px;">'
+                    f'<span>\u2198 Descer</span><span>{prob_down*100:.1f}%</span>'
+                    f'</div>'
+                    f'<div style="background:rgba(255,255,255,0.06);height:4px;border-radius:2px;">'
+                    f'<div style="background:#EF4444;width:{prob_down*100}%;height:4px;border-radius:2px;"></div>'
+                    f'</div>'
+                    f'<div style="display:flex;justify-content:space-between;font-size:11px;color:#cbd5e1;margin-top:2px;">'
+                    f'<span>\u2192 Manter</span><span>{prob_flat*100:.1f}%</span>'
+                    f'</div>'
+                    f'<div style="background:rgba(255,255,255,0.06);height:4px;border-radius:2px;">'
+                    f'<div style="background:#F59E0B;width:{prob_flat*100}%;height:4px;border-radius:2px;"></div>'
+                    f'</div>'
+                    f'</div>'
                     f'</div>',
                     unsafe_allow_html=True
                 )
 # Loop automatico
             if st.session_state.tg_running and st.session_state.tg_active:
                 time.sleep(tg_delay)
-                if (st.session_state.tg_step - 144) < 100:
+                max_c = st.session_state.get('tg_max_candles', 100)
+                if (st.session_state.tg_step - 144) < max_c:
                     st.session_state.tg_step += 1
                     st.rerun()
                 else:

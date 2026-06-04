@@ -524,7 +524,103 @@ def render_variables_dashboard(compact=False):
           st.rerun()
 
         with st.expander("📖 Ler as Regras das Estratégias", expanded=False):
+            # Painel Dinâmico de Explicação Estética da Estratégia Selecionada
+            _strategy_styles = {
+                'Default (Manual)': {
+                    'gradient': 'linear-gradient(135deg, rgba(100,116,139,0.15) 0%, rgba(51,65,85,0.3) 100%)',
+                    'border': 'rgba(100,116,139,0.2)',
+                    'icon': '🎮',
+                    'color': '#94a3b8',
+                    'title': 'Modo Manual (Default)',
+                    'desc': '<b>🎮 Funcionamento:</b><br>'
+                            '• Nenhuma regra automatizada ativa. O Bot autónomo permanecerá em inação completa.<br>'
+                            '• O utilizador é 100% responsável por executar e gerir as ordens manualmente através dos botões da consola (COMPRA, VENDA e FECHAR).'
+                },
+                'Cérebro de Consenso (IA)': {
+                    'gradient': 'linear-gradient(135deg, rgba(139,92,246,0.15) 0%, rgba(109,40,217,0.3) 100%)',
+                    'border': 'rgba(139,92,246,0.2)',
+                    'icon': '🧠',
+                    'color': '#a78bfa',
+                    'title': 'Cérebro de Consenso (Consensus Engine)',
+                    'desc': '<b>🧠 Funcionamento:</b><br>'
+                            '• Combina o sinal de 6 sensores quantitativos: <b>Tendência</b>, <b>Aceleração</b>, <b>Volatilidade</b>, <b>Canal Desvio Padrão</b>, <b>Saturação (RSI)</b> e <b>Stop Loss Dinâmico</b>.<br>'
+                            '• O bot só executa uma ordem quando o consenso ponderado dos sensores ultrapassa **80%** de confiança.<br><br>'
+                            '<b>⚠️ Configuração Importante:</b> As médias móveis (P2 a P6) são configuradas de forma automática pelo sistema com base no DNA gerado no Laboratório Matemático (`bot_consensus_dna.json`).'
+                },
+                'Lagarta (Todas as Linhas)': {
+                    'gradient': 'linear-gradient(135deg, rgba(16,185,129,0.15) 0%, rgba(4,120,87,0.3) 100%)',
+                    'border': 'rgba(16,185,129,0.2)',
+                    'icon': '🐛',
+                    'color': '#34d399',
+                    'title': 'Estratégia da Lagarta (Todas as Linhas)',
+                    'desc': '<b>🐛 Funcionamento:</b><br>'
+                            '• Utiliza o feixe completo das 5 médias configuradas (P2, P3, P4, P5 e P6) para avaliar a tendência do fluxo.<br>'
+                            '• <b>Gatilho LONG (Compra):</b> Entra quando o preço cruza as linhas do feixe de médias para cima.<br>'
+                            '• <b>Gatilho SHORT (Venda):</b> Entra quando o preço cruza as linhas do feixe de médias para baixo.<br>'
+                            '• <b>Teimosia:</b> O robô ignora cruzamentos na direção contrária após estar posicionado. Só sai ao atingir o Stop Loss (1.0%) ou Trailing Stop (1.0%). Reentra instantaneamente caso saia por SL e o alinhamento da direção oposta seja válido.'
+                },
+                'Linha Solitária': {
+                    'gradient': 'linear-gradient(135deg, rgba(245,158,11,0.15) 0%, rgba(180,83,9,0.3) 100%)',
+                    'border': 'rgba(245,158,11,0.2)',
+                    'icon': '🎯',
+                    'color': '#fbbf24',
+                    'title': 'Linha Solitária',
+                    'desc': '<b>🎯 Funcionamento:</b><br>'
+                            '• O preço é avaliado exclusivamente contra uma única linha de referência (selecionada no menu abaixo deste painel, ex: P2, P3, avg_sma).<br>'
+                            '• <b>Gatilho LONG (Compra):</b> Entra quando o preço cruza a linha de referência para cima.<br>'
+                            '• <b>Gatilho SHORT (Venda):</b> Entra quando o preço cruza a linha de referência para baixo.<br>'
+                            '• <b>Saída:</b> Encerra o trade por cruzamento contrário na mesma linha, Stop Loss ou Trailing Stop.'
+                },
+                'Média Camadas (Duas Linhas)': {
+                    'gradient': 'linear-gradient(135deg, rgba(59,130,246,0.15) 0%, rgba(29,78,216,0.3) 100%)',
+                    'border': 'rgba(59,130,246,0.2)',
+                    'icon': '📊',
+                    'color': '#60a5fa',
+                    'title': 'Média Camadas (Duas Linhas)',
+                    'desc': '<b>⚠️ Configuração Importante (Linhas P2/P1 e P4):</b> O utilizador deve configurar os valores de <b>P2 (a primeira linha rápida/preço)</b>, <b>P3 (linha intermediária)</b> e <b>P4 (Pivot Meio / Equador)</b> na Central de Variáveis acima. As linhas P5 e P6 são ignoradas nesta estratégia.<br><br>'
+                            '<b>📊 Regras de Funcionamento:</b><br>'
+                            '• <b>Inversão (Entrada Principal):</b> Entra LONG quando a linha rápida P2 cruza o Equador (P4) para cima; entra SHORT quando P2 cruza P4 para baixo.<br>'
+                            '• <b>Pullback (Reentrada):</b> Se o preço estiver acima de P4, reentra LONG sempre que P2 corrigir e voltar a cruzar P3 para cima. Se estiver abaixo de P4, reentra SHORT sempre que P2 corrigir e cruzar P3 para baixo.<br><br>'
+                            '<b>Gestão de Risco:</b> SL automático de 1.0% e TS de 0.5%.'
+                },
+                '🤖 Claude — Pirâmide Fibonacci': {
+                    'gradient': 'linear-gradient(135deg, rgba(236,72,153,0.15) 0%, rgba(190,24,93,0.3) 100%)',
+                    'border': 'rgba(236,72,153,0.2)',
+                    'icon': '🤖',
+                    'color': '#f472b6',
+                    'title': 'Claude — Pirâmide Fibonacci (Modo Pirâmide de 2 Linhas)',
+                    'desc': '<b>🤖 Regras de Funcionamento:</b><br>'
+                            '• Utiliza a proporção harmónica de Fibonacci: P2=3 (rápida), P3=5 (confirmadora) e P4=8 (filtro lento).<br>'
+                            '• <b>Gatilho LONG (Compra):</b> P2 cruza P3 para cima, contanto que P2 já esteja acima de P4 (pirâmide alinhada) E a velocidade/momentum de P2 seja positiva ($> 0$).<br>'
+                            '• <b>Gatilho SHORT (Venda):</b> P2 cruza P3 para baixo, contanto que P2 já esteja abaixo de P4 (pirâmide alinhada) E a velocidade/momentum de P2 seja negativa ($< 0$).<br>'
+                            '• <b>Saída Rápida:</b> O trade fecha imediatamente se a pirâmide se desalinhar (P2 cruza P3 na direção contrária), ou por SL (0.5%) ou Trailing Stop (0.5%).'
+                }
+            }
+
+            _info = _strategy_styles.get(_arena_selected, _strategy_styles['Default (Manual)'])
+            
+            st.markdown(f"""
+            <div style="
+                background: {_info['gradient']};
+                border: 1px solid {_info['border']};
+                border-radius: 12px;
+                padding: 20px;
+                margin-bottom: 20px;
+                color: #e2e8f0;
+                box-shadow: 0 4px 6px -1px rgba(0,0,0,0.15), 0 2px 4px -1px rgba(0,0,0,0.06);
+            ">
+                <h4 style="color: {_info['color']}; margin-top: 0; font-weight: 700; display: flex; align-items: center; gap: 8px;">
+                    <span>{_info['icon']}</span> {_info['title']}
+                </h4>
+                <p style="font-size: 13.5px; line-height: 1.6; color: #cbd5e1; margin-bottom: 0;">
+                    {_info['desc']}
+                </p>
+            </div>
+            """, unsafe_allow_html=True)
+
             st.markdown('''
+### 📖 Referência Rápida de Regras
+
 **1. Estratégia da Lagarta (Linha Única)**
 * **Entrada:** Compra (LONG) quando o Preço cruza a linha para cima. Vende (SHORT) quando cruza para baixo.
 * **Teimosia:** Ignora cruzamentos opostos! Só sai ao bater no Stop Loss (0.5%) ou Trailing Stop.
