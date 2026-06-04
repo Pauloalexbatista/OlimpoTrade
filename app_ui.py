@@ -271,6 +271,14 @@ if "optimizer_results" not in st.session_state:
 st.markdown("""<style>
 /* Importar Fonte Outfit do Google Fonts */
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap');
+/* Esconder sidebar de navegação multi-page do Streamlit */
+[data-testid="stSidebar"],
+[data-testid="collapsedControl"],
+section[data-testid="stSidebarNav"],
+div[data-testid="stSidebarNavItems"],
+button[data-testid="baseButton-headerNoPadding"] {
+    display: none !important;
+}
 /* Configuração de Fontes e Fundo Principal */
 html, body, [class*="css"], .stApp {
 font-family: 'Outfit', sans-serif;
