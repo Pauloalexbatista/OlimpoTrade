@@ -212,6 +212,15 @@ def build_config(strategy_type, params, symbol, timeframe, fee_pct, slippage_pct
         # PAULO_GOLD extras
         "PAULO_GOLD_TREND_FILTER":  params.get("trend_filter", False),
         "PAULO_GOLD_MIN_DIST_PCT":  params.get("min_dist_pct", 0.0),
+        # LAGARTA
+        "LAGARTA_REF_WINDOW":       params.get("ref_window", 13),
+        "LAGARTA_P2":               params.get("p2", params.get("p2_window", 5)),
+        "LAGARTA_P3":               params.get("p3", params.get("p3_window", 13)),
+        "LAGARTA_P4":               params.get("p4", params.get("p4_window", 21)),
+        "LAGARTA_P5":               params.get("p5", 55),
+        "LAGARTA_P6":               params.get("p6", 144),
+        "LAGARTA_MODE":             params.get("mode", "PIRAMIDE"),
+        "LAGARTA_VEL_FILTER":       params.get("velocity_filter", True),
     }
 
 
@@ -292,11 +301,67 @@ def _grid_multipoint():
     return [("MULTIPOINT_VECTOR", p) for p in grid]
 
 
+def _grid_lagarta_1line():
+    grid = []
+    for ref in [5, 13, 21, 55, 144]:
+        for sl in [0.5, 1.0, 1.5, 2.0, 3.0]:
+            for tp in [2.0, 4.0, 6.0, 10.0]:
+                for rsk in [5.0, 10.0, 20.0]:
+                    grid.append({
+                        "ref_window": ref,
+                        "stop_loss_pct": sl, "take_profit_pct": tp, "risk_pct": rsk,
+                    })
+    return [("LAGARTA_1LINE", p) for p in grid]
+
+
+def _grid_lagarta_5lines():
+    grid = []
+    # Testar diferentes conjuntos de períodos
+    configs = [
+        (5, 13, 21, 55, 144),   # clássico
+        (3, 8,  13, 34, 89),    # Fibonacci puro
+        (5, 10, 20, 50, 100),   # décadas
+        (7, 14, 21, 50, 200),   # técnico clássico
+    ]
+    for (p2, p3, p4, p5, p6) in configs:
+        for sl in [0.5, 1.0, 2.0]:
+            for tp in [2.0, 5.0, 10.0]:
+                for rsk in [10.0, 20.0]:
+                    grid.append({
+                        "p2": p2, "p3": p3, "p4": p4, "p5": p5, "p6": p6,
+                        "stop_loss_pct": sl, "take_profit_pct": tp, "risk_pct": rsk,
+                    })
+    return [("LAGARTA_5LINES", p) for p in grid]
+
+
+def _grid_lagarta_2lines():
+    grid = []
+    configs = [
+        (5, 13, 21), (5, 13, 34), (8, 21, 50),
+        (5, 21, 55), (13, 34, 89),
+    ]
+    for (p2, p3, p4) in configs:
+        for mode in ["PIRAMIDE", "CAMADAS"]:
+            for vel in [True, False]:
+                for sl in [1.0, 2.0, 3.0]:
+                    for tp in [3.0, 6.0, 10.0]:
+                        for rsk in [10.0, 20.0]:
+                            grid.append({
+                                "p2_window": p2, "p3_window": p3, "p4_window": p4,
+                                "mode": mode, "velocity_filter": vel,
+                                "stop_loss_pct": sl, "take_profit_pct": tp, "risk_pct": rsk,
+                            })
+    return [("LAGARTA_2LINES", p) for p in grid]
+
+
 STRATEGY_GRIDS = {
-    "SMA_CROSSOVER":    lambda: _grid_crossover("SMA_CROSSOVER"),
-    "EMA_CROSSOVER":    lambda: _grid_crossover("EMA_CROSSOVER"),
-    "PAULO_GOLD":       _grid_paulo_gold,
+    "SMA_CROSSOVER":     lambda: _grid_crossover("SMA_CROSSOVER"),
+    "EMA_CROSSOVER":     lambda: _grid_crossover("EMA_CROSSOVER"),
+    "PAULO_GOLD":        _grid_paulo_gold,
     "MULTIPOINT_VECTOR": _grid_multipoint,
+    "LAGARTA_1LINE":     _grid_lagarta_1line,
+    "LAGARTA_5LINES":    _grid_lagarta_5lines,
+    "LAGARTA_2LINES":    _grid_lagarta_2lines,
 }
 
 

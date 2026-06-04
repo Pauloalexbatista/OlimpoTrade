@@ -438,6 +438,9 @@ STRATEGY_LABELS = {
     "PAULO_GOLD":       "⭐ Paulo Gold — Breakout por Cruzamento de Linha",
     "MULTIPOINT_VECTOR":"Vetor 5 Pontos — Alinhamento de 4-5 Médias",
     "QUANTUM_CONSENSUS":"Quantum Consensus — DNA de Consenso Estatístico",
+    "LAGARTA_1LINE":    "🐛 Lagarta 1 Linha — Preço cruza 1 SMA",
+    "LAGARTA_5LINES":   "🐛 Lagarta 5 Linhas — Preço cruza qualquer SMA",
+    "LAGARTA_2LINES":   "🐛 Lagarta 2 Linhas — Pirâmide / Camadas (P2×P3×P4)",
 }
 STRATEGY_LABELS_SHORT = {
     "SMA_CROSSOVER":    "SMA Crossover",
@@ -445,6 +448,9 @@ STRATEGY_LABELS_SHORT = {
     "PAULO_GOLD":       "Paulo Gold",
     "MULTIPOINT_VECTOR":"Vetor 5 Pontos",
     "QUANTUM_CONSENSUS":"Quantum Consensus",
+    "LAGARTA_1LINE":    "Lagarta 1 Linha",
+    "LAGARTA_5LINES":   "Lagarta 5 Linhas",
+    "LAGARTA_2LINES":   "Lagarta 2 Linhas",
 }
 
 PAIRS = ["BTC/USDT","ETH/USDT","BNB/USDT","SOL/USDT","XRP/USDT",
@@ -504,6 +510,27 @@ def add_indicators(fig, df, strategy_type, params, row=1):
         for i, w in enumerate([5, 13, 21, 55, 144]):
             s = ta.trend.sma_indicator(df["close"], window=w)
             fig.add_trace(go.Scatter(x=df.index, y=s, name=f"S{w}", line=dict(color=colors[i % 5], width=1.1), hoverinfo="skip"), row=row, col=1)
+
+    elif strategy_type == "LAGARTA_1LINE":
+        w = params.get("ref_window", 13)
+        s = ta.trend.sma_indicator(df["close"], window=w)
+        fig.add_trace(go.Scatter(x=df.index, y=s, name=f"SMA{w}", line=dict(color="#ffd740", width=2.0), hoverinfo="skip"), row=row, col=1)
+
+    elif strategy_type == "LAGARTA_5LINES":
+        windows = [params.get("p2", 5), params.get("p3", 13), params.get("p4", 21),
+                   params.get("p5", 55), params.get("p6", 144)]
+        labels  = ["L1(5)", "L2(13)", "L3(21)", "L4(55)", "L5(144)"]
+        for i, (w, lbl) in enumerate(zip(windows, labels)):
+            s = ta.trend.sma_indicator(df["close"], window=w)
+            fig.add_trace(go.Scatter(x=df.index, y=s, name=lbl, line=dict(color=colors[i], width=1.3), hoverinfo="skip"), row=row, col=1)
+
+    elif strategy_type == "LAGARTA_2LINES":
+        p2 = params.get("p2_window", 5)
+        p3 = params.get("p3_window", 13)
+        p4 = params.get("p4_window", 21)
+        for i, (w, lbl) in enumerate([(p2, f"P2({p2})"), (p3, f"P3({p3})"), (p4, f"P4({p4})")]):
+            s = ta.trend.sma_indicator(df["close"], window=w)
+            fig.add_trace(go.Scatter(x=df.index, y=s, name=lbl, line=dict(color=colors[i], width=1.5), hoverinfo="skip"), row=row, col=1)
 
 
 def build_chart(df, trades, cap_hist, strategy_type, params):
@@ -710,6 +737,28 @@ with tab_cockpit:
             params_c["p4_window"] = st.slider("P4 (Média)",  30, 150, 50, key="c_p4")
             params_c["p5_window"] = st.slider("P5 (Longa)",  100, 300, 200, key="c_p5")
             params_c["multipoint_mode"] = st.radio("Modo", ["AGILE","CONSERVATIVE"], horizontal=True, key="c_mode")
+
+        elif strategy_c == "LAGARTA_1LINE":
+            ref_opts = [5, 13, 21, 55, 144]
+            ref_lbl  = st.selectbox("Linha de Referência (SMA)", ref_opts,
+                                    index=1, format_func=lambda x: f"SMA {x}", key="c_lagarta_ref")
+            params_c["ref_window"] = ref_lbl
+
+        elif strategy_c == "LAGARTA_5LINES":
+            st.markdown('<small style="color:#5c6080;">Períodos das 5 linhas</small>', unsafe_allow_html=True)
+            params_c["p2"] = st.slider("Linha 1 (mais rápida)", 3,  20,   5, key="c_l1")
+            params_c["p3"] = st.slider("Linha 2",               8,  30,  13, key="c_l2")
+            params_c["p4"] = st.slider("Linha 3",              15,  60,  21, key="c_l3")
+            params_c["p5"] = st.slider("Linha 4",              30, 100,  55, key="c_l4")
+            params_c["p6"] = st.slider("Linha 5 (mais lenta)", 80, 250, 144, key="c_l5")
+
+        elif strategy_c == "LAGARTA_2LINES":
+            params_c["p2_window"] = st.slider("P2 (Rápida)",      3,  30,   5, key="c_lp2")
+            params_c["p3_window"] = st.slider("P3 (Confirmadora)", 8,  50,  13, key="c_lp3")
+            params_c["p4_window"] = st.slider("P4 (Filtro)",      15,  80,  21, key="c_lp4")
+            params_c["mode"]      = st.radio("Variante", ["PIRAMIDE", "CAMADAS"], horizontal=True, key="c_lmode",
+                                             help="Pirâmide: P2×P3 filtrado por P4 | Camadas: P2×P4 com reentrada P3")
+            params_c["velocity_filter"] = st.checkbox("Filtro de Velocidade", value=True, key="c_lvel")
 
         st.divider()
         st.markdown('<div class="panel-title">🛡 Gestão de Risco</div>', unsafe_allow_html=True)

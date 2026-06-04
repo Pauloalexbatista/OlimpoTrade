@@ -554,6 +554,196 @@ class QuantumConsensusStrategy(BaseStrategy):
 
 
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# FAMÍLIA LAGARTA — estratégias baseadas no motor do Arena/Jogo
+# ─────────────────────────────────────────────────────────────────────────────
+
+class LagartaOneLineStrategy(BaseStrategy):
+    """
+    Lagarta — 1 Linha.
+    Entrada LONG quando o preço cruza para cima UMA SMA específica.
+    Saída quando cruza para baixo essa mesma linha.
+    Estratégia directa, sem filtros extra.
+    """
+    SMA_OPTIONS = [5, 13, 21, 55, 144]
+
+    def __init__(self, ref_window=13, logger=None):
+        self.ref_window = ref_window
+        self.logger = logger
+        msg = f"Lagarta 1-Linha inicializada | SMA ref = {ref_window}"
+        if self.logger: self.logger.info(msg)
+        else: print(msg)
+
+    def generate_signal(self, ohlcv_data: pd.DataFrame) -> dict:
+        if ohlcv_data.empty or len(ohlcv_data) < self.ref_window + 2:
+            return {"action": "HOLD", "signal": "HOLD", "price": None,
+                    "message": "Dados insuficientes para Lagarta 1-Linha."}
+
+        df = ohlcv_data.copy()
+        col = f'sma_{self.ref_window}'
+        df[col] = ta.trend.sma_indicator(df['close'], window=self.ref_window)
+        df = df.dropna(subset=[col])
+        if len(df) < 2:
+            return {"action": "HOLD", "signal": "HOLD", "price": None, "message": "Dados insuficientes."}
+
+        price_now  = df['close'].iloc[-1]
+        price_prev = df['close'].iloc[-2]
+        ln         = df[col].iloc[-1]
+        lp         = df[col].iloc[-2]
+
+        if (price_prev <= lp) and (price_now > ln):
+            return {"action": "BUY", "signal": "BUY", "price": price_now,
+                    "message": f"🐛 COMPRA Lagarta 1L: preço ({price_now:.4f}) cruzou SMA{self.ref_window} ({ln:.4f}) para cima."}
+        elif (price_prev >= lp) and (price_now < ln):
+            return {"action": "SELL", "signal": "SELL", "price": price_now,
+                    "message": f"🐛 VENDA Lagarta 1L: preço ({price_now:.4f}) cruzou SMA{self.ref_window} ({ln:.4f}) para baixo."}
+
+        return {"action": "HOLD", "signal": "HOLD", "price": price_now,
+                "message": f"Aguardar cruzamento da SMA{self.ref_window}."}
+
+
+class LagartaFiveLinesStrategy(BaseStrategy):
+    """
+    Lagarta — 5 Linhas (Lagarta-Qualquer).
+    Monitora 5 SMAs em simultâneo: entra no primeiro cruzamento que encontrar,
+    sai no primeiro cruzamento inverso.
+    Mais reactiva, maior frequência de trades.
+    """
+    def __init__(self, p2=5, p3=13, p4=21, p5=55, p6=144, logger=None):
+        self.windows = [p2, p3, p4, p5, p6]
+        self.logger = logger
+        msg = f"Lagarta 5-Linhas inicializada | SMAs = {self.windows}"
+        if self.logger: self.logger.info(msg)
+        else: print(msg)
+
+    def generate_signal(self, ohlcv_data: pd.DataFrame) -> dict:
+        max_w = max(self.windows)
+        if ohlcv_data.empty or len(ohlcv_data) < max_w + 2:
+            return {"action": "HOLD", "signal": "HOLD", "price": None,
+                    "message": "Dados insuficientes para Lagarta 5-Linhas."}
+
+        df = ohlcv_data.copy()
+        cols = []
+        for w in self.windows:
+            col = f'sma_{w}'
+            df[col] = ta.trend.sma_indicator(df['close'], window=w)
+            cols.append(col)
+        df = df.dropna(subset=cols)
+        if len(df) < 2:
+            return {"action": "HOLD", "signal": "HOLD", "price": None, "message": "Dados insuficientes."}
+
+        price_now  = df['close'].iloc[-1]
+        price_prev = df['close'].iloc[-2]
+
+        first_long = first_short = None
+        for col in cols:
+            ln = df[col].iloc[-1]
+            lp = df[col].iloc[-2]
+            if abs(ln - price_now) < 1e-9:
+                continue
+            if (price_prev <= lp) and (price_now > ln) and first_long is None:
+                first_long = col
+            elif (price_prev >= lp) and (price_now < ln) and first_short is None:
+                first_short = col
+
+        if first_long and not first_short:
+            return {"action": "BUY", "signal": "BUY", "price": price_now,
+                    "message": f"🐛 COMPRA Lagarta 5L: preço cruzou {first_long} para cima."}
+        elif first_short and not first_long:
+            return {"action": "SELL", "signal": "SELL", "price": price_now,
+                    "message": f"🐛 VENDA Lagarta 5L: preço cruzou {first_short} para baixo."}
+
+        return {"action": "HOLD", "signal": "HOLD", "price": price_now,
+                "message": "Sem cruzamento nas 5 linhas."}
+
+
+class LagartaTwoLinesStrategy(BaseStrategy):
+    """
+    Lagarta — 2 Linhas (Pirâmide / Camadas).
+    P2 (linha rápida) cruza P3 (linha confirmadora) com filtro de P4.
+    Inspirada na estratégia 'Claude' do Arena: entrada mais selectiva,
+    só entra quando a velocidade confirma a direcção.
+    Variante 'Camadas': usa P4 como gatilho principal e P3 como reentrada.
+    """
+    def __init__(self, p2_window=5, p3_window=13, p4_window=21,
+                 mode="PIRAMIDE", velocity_filter=True, logger=None):
+        self.p2_window = p2_window
+        self.p3_window = p3_window
+        self.p4_window = p4_window
+        self.mode = mode.upper()           # "PIRAMIDE" ou "CAMADAS"
+        self.velocity_filter = velocity_filter
+        self.logger = logger
+        msg = (f"Lagarta 2-Linhas inicializada | Modo={self.mode} | "
+               f"P2={p2_window}, P3={p3_window}, P4={p4_window} | VelFiltro={velocity_filter}")
+        if self.logger: self.logger.info(msg)
+        else: print(msg)
+
+    def generate_signal(self, ohlcv_data: pd.DataFrame) -> dict:
+        max_w = max(self.p2_window, self.p3_window, self.p4_window)
+        if ohlcv_data.empty or len(ohlcv_data) < max_w + 3:
+            return {"action": "HOLD", "signal": "HOLD", "price": None,
+                    "message": "Dados insuficientes para Lagarta 2-Linhas."}
+
+        df = ohlcv_data.copy()
+        df['p2'] = ta.trend.sma_indicator(df['close'], window=self.p2_window)
+        df['p3'] = ta.trend.sma_indicator(df['close'], window=self.p3_window)
+        df['p4'] = ta.trend.sma_indicator(df['close'], window=self.p4_window)
+        df = df.dropna(subset=['p2', 'p3', 'p4'])
+        if len(df) < 3:
+            return {"action": "HOLD", "signal": "HOLD", "price": None, "message": "Dados insuficientes."}
+
+        p2_now  = df['p2'].iloc[-1];  p2_prev = df['p2'].iloc[-2]
+        p3_now  = df['p3'].iloc[-1];  p3_prev = df['p3'].iloc[-2]
+        p4_now  = df['p4'].iloc[-1];  p4_prev = df['p4'].iloc[-2]
+        price   = df['close'].iloc[-1]
+
+        # Velocidade: derivada da P2 (2 períodos)
+        vel = df['p2'].iloc[-1] - df['p2'].iloc[-3] if len(df) >= 3 else 0.0
+
+        if self.mode == "PIRAMIDE":
+            # Entrada: P2 cruza P3, confirmada por P4 e velocidade
+            cross_up   = (p2_prev <= p3_prev) and (p2_now > p3_now)
+            cross_down = (p2_prev >= p3_prev) and (p2_now < p3_now)
+
+            vel_ok_long  = (vel > 0) if self.velocity_filter else True
+            vel_ok_short = (vel < 0) if self.velocity_filter else True
+
+            if cross_up and p2_now > p4_now and vel_ok_long:
+                return {"action": "BUY", "signal": "BUY", "price": price,
+                        "message": f"🐛 COMPRA Lagarta 2L Pirâmide: P2 cruzou P3 para cima, acima de P4 ▲"}
+            elif cross_down and p2_now < p4_now and vel_ok_short:
+                return {"action": "SELL", "signal": "SELL", "price": price,
+                        "message": f"🐛 VENDA Lagarta 2L Pirâmide: P2 cruzou P3 para baixo, abaixo de P4 ▼"}
+            # Saída se cruzamento contrário
+            elif cross_down:
+                return {"action": "SELL", "signal": "SELL", "price": price,
+                        "message": "🐛 SAÍDA Lagarta 2L: Pirâmide quebrou ↓"}
+            elif cross_up:
+                return {"action": "BUY", "signal": "BUY", "price": price,
+                        "message": "🐛 COMPRA Lagarta 2L: Pirâmide formou ↑"}
+
+        else:  # CAMADAS
+            # Entrada principal: P2 cruza P4
+            c_p4_long  = (p2_prev <= p4_prev) and (p2_now > p4_now)
+            c_p4_short = (p2_prev >= p4_prev) and (p2_now < p4_now)
+            # Reentrada: P2 cruza P3 enquanto P2 já está acima/abaixo de P4
+            c_p3_long  = (p2_prev <= p3_prev) and (p2_now > p3_now) and (p2_now > p4_now)
+            c_p3_short = (p2_prev >= p3_prev) and (p2_now < p3_now) and (p2_now < p4_now)
+
+            if c_p4_long or c_p3_long:
+                tag = "P2 rompe P4" if c_p4_long else "Reentrada P3"
+                return {"action": "BUY", "signal": "BUY", "price": price,
+                        "message": f"🐛 COMPRA Lagarta Camadas: {tag} ↑"}
+            elif c_p4_short or c_p3_short:
+                tag = "P2 rompe P4" if c_p4_short else "Reentrada P3"
+                return {"action": "SELL", "signal": "SELL", "price": price,
+                        "message": f"🐛 VENDA Lagarta Camadas: {tag} ↓"}
+
+        return {"action": "HOLD", "signal": "HOLD", "price": price,
+                "message": "Aguardar formação da Lagarta."}
+
+
 class StrategyFactory:
     @staticmethod
     def get_strategy(config: dict, logger=None) -> BaseStrategy:
@@ -594,6 +784,29 @@ class StrategyFactory:
                 entry_mode=config.get("ENTRY_MODE", "4PONTOS"),
                 exit_mode=config.get("EXIT_MODE", "P3"),
                 operation_mode=config.get("OPERATION_MODE", "TREND_FOLLOWING"),
+                logger=logger
+            )
+        elif strategy_type == "LAGARTA_1LINE":
+            return LagartaOneLineStrategy(
+                ref_window=int(config.get("LAGARTA_REF_WINDOW", 13)),
+                logger=logger
+            )
+        elif strategy_type == "LAGARTA_5LINES":
+            return LagartaFiveLinesStrategy(
+                p2=int(config.get("LAGARTA_P2", 5)),
+                p3=int(config.get("LAGARTA_P3", 13)),
+                p4=int(config.get("LAGARTA_P4", 21)),
+                p5=int(config.get("LAGARTA_P5", 55)),
+                p6=int(config.get("LAGARTA_P6", 144)),
+                logger=logger
+            )
+        elif strategy_type == "LAGARTA_2LINES":
+            return LagartaTwoLinesStrategy(
+                p2_window=int(config.get("LAGARTA_P2", 5)),
+                p3_window=int(config.get("LAGARTA_P3", 13)),
+                p4_window=int(config.get("LAGARTA_P4", 21)),
+                mode=config.get("LAGARTA_MODE", "PIRAMIDE"),
+                velocity_filter=config.get("LAGARTA_VEL_FILTER", True),
                 logger=logger
             )
         else:
