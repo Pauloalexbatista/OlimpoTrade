@@ -192,31 +192,220 @@ html, body, [data-testid="stAppViewContainer"] {
     color: #e8eaf6 !important;
 }
 
-/* Streamlit overrides */
-div[data-testid="stSelectbox"] > div,
-div[data-testid="stMultiSelect"] > div {
+/* ══ STREAMLIT WIDGET OVERRIDES — TEMA ESCURO COMPLETO ══ */
+
+/* Fundo geral das páginas e conteúdo */
+[data-testid="stAppViewContainer"],
+[data-testid="stMain"],
+section.main > div,
+.block-container {
+    background: #07080f !important;
+    color: #c9d1e0 !important;
+}
+
+/* Labels de todos os widgets */
+label, .stSelectbox label, .stMultiSelect label,
+.stSlider label, .stNumberInput label,
+.stCheckbox label, .stRadio label,
+[data-testid="stWidgetLabel"] p,
+[data-testid="stWidgetLabel"] span {
+    color: #8a91b0 !important;
+    font-size: 12px !important;
+}
+
+/* Selectbox — caixa principal */
+div[data-testid="stSelectbox"] > div > div,
+div[data-testid="stSelectbox"] > div > div > div {
     background: #0d0e1a !important;
-    border-color: #1e2240 !important;
+    border: 1px solid #1e2240 !important;
+    border-radius: 6px !important;
+    color: #c9d1e0 !important;
 }
-.stSlider [data-testid="stThumbValue"] { color: #448aff; }
-button[kind="primary"] {
-    background: linear-gradient(135deg, #2962ff, #1565c0) !important;
-    border: none !important;
-    font-weight: 600 !important;
-    letter-spacing: 0.5px !important;
+div[data-testid="stSelectbox"] > div > div > div > div,
+div[data-testid="stSelectbox"] span {
+    color: #c9d1e0 !important;
 }
-button[kind="secondary"] {
+/* Dropdown popup (lista de opções) */
+div[data-baseweb="popover"],
+div[data-baseweb="menu"],
+ul[data-testid="stSelectboxVirtualDropdown"],
+[data-testid="stSelectboxVirtualDropdown"] {
+    background: #0f1020 !important;
+    border: 1px solid #1e2240 !important;
+    border-radius: 6px !important;
+}
+[data-testid="stSelectboxVirtualDropdown"] li,
+div[data-baseweb="menu"] li,
+div[role="option"] {
+    background: #0f1020 !important;
+    color: #c9d1e0 !important;
+}
+[data-testid="stSelectboxVirtualDropdown"] li:hover,
+div[role="option"]:hover,
+div[role="option"][aria-selected="true"] {
+    background: #1a1d30 !important;
+    color: #ffffff !important;
+}
+
+/* Multiselect */
+div[data-testid="stMultiSelect"] > div > div {
     background: #0d0e1a !important;
     border: 1px solid #1e2240 !important;
     color: #c9d1e0 !important;
 }
-.stNumberInput input, .stTextInput input {
+div[data-testid="stMultiSelect"] span[data-baseweb="tag"] {
+    background: #1a237e !important;
+    color: #90caf9 !important;
+}
+
+/* Number input */
+.stNumberInput input,
+.stTextInput input,
+input[type="number"],
+input[type="text"] {
     background: #0d0e1a !important;
-    border-color: #1e2240 !important;
+    border: 1px solid #1e2240 !important;
+    border-radius: 6px !important;
     color: #c9d1e0 !important;
     font-family: 'JetBrains Mono', monospace !important;
+    font-size: 13px !important;
 }
+.stNumberInput input:focus,
+.stTextInput input:focus {
+    border-color: #448aff !important;
+    outline: none !important;
+    box-shadow: 0 0 0 2px rgba(68,138,255,0.2) !important;
+}
+
+/* Slider */
+.stSlider [data-testid="stThumbValue"],
+.stSlider div[data-testid="stTickBarMin"],
+.stSlider div[data-testid="stTickBarMax"] {
+    color: #8a91b0 !important;
+    font-size: 11px !important;
+}
+.stSlider [data-baseweb="slider"] div[role="slider"] {
+    background: #448aff !important;
+    border-color: #448aff !important;
+}
+
+/* Checkbox */
+.stCheckbox label p,
+.stCheckbox label span {
+    color: #c9d1e0 !important;
+}
+.stCheckbox input[type="checkbox"] + div {
+    background: #0d0e1a !important;
+    border-color: #1e2240 !important;
+}
+.stCheckbox input[type="checkbox"]:checked + div {
+    background: #448aff !important;
+    border-color: #448aff !important;
+}
+
+/* Radio */
+.stRadio label p { color: #c9d1e0 !important; }
+div[data-testid="stRadio"] div[role="radiogroup"] label {
+    color: #c9d1e0 !important;
+}
+
+/* Expander */
+details summary p,
+[data-testid="stExpander"] summary p {
+    color: #8a91b0 !important;
+}
+[data-testid="stExpander"] {
+    background: #0d0e1a !important;
+    border: 1px solid #1a1d30 !important;
+    border-radius: 6px !important;
+}
+
+/* Progress bar */
+[data-testid="stProgress"] > div > div {
+    background: #1a1d30 !important;
+}
+[data-testid="stProgress"] > div > div > div {
+    background: linear-gradient(90deg, #2962ff, #00b0ff) !important;
+}
+
+/* Success / Warning / Error messages */
+[data-testid="stAlert"] {
+    background: #0d0e1a !important;
+    border-radius: 6px !important;
+    color: #c9d1e0 !important;
+}
+
+/* Buttons */
+button[kind="primary"], .stButton button[kind="primary"] {
+    background: linear-gradient(135deg, #2962ff, #1565c0) !important;
+    border: none !important;
+    color: #ffffff !important;
+    font-weight: 600 !important;
+    letter-spacing: 0.5px !important;
+    border-radius: 6px !important;
+}
+button[kind="secondary"], .stButton button[kind="secondary"] {
+    background: #0d0e1a !important;
+    border: 1px solid #1e2240 !important;
+    color: #c9d1e0 !important;
+    border-radius: 6px !important;
+}
+button[kind="secondary"]:hover {
+    border-color: #448aff !important;
+    color: #ffffff !important;
+}
+
+/* Divider */
 hr { border-color: #1a1d30 !important; }
+
+/* Tabs */
+[data-testid="stTabs"] [role="tablist"] {
+    background: #0d0e1a;
+    border-bottom: 1px solid #1a1d30;
+    padding: 0 16px;
+    gap: 0;
+}
+[data-testid="stTabs"] [role="tab"] {
+    background: transparent !important;
+    border: none !important;
+    border-bottom: 2px solid transparent !important;
+    color: #5c6080 !important;
+    padding: 12px 20px !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    letter-spacing: 0.5px !important;
+    margin-bottom: -1px !important;
+}
+[data-testid="stTabs"] [role="tab"][aria-selected="true"] {
+    border-bottom-color: #448aff !important;
+    color: #e8eaf6 !important;
+}
+[data-testid="stTabsContent"] {
+    background: #07080f !important;
+    padding-top: 16px !important;
+}
+
+/* Spinner */
+.stSpinner p { color: #8a91b0 !important; }
+
+/* Dataframe / Table */
+[data-testid="stDataFrame"] {
+    background: #0d0e1a !important;
+}
+[data-testid="stDataFrame"] th {
+    background: #0a0b14 !important;
+    color: #448aff !important;
+}
+[data-testid="stDataFrame"] td {
+    background: #0d0e1a !important;
+    color: #c9d1e0 !important;
+}
+
+/* Texto genérico */
+p, span, div, li {
+    color: inherit;
+}
+h1, h2, h3, h4 { color: #e8eaf6 !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -244,6 +433,13 @@ bot: LabBot = st.session_state.lab_bot
 # ─────────────────────────────────────────────
 
 STRATEGY_LABELS = {
+    "SMA_CROSSOVER":    "SMA Crossover — Cruzamento de Médias Simples",
+    "EMA_CROSSOVER":    "EMA Crossover — Cruzamento de Médias Exponenciais",
+    "PAULO_GOLD":       "⭐ Paulo Gold — Breakout por Cruzamento de Linha",
+    "MULTIPOINT_VECTOR":"Vetor 5 Pontos — Alinhamento de 4-5 Médias",
+    "QUANTUM_CONSENSUS":"Quantum Consensus — DNA de Consenso Estatístico",
+}
+STRATEGY_LABELS_SHORT = {
     "SMA_CROSSOVER":    "SMA Crossover",
     "EMA_CROSSOVER":    "EMA Crossover",
     "PAULO_GOLD":       "Paulo Gold",
@@ -731,7 +927,7 @@ with tab_bot:
 <div class="panel" style="border-color:#ffd740; margin-top:12px;">
     <div class="panel-title" style="color:#ffd740;">🥇 Melhor Resultado Até Agora</div>
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; font-family:'JetBrains Mono'; font-size:13px;">
-        <div><span style="color:#5c6080;">Estratégia</span><br><strong>{STRATEGY_LABELS.get(br['strategy'], br['strategy'])}</strong></div>
+        <div><span style="color:#5c6080;">Estratégia</span><br><strong>{STRATEGY_LABELS_SHORT.get(br['strategy'], br['strategy'])}</strong></div>
         <div><span style="color:#5c6080;">Score</span><br><strong style="color:#ffd740; font-size:18px;">{br['score']}</strong></div>
         <div><span style="color:#5c6080;">Retorno</span><br><strong style="color:{'#00e676' if br['total_return_pct']>0 else '#ff5252'};">{fmt_pct(br['total_return_pct'])}</strong></div>
         <div><span style="color:#5c6080;">Drawdown</span><br><strong style="color:#ff5252;">{fmt_pct(br['max_drawdown_pct'])}</strong></div>
@@ -749,7 +945,7 @@ with tab_bot:
             col_lr = "#00e676" if lr["total_return_pct"] > 0 else "#3a3d52"
             st.markdown(f"""
 <div style="font-size:11px; color:#5c6080; font-family:'JetBrains Mono'; margin-top:8px;">
-    Último: {STRATEGY_LABELS.get(lr['strategy'],lr['strategy'])} |
+    Último: {STRATEGY_LABELS_SHORT.get(lr['strategy'],lr['strategy'])} |
     Ret: <span style="color:{col_lr};">{fmt_pct(lr['total_return_pct'])}</span> |
     Score: {lr['score']} |
     Trades: {lr['num_trades']}
@@ -778,7 +974,7 @@ with tab_hof:
     hf_col1, hf_col2, hf_col3, hf_col4 = st.columns([2, 2, 1, 1])
     with hf_col1:
         hf_strat = st.selectbox("Estratégia", ["Todas"] + list(STRATEGY_LABELS.keys()),
-                                format_func=lambda k: "Todas" if k == "Todas" else STRATEGY_LABELS[k],
+                                format_func=lambda k: "Todas" if k == "Todas" else STRATEGY_LABELS_SHORT[k],
                                 key="hf_strat")
     with hf_col2:
         hf_sym = st.selectbox("Par", ["Todos"] + PAIRS, key="hf_sym")
@@ -830,7 +1026,7 @@ with tab_hof:
             rows_html += f"""
 <tr>
     <td>{badge}</td>
-    <td><strong style="color:#e8eaf6;">{STRATEGY_LABELS.get(r['strategy'], r['strategy'])}</strong><br>
+    <td><strong style="color:#e8eaf6;">{STRATEGY_LABELS_SHORT.get(r['strategy'], r['strategy'])}</strong><br>
         <small style="color:#4a4f6a; font-size:10px;">{params_short}</small></td>
     <td>{r['symbol']}</td>
     <td>{r['timeframe']}</td>
