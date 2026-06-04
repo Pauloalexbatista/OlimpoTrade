@@ -111,79 +111,117 @@ st.set_page_config(
     page_title="OlimpoTrade - Algorithmic Trading Lab",
     page_icon="⚡",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed",
 )
 
-# --- VERIFICAÇÃO DE PALAVRA-PASSE (SEGURANÇA DO SITE) ---
+# ── CSS global aplicado SEMPRE (antes de qualquer conteúdo) ─────────────────
+st.markdown("""<style>
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap');
+/* Esconder sidebar de navegação multi-page — sempre, incluindo página de login */
+[data-testid="stSidebar"],
+[data-testid="collapsedControl"],
+section[data-testid="stSidebarNav"],
+div[data-testid="stSidebarNavItems"],
+button[data-testid="baseButton-headerNoPadding"],
+[data-testid="stSidebarNavSeparator"] { display: none !important; }
+/* Fundo escuro para página de login */
+html, body, [data-testid="stAppViewContainer"], .stApp {
+    background: linear-gradient(135deg, #0a0f1e 0%, #0d1b3e 50%, #0a0f1e 100%) !important;
+    font-family: 'Outfit', sans-serif;
+}
+/* Remove padding excessivo do bloco principal */
+.block-container { padding-top: 0 !important; }
+</style>""", unsafe_allow_html=True)
+
+# ── VERIFICAÇÃO DE PALAVRA-PASSE ─────────────────────────────────────────────
 def check_password():
-    """Retorna True se o utilizador introduzir a palavra-passe correta."""
+    """Retorna True se autenticado. Mostra página de login se não."""
     password_env = os.getenv("OLIMPO_PASSWORD", "").strip()
     if not password_env:
-        # Se não estiver configurada no .env ou no Coolify, permite acesso livre (para desenvolvimento local)
+        return True  # sem password configurada → acesso livre (dev local)
+
+    if st.session_state.get("authenticated", False):
         return True
 
-    if "authenticated" not in st.session_state:
-        st.session_state.authenticated = False
+    # ── Página de Login ──────────────────────────────────────────────────────
+    st.markdown("""<style>
+/* Esconder completamente o header do Streamlit na página de login */
+header[data-testid="stHeader"] { display: none !important; }
+/* Input de password */
+.login-input input {
+    background: rgba(255,255,255,0.06) !important;
+    border: 1px solid rgba(255,255,255,0.12) !important;
+    border-radius: 10px !important;
+    color: #f1f5f9 !important;
+    font-size: 1rem !important;
+    padding: 12px 16px !important;
+    text-align: center !important;
+    letter-spacing: 3px !important;
+}
+.login-input input:focus {
+    border-color: rgba(99,179,237,0.5) !important;
+    box-shadow: 0 0 0 3px rgba(99,179,237,0.15) !important;
+}
+</style>""", unsafe_allow_html=True)
 
-    if st.session_state.authenticated:
-        return True
+    # Centrar com colunas
+    st.markdown("<div style='height:80px'></div>", unsafe_allow_html=True)
+    _, col_center, _ = st.columns([1, 1.4, 1])
 
-    # Interface de Login Centrada e Minimalista (Estética Premium)
-    st.markdown(
-        """<style>
-.login-wrapper {
-display: flex;
-justify-content: center;
-align-items: center;
-height: 70vh;
-}
-.login-container {
-max-width: 450px;
-width: 100%;
-padding: 40px;
-background: rgba(30, 41, 59, 0.7);
-backdrop-filter: blur(16px);
-border-radius: 16px;
-border: 1px solid rgba(255, 255, 255, 0.08);
-text-align: center;
-box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
-}
-.login-title {
-color: #f8fafc;
-font-family: 'Outfit', 'Inter', sans-serif;
-font-weight: 700;
-font-size: 1.8rem;
-margin-bottom: 8px;
-}
-.login-subtitle {
-color: #94a3b8;
-font-family: 'Inter', sans-serif;
-font-size: 0.95rem;
-margin-bottom: 24px;
-}
-</style>
-""",
-        unsafe_allow_html=True
-    )
+    with col_center:
+        # Cartão de login
+        st.markdown("""
+<div style="
+    background: rgba(15,23,42,0.85);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(99,179,237,0.18);
+    border-radius: 20px;
+    padding: 44px 40px 36px;
+    text-align: center;
+    box-shadow: 0 25px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.04);
+">
+    <div style="font-size:2.6rem; margin-bottom:12px;">⚡</div>
+    <div style="
+        font-size:1.9rem; font-weight:800; letter-spacing:-0.5px;
+        background: linear-gradient(135deg,#63b3ed,#a78bfa);
+        -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+        margin-bottom:6px;
+    ">OlimpoTrade</div>
+    <div style="
+        font-size:0.8rem; color:#64748b; letter-spacing:3px;
+        text-transform:uppercase; margin-bottom:32px;
+    ">Algorithmic Trading Lab</div>
+    <div style="font-size:0.85rem; color:#94a3b8; margin-bottom:16px;">
+        Introduz a palavra-passe para aceder
+    </div>
+</div>
+""", unsafe_allow_html=True)
 
-    # Render do Formulário
-    st.markdown('<div class="login-wrapper">', unsafe_allow_html=True)
-    st.markdown('<div class="login-container">', unsafe_allow_html=True)
-    st.markdown('<div class="login-title">🔐 Acesso Restrito</div>', unsafe_allow_html=True)
-    st.markdown('<div class="login-subtitle">Laboratório Quantitativo OlimpoTrade</div>', unsafe_allow_html=True)
-    
-    password_input = st.text_input("Palavra-passe de Acesso:", type="password", key="login_password_widget", label_visibility="collapsed")
-    
-    st.markdown('<div style="margin-top: 15px;"></div>', unsafe_allow_html=True)
-    if st.button("Entrar no Laboratório", type="primary", use_container_width=True):
-        if password_input == password_env:
-            st.session_state.authenticated = True
-            st.rerun()
-        else:
-            st.error("Palavra-passe incorreta! Tenta novamente.")
-            
-    st.markdown('</div>', unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+        # Inputs dentro da coluna (ficam naturalmente centrados)
+        pw = st.text_input(
+            "Palavra-passe",
+            type="password",
+            placeholder="••••••••",
+            key="login_pw",
+            label_visibility="collapsed",
+        )
+        st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+
+        if st.button("🔓  Entrar no Laboratório", type="primary",
+                     use_container_width=True, key="login_btn"):
+            if pw == password_env:
+                st.session_state.authenticated = True
+                st.rerun()
+            else:
+                st.error("Palavra-passe incorreta. Tenta novamente.")
+
+        st.markdown("""
+<div style="text-align:center; margin-top:20px;
+            font-size:0.75rem; color:#334155;">
+    © OlimpoTrade · Acesso Restrito
+</div>
+""", unsafe_allow_html=True)
+
     return False
 
 if not check_password():
@@ -269,17 +307,7 @@ if "optimizer_results" not in st.session_state:
     st.session_state.optimizer_results = None
 # 3. Injeção de CSS Customizado para Estética Premium Glassmorphic (Tema Claro / Light Mode)
 st.markdown("""<style>
-/* Importar Fonte Outfit do Google Fonts */
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap');
-/* Esconder sidebar de navegação multi-page do Streamlit */
-[data-testid="stSidebar"],
-[data-testid="collapsedControl"],
-section[data-testid="stSidebarNav"],
-div[data-testid="stSidebarNavItems"],
-button[data-testid="baseButton-headerNoPadding"] {
-    display: none !important;
-}
-/* Configuração de Fontes e Fundo Principal */
+/* Configuração de Fontes e Fundo Principal (sidebar já escondida no bloco global acima) */
 html, body, [class*="css"], .stApp {
 font-family: 'Outfit', sans-serif;
 background-color: #f1f5f9;

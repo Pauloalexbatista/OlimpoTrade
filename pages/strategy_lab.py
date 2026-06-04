@@ -32,6 +32,65 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
+# ── Esconder sidebar (multi-page nav) sempre ──
+st.markdown("""<style>
+[data-testid="stSidebar"],[data-testid="collapsedControl"],
+section[data-testid="stSidebarNav"],div[data-testid="stSidebarNavItems"],
+button[data-testid="baseButton-headerNoPadding"]{display:none!important;}
+</style>""", unsafe_allow_html=True)
+
+# ── Verificação de password ────────────────────────────────────────────────
+def _check_auth():
+    password_env = os.getenv("OLIMPO_PASSWORD", "").strip()
+    if not password_env:
+        return True
+    if st.session_state.get("authenticated", False):
+        return True
+
+    st.markdown("""<style>
+html,body,[data-testid="stAppViewContainer"],.stApp{
+    background:linear-gradient(135deg,#0a0f1e,#0d1b3e,#0a0f1e)!important;}
+header[data-testid="stHeader"]{display:none!important;}
+.block-container{padding-top:0!important;}
+</style>""", unsafe_allow_html=True)
+
+    st.markdown("<div style='height:80px'></div>", unsafe_allow_html=True)
+    _, col_c, _ = st.columns([1, 1.4, 1])
+    with col_c:
+        st.markdown("""
+<div style="background:rgba(15,23,42,0.85);backdrop-filter:blur(20px);
+border:1px solid rgba(99,179,237,0.18);border-radius:20px;
+padding:44px 40px 36px;text-align:center;
+box-shadow:0 25px 60px rgba(0,0,0,0.5);">
+<div style="font-size:2.4rem;margin-bottom:10px;">🔬</div>
+<div style="font-size:1.8rem;font-weight:800;letter-spacing:-0.5px;
+background:linear-gradient(135deg,#63b3ed,#a78bfa);
+-webkit-background-clip:text;-webkit-text-fill-color:transparent;
+margin-bottom:6px;">Strategy Lab</div>
+<div style="font-size:0.75rem;color:#64748b;letter-spacing:3px;
+text-transform:uppercase;margin-bottom:28px;">OlimpoTrade</div>
+<div style="font-size:0.85rem;color:#94a3b8;margin-bottom:16px;">
+Introduz a palavra-passe para aceder</div>
+</div>""", unsafe_allow_html=True)
+
+        pw = st.text_input("pw", type="password", placeholder="••••••••",
+                           key="lab_login_pw", label_visibility="collapsed")
+        st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+        if st.button("🔓  Entrar no Strategy Lab", type="primary",
+                     use_container_width=True, key="lab_login_btn"):
+            if pw == password_env:
+                st.session_state.authenticated = True
+                st.rerun()
+            else:
+                st.error("Palavra-passe incorreta.")
+        st.markdown("<div style='text-align:center;margin-top:16px;"
+                    "font-size:0.75rem;color:#334155;'>© OlimpoTrade</div>",
+                    unsafe_allow_html=True)
+    return False
+
+if not _check_auth():
+    st.stop()
+
 # ─────────────────────────────────────────────
 # CSS — TEMA ESCURO PROFISSIONAL
 # ─────────────────────────────────────────────
