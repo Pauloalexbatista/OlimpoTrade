@@ -505,19 +505,35 @@ slippage_pct = st.session_state.get('slippage_pct_val', 0.05)
 logger = setup_logging()
 import variables_registry as _vr_global
 _vr_global.initialize_variables_registry()
-# Link para o Strategy Lab
+# Cabeçalho principal com título + link Strategy Lab integrado
 st.markdown("""
-<div style="display:flex; justify-content:flex-end; margin:-8px 0 8px;">
+<div style="
+    display:flex; align-items:center; justify-content:space-between;
+    padding:10px 4px 14px; border-bottom:1px solid rgba(0,0,0,0.07);
+    margin-bottom:6px;
+">
+    <div style="display:flex; align-items:center; gap:10px;">
+        <span style="font-size:26px;">⚡</span>
+        <div>
+            <div style="
+                font-size:1.4rem; font-weight:800; letter-spacing:-0.5px;
+                background:linear-gradient(135deg,#0284c7,#7c3aed);
+                -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+                line-height:1.1;
+            ">OlimpoTrade</div>
+            <div style="font-size:11px; color:#94a3b8; letter-spacing:1.5px; text-transform:uppercase;">
+                Algorithmic Trading Lab
+            </div>
+        </div>
+    </div>
     <a href="/strategy_lab" target="_self" style="
-        display:inline-flex; align-items:center; gap:8px;
+        display:inline-flex; align-items:center; gap:7px;
         background:linear-gradient(135deg,#1a237e,#283593);
         color:#90caf9; text-decoration:none;
-        border:1px solid #3949ab; border-radius:8px;
-        padding:8px 18px; font-size:13px; font-weight:600;
-        letter-spacing:0.5px; transition:all 0.2s;
-    ">
-        🔬 Strategy Lab — Optimização de Estratégias
-    </a>
+        border:1px solid #3949ab; border-radius:7px;
+        padding:7px 16px; font-size:12px; font-weight:600;
+        letter-spacing:0.5px;
+    ">🔬 Strategy Lab</a>
 </div>
 """, unsafe_allow_html=True)
 # 7. Abas Principais do Laboratório (TABS SIMPLIFICADAS)
