@@ -1693,22 +1693,69 @@ with tab_trader_game:
                             borderpad=4,
                             row=1, col=1
                         )
-            # Linhas verticais nos batimentos (entrada e saída de cada trade)
+            # ── TODOS OS BATIMENTOS (sinais gerados, actuados ou não) ──────────────
             y_min = float(sub_df['close'].min() * 0.995)
             y_max = float(sub_df['close'].max() * 1.005)
+
+            # Recolher os steps que já têm trade real (entrada ou saída)
+            acted_steps = set()
+            for tr in st.session_state.tg_trades:
+                if "entry_step" in tr: acted_steps.add(tr['entry_step'])
+                if "exit_step"  in tr: acted_steps.add(tr['exit_step'])
+
+            # Gerar sinais para TODOS os steps visíveis no sub_df
+            missed_long_x,  missed_long_y  = [], []
+            missed_short_x, missed_short_y = [], []
+            for step_idx in range(len(df_full)):
+                t = df_full.index[step_idx]
+                if t not in sub_df.index:
+                    continue
+                if step_idx in acted_steps:
+                    continue   # já tem marcador de trade, não duplicar
+                try:
+                    sig, _conf, _conds = compute_bot_signal(df_full, step_idx)
+                except Exception:
+                    continue
+                price_at = float(df_full['close'].iloc[step_idx])
+                if sig == "LONG":
+                    missed_long_x.append(t)
+                    missed_long_y.append(price_at * 0.997)
+                elif sig == "SHORT":
+                    missed_short_x.append(t)
+                    missed_short_y.append(price_at * 1.003)
+
+            # Marcadores pequenos para sinais não actuados
+            if missed_long_x:
+                fig.add_trace(go.Scatter(
+                    x=missed_long_x, y=missed_long_y, mode='markers',
+                    name='Sinal LONG (não actuado)',
+                    marker=dict(symbol='triangle-up', size=8,
+                                color='rgba(16,185,129,0.35)',
+                                line=dict(color='rgba(16,185,129,0.7)', width=1)),
+                    hovertemplate='Sinal LONG<br>%{x}<extra></extra>',
+                ), row=1, col=1)
+            if missed_short_x:
+                fig.add_trace(go.Scatter(
+                    x=missed_short_x, y=missed_short_y, mode='markers',
+                    name='Sinal SHORT (não actuado)',
+                    marker=dict(symbol='triangle-down', size=8,
+                                color='rgba(239,68,68,0.35)',
+                                line=dict(color='rgba(239,68,68,0.7)', width=1)),
+                    hovertemplate='Sinal SHORT<br>%{x}<extra></extra>',
+                ), row=1, col=1)
+
+            # Linhas verticais nos trades reais (entrada azul, saída verde/vermelha)
             for tr in st.session_state.tg_trades:
                 if "entry_step" in tr and "exit_step" in tr:
                     entry_time = df_full.index[tr['entry_step']]
                     exit_time  = df_full.index[tr['exit_step']]
                     is_win     = tr.get('pnl_eur', tr.get('pnl', 0)) >= 0
-                    exit_color = 'rgba(16,185,129,0.5)' if is_win else 'rgba(239,68,68,0.5)'
-                    # Linha vertical de entrada — azul tracejado
+                    exit_color = 'rgba(16,185,129,0.55)' if is_win else 'rgba(239,68,68,0.55)'
                     if entry_time in sub_df.index:
                         fig.add_shape(type="line",
                             x0=entry_time, x1=entry_time, y0=y_min, y1=y_max,
-                            line=dict(color='rgba(0,176,255,0.5)', width=1.5, dash='dash'),
+                            line=dict(color='rgba(0,176,255,0.6)', width=1.5, dash='dash'),
                             row=1, col=1)
-                    # Linha vertical de saída — verde/vermelho conforme resultado
                     if exit_time in sub_df.index and exit_time != entry_time:
                         fig.add_shape(type="line",
                             x0=exit_time, x1=exit_time, y0=y_min, y1=y_max,
