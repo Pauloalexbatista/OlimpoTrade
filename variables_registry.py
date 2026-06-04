@@ -264,6 +264,9 @@ def initialize_variables_registry():
     if "allow_reentry_val" not in st.session_state:
         st.session_state.allow_reentry_val = prefs.get(
             'allow_reentry_val', True)
+    if "tg_only_one_move_per_candle" not in st.session_state:
+        st.session_state.tg_only_one_move_per_candle = prefs.get(
+            'tg_only_one_move_per_candle', True)
 
 
 def render_variable_widget(var):
@@ -597,6 +600,13 @@ def render_variables_dashboard(compact=False):
         for var in risk_vars:
             render_variable_widget(var)
 
+        st.session_state.tg_only_one_move_per_candle = st.checkbox(
+            "Apenas 1 Movimento por Vela",
+            value=st.session_state.get("tg_only_one_move_per_candle", True),
+            key="tg_chk_only_one_move",
+            help="Impede o robô de entrar numa nova posição na mesma vela após fechar uma anterior. Se desativado, permite até 2 movimentos (reversão automática)."
+        )
+
         # Custos & Fricções de Mercado
         cost_vars = [v for v in VARIABLES if v.category == "Custos de Mercado"]
         for var in cost_vars:
@@ -622,6 +632,8 @@ def render_variables_dashboard(compact=False):
                 prefs_to_save["paulo_gold_trend_filter_val"] = st.session_state["paulo_gold_trend_filter_val"]
             if "allow_reentry_val" in st.session_state:
                 prefs_to_save["allow_reentry_val"] = st.session_state["allow_reentry_val"]
+            if "tg_only_one_move_per_candle" in st.session_state:
+                prefs_to_save["tg_only_one_move_per_candle"] = st.session_state["tg_only_one_move_per_candle"]
             save_user_preferences(prefs_to_save)
             st.success("Configurações do painel e Cérebro guardadas com sucesso na memória local!")
             
@@ -638,6 +650,7 @@ def render_variables_dashboard(compact=False):
                     elif var.key == "tg_ts_pct": st.session_state.tg_ts_active = False
             st.session_state.paulo_gold_trend_filter_val = False
             st.session_state.allow_reentry_val = True
+            st.session_state.tg_only_one_move_per_candle = True
             st.session_state.symbol_val = "🧪 Cenário Didático (Fictício)"
             st.toast("Valores padrões repostos com sucesso!")
             st.rerun()

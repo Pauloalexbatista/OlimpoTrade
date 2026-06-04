@@ -161,7 +161,8 @@ font-family: 'Inter', sans-serif;
 font-size: 0.95rem;
 margin-bottom: 24px;
 }
-</style>""",
+</style>
+""",
         unsafe_allow_html=True
     )
 
@@ -391,7 +392,8 @@ div.stButton > button:hover {
 transform: translateY(-2px) !important;
 box-shadow: 0 6px 20px rgba(124, 58, 237, 0.4) !important;
 }
-</style>""", unsafe_allow_html=True)
+</style>
+""", unsafe_allow_html=True)
 # 4. Cabeçalho da Aplicação - Compacto & Premium
 st.markdown("""<style>
 /* Reduzir paddings e margens padrão do Streamlit para maximizar espaço vertical */
@@ -424,7 +426,8 @@ border-radius: 8px !important;
 <span style="background-color: rgba(5, 150, 105, 0.1); color: #059669; border: 1px solid rgba(5, 150, 105, 0.25); padding: 2px 8px; border-radius: 9999px; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.5px; display: inline-flex; align-items: center; gap: 4px;">🤖 SIMULADOR ATIVO</span>
 </div>
 <div style="font-size: 0.8rem; font-weight: 600; color: #64748b; letter-spacing: 0.5px;">Algorithmic Trading & Analytics Lab</div>
-</div>""", unsafe_allow_html=True)
+</div>
+""", unsafe_allow_html=True)
 # 1. VALORES GLOBAIS COMANDADOS CENTRALMENTE
 symbol_raw = st.session_state.get('symbol_val', '🧪 Cenário Didático (Fictício)')
 # Usar BTC/USDT como substituto para abas reais se o cenario didatico estiver ativo
@@ -634,7 +637,8 @@ Confiança: {_mkt['confidence']}% · {_mkt['n_candles']} velas analisadas
 📊 Volatilidade: <b>{_mkt['volatility_pct']:.3f}%/vela</b> &nbsp;|&nbsp;
 📏 Amplitude: <b>{_mkt['range_pct']:.1f}%</b>
 </div>
-</div>""", unsafe_allow_html=True)
+</div>
+""", unsafe_allow_html=True)
         # Mostrar lagartas recomendadas (se existirem)
         if _matching_caterpillars:
             _rec_col1, _rec_col2 = st.columns([3, 1])
@@ -735,7 +739,8 @@ Confiança: {_mkt['confidence']}% · {_mkt['n_candles']} velas analisadas
 <div class="metric-label">Fator de Lucro</div>
 <div class="metric-value text-cyan">{metrics['profit_factor']:.2f}</div>
 </div>
-</div>""", unsafe_allow_html=True)
+</div>
+""", unsafe_allow_html=True)
         # Outras métricas rápidas
         st.markdown(
             f"**Total de Operações:** {metrics['num_trades']} | "
@@ -1482,6 +1487,7 @@ with tab_trader_game:
         if "tg_step" not in st.session_state: st.session_state.tg_step = 144
         if "tg_capital" not in st.session_state: st.session_state.tg_capital = 100.0
         if "tg_position" not in st.session_state: st.session_state.tg_position = "NONE"
+        if "tg_last_exit_step" not in st.session_state: st.session_state.tg_last_exit_step = -1
         if "tg_entry_price" not in st.session_state: st.session_state.tg_entry_price = 0.0
         if "tg_entry_step" not in st.session_state: st.session_state.tg_entry_step = 0
         if "tg_trades" not in st.session_state: st.session_state.tg_trades = []
@@ -1636,12 +1642,12 @@ with tab_trader_game:
                         ex_p = tr.get('exit_price', 0)
                         
                         pnl_pct = tr.get('pnl_pct', 0)
-                        pnl_val = tr.get('pnl', 0)
+                        pnl_val = tr.get('pnl_eur', 0)
                         if pnl_pct == 0 and en_p > 0:
                             if t_type == 'LONG': pnl_pct = (ex_p - en_p) / en_p * 100
                             else: pnl_pct = (en_p - ex_p) / en_p * 100
                         
-                        is_win = pnl_pct >= 0
+                        is_win = pnl_val >= 0
                         color = '#10b981' if is_win else '#ef4444'
                         
                         # Reta ligando os dois pontos
@@ -1654,10 +1660,11 @@ with tab_trader_game:
                         )
                         
                         # Anotao com os valores
-                        sign = "+" if is_win else ""
-                        annot_text = f"<b>{t_type}</b><br>{sign}{pnl_pct:.2f}%"
+                        pct_sign = "+" if pnl_pct > 0 else ""
+                        val_sign = "+" if pnl_val > 0 else ""
+                        annot_text = f"<b>{t_type}</b><br>{pct_sign}{pnl_pct:.2f}%"
                         if abs(pnl_val) > 0.001:
-                            annot_text += f"<br>{sign}{pnl_val:.2f} €"
+                            annot_text += f"<br>{val_sign}{pnl_val:.2f} €"
                             
                         fig.add_annotation(
                             x=exit_time, y=ex_p,
@@ -2017,12 +2024,8 @@ with tab_trader_game:
                     }
 
                     if is_breakout and is_growing:
-                        if ("Lagarta" in st.session_state.get("tg_strategy_type", "") or "Linha Solitária" in st.session_state.get("tg_strategy_type", "")) and st.session_state.get("tg_position", "NONE") == "SHORT":
-                            return "HOLD", 0.0, {**cond_dict, "Gatilho": "Ignorado pela Lagarta"}
                         return "LONG", 100.0, {**cond_dict, "Gatilho": "Breakout de Alta"}
                     elif is_breakout and is_falling:
-                        if ("Lagarta" in st.session_state.get("tg_strategy_type", "") or "Linha Solitária" in st.session_state.get("tg_strategy_type", "")) and st.session_state.get("tg_position", "NONE") == "LONG":
-                            return "HOLD", 0.0, {**cond_dict, "Gatilho": "Ignorado pela Lagarta"}
                         return "SHORT", 100.0, {**cond_dict, "Gatilho": "Breakout de Baixa"}
                     else:
                         return "HOLD", 0.0, cond_dict
@@ -2256,6 +2259,7 @@ with tab_trader_game:
             st.session_state.tg_step = 144
             st.session_state.tg_capital = 100.0
             st.session_state.tg_position = "NONE"
+            st.session_state.tg_last_exit_step = -1
             st.session_state.tg_entry_price = 0.0
             st.session_state.tg_entry_step = 0
             st.session_state.tg_trades = []
@@ -2503,7 +2507,8 @@ text-align: center; padding: 8px 12px;
 background: rgba(255,255,255,0.05); border-radius: 10px;
 border: 1px solid rgba(255,255,255,0.08);
 }
-</style>""", unsafe_allow_html=True)
+</style>
+""", unsafe_allow_html=True)
         # =========================================================================
         # PAINEL DE LANCAMENTO - premium, sempre visivel, sem expander
         # =========================================================================
@@ -2678,7 +2683,8 @@ border: 1px solid rgba(255,255,255,0.08);
 </div>
 </div>
 </div>
-</div>""", unsafe_allow_html=True)
+</div>
+""", unsafe_allow_html=True)
             # --- Gráfico + painel lateral com nome e botão ---
             col_rev_chart, col_rev_btn = st.columns([8, 2])
             with col_rev_btn:
@@ -2918,6 +2924,7 @@ border: 1px solid rgba(255,255,255,0.08);
                     })
                     old_pos = st.session_state.tg_position
                     st.session_state.tg_position = "NONE"
+                    st.session_state.tg_last_exit_step = current_step
                     st.toast(f"{trigger_reason} ativado! Posicao {old_pos} liquidada a {executed_price:.2f}")
                     st.rerun()
             # Fim do desafio (100 velas jogadas)
@@ -2995,7 +3002,8 @@ box-shadow:0 4px 24px rgba(0,0,0,0.4);">
 <div style="color:#64748b;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:3px;">Progresso</div>
 <div style="color:#e2e8f0;font-size:18px;font-weight:900;font-family:monospace;">{progress_candles} <span style="font-size:11px;color:#64748b;">/ 100</span></div>
 </div>
-</div>""", unsafe_allow_html=True)
+</div>
+""", unsafe_allow_html=True)
             # =========================================================
             # LAYOUT PRINCIPAL: 3 colunas
             # col_chart | col_ctrl | col_advisor
@@ -3083,6 +3091,7 @@ box-shadow:0 4px 24px rgba(0,0,0,0.4);">
                                     "reason": trigger_reason, "entry_step": st.session_state.tg_entry_step, "exit_step": current_step
                                 })
                                 st.session_state.tg_position = "NONE"
+                                st.session_state.tg_last_exit_step = current_step
                                 
                         # 2. Processar decisão do Robô Autónomo / Co-piloto
                         if st.session_state.tg_bot_mode == "Bot Autonomo":
@@ -3103,6 +3112,7 @@ box-shadow:0 4px 24px rgba(0,0,0,0.4);">
                                     "reason": f"Bot Exit ({_bot_signal})", "entry_step": st.session_state.tg_entry_step, "exit_step": current_step
                                 })
                                 st.session_state.tg_position = "NONE"
+                                st.session_state.tg_last_exit_step = current_step
                                 _pos = "NONE"
                             elif _pos == "SHORT" and (_bot_signal == "LONG" or (_bot_signal == "HOLD" and _bot_conf >= st.session_state.get("tg_min_confidence_pct", 80.0))):
                                 entry_p = st.session_state.tg_entry_price
@@ -3117,10 +3127,11 @@ box-shadow:0 4px 24px rgba(0,0,0,0.4);">
                                     "reason": f"Bot Exit ({_bot_signal})", "entry_step": st.session_state.tg_entry_step, "exit_step": current_step
                                 })
                                 st.session_state.tg_position = "NONE"
+                                st.session_state.tg_last_exit_step = current_step
                                 _pos = "NONE"
                                 
                             # B) Entradas Imediatamente (reversão na mesma vela)
-                            if _pos == "NONE":
+                            if _pos == "NONE" and not (st.session_state.get("tg_only_one_move_per_candle", True) and current_step == st.session_state.get("tg_last_exit_step", -1)):
                                 if _bot_signal == "LONG":
                                     st.session_state.tg_position = "LONG"
                                     st.session_state.tg_entry_price = price_now
@@ -3170,7 +3181,8 @@ box-shadow:0 4px 24px rgba(0,0,0,0.4);">
                             "reason": f"Bot Exit ({_bot_signal})", "entry_step": st.session_state.tg_entry_step, "exit_step": current_step
                         })
                         st.session_state.tg_position = "NONE"
-                        _pos = "NONE" # Permite re-entrada imediata na mesma vela!
+                        _pos = "NONE"
+                        st.session_state.tg_last_exit_step = current_step
                         st.toast(f"Bot saiu LONG a {price_now:.2f} ({pnl_pct:+.2f}%)")
                     elif _pos == "SHORT" and (_bot_signal == "LONG" or (_bot_signal == "HOLD" and _bot_conf >= st.session_state.get("tg_min_confidence_pct", 80.0))):
                         entry_p = st.session_state.tg_entry_price
@@ -3185,11 +3197,12 @@ box-shadow:0 4px 24px rgba(0,0,0,0.4);">
                             "reason": f"Bot Exit ({_bot_signal})", "entry_step": st.session_state.tg_entry_step, "exit_step": current_step
                         })
                         st.session_state.tg_position = "NONE"
-                        _pos = "NONE" # Permite re-entrada imediata na mesma vela!
+                        _pos = "NONE"
+                        st.session_state.tg_last_exit_step = current_step
                         st.toast(f"Bot saiu SHORT a {price_now:.2f} ({pnl_pct:+.2f}%)")
 
                     # B) Verificar Entradas Imediatamente (incluindo reversões automáticas no mesmo ponto/vela!)
-                    if _pos == "NONE":
+                    if _pos == "NONE" and not (st.session_state.get("tg_only_one_move_per_candle", True) and current_step == st.session_state.get("tg_last_exit_step", -1)):
                         if _bot_signal == "LONG":
                             st.session_state.tg_position = "LONG"
                             st.session_state.tg_entry_price = price_now

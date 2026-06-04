@@ -153,6 +153,7 @@ def render():
                     "interval": int(interval_sec),
                     "last_signal": None,
                     "position_extreme_price": None,
+                    "last_exit_candle": None,
                 }
                 st.rerun()
                 
@@ -234,6 +235,7 @@ def _run_bot_cycle(place_order, close_position, get_positions):
                     st.session_state.binance_bot_log.append(msg)
                     st.session_state.binance_bot_config["last_signal"] = None
                     st.session_state.binance_bot_config["position_extreme_price"] = None
+                    st.session_state.binance_bot_config["last_exit_candle"] = str(df.index[-1])
                     st.toast(msg)
                     st.rerun()
                 elif side == "short" and current_price >= entry * (1 + sl_pct / 100):
@@ -242,6 +244,7 @@ def _run_bot_cycle(place_order, close_position, get_positions):
                     st.session_state.binance_bot_log.append(msg)
                     st.session_state.binance_bot_config["last_signal"] = None
                     st.session_state.binance_bot_config["position_extreme_price"] = None
+                    st.session_state.binance_bot_config["last_exit_candle"] = str(df.index[-1])
                     st.toast(msg)
                     st.rerun()
                     
@@ -253,6 +256,7 @@ def _run_bot_cycle(place_order, close_position, get_positions):
                     st.session_state.binance_bot_log.append(msg)
                     st.session_state.binance_bot_config["last_signal"] = None
                     st.session_state.binance_bot_config["position_extreme_price"] = None
+                    st.session_state.binance_bot_config["last_exit_candle"] = str(df.index[-1])
                     st.toast(msg)
                     st.rerun()
                 elif side == "short" and current_price <= entry * (1 - tp_pct / 100):
@@ -261,6 +265,7 @@ def _run_bot_cycle(place_order, close_position, get_positions):
                     st.session_state.binance_bot_log.append(msg)
                     st.session_state.binance_bot_config["last_signal"] = None
                     st.session_state.binance_bot_config["position_extreme_price"] = None
+                    st.session_state.binance_bot_config["last_exit_candle"] = str(df.index[-1])
                     st.toast(msg)
                     st.rerun()
 
@@ -308,11 +313,24 @@ def _run_bot_cycle(place_order, close_position, get_positions):
         last_signal = cfg.get("last_signal")
         st.metric("Preço", f"${current_price:.2f}", delta=f"Estratégia: {action} ({confidence}%)")
 
-        if action != "HOLD" and action != active_pos_side:
+        current_candle = str(df.index[-1])
+        last_exit_candle = cfg.get("last_exit_candle")
+        is_blocked = st.session_state.get("tg_only_one_move_per_candle", True) and last_exit_candle == current_candle
+
+        if is_blocked and action != "HOLD" and action != active_pos_side:
+            st.info(f"[{now_str}] 🚫 Entrada para {action} bloqueada na mesma vela (início: {current_candle}). Aguardando a próxima vela...")
+
+        if action != "HOLD" and action != active_pos_side and not is_blocked:
             try:
                 # Se houver posição oposta aberta, fecha-a primeiro
                 if active_pos_side != "NONE":
                     close_position(symbol)
+                    st.session_state.binance_bot_config["last_exit_candle"] = current_candle
+                    if st.session_state.get("tg_only_one_move_per_candle", True):
+                        st.session_state.binance_bot_config["last_signal"] = None
+                        st.session_state.binance_bot_config["position_extreme_price"] = None
+                        st.toast("Posição fechada para reversão. Nova entrada bloqueada até à próxima vela.")
+                        st.rerun()
                     msg_c = f"[{now_str}] 📉 Fecho de {active_pos_side} para reversão."
                     st.session_state.binance_bot_log.append(msg_c)
                 
@@ -330,6 +348,7 @@ def _run_bot_cycle(place_order, close_position, get_positions):
                 st.session_state.binance_bot_log.append(f"[{now_str}] ❌ Erro: {e}")
                 st.error(e)
         elif action == "HOLD" and confidence >= 80.0 and active_pos_side != "NONE":
+            st.session_state.binance_bot_config["last_exit_candle"] = str(df.index[-1])
             # Caso seja um sinal de saída forçada a FLAT (ex: Claude v4 exit)
             try:
                 close_position(symbol)

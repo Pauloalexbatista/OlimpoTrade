@@ -19,9 +19,9 @@
     "tg_tp_pct_active": false,
     "tg_ts_pct": 0.5,
     "tg_ts_pct_active": true,
-    "fee_pct_val": 0.1,
+    "fee_pct_val": 0.05,
     "tax_pct_val": 28.0,
-    "slippage_pct_val": 0.05,
+    "slippage_pct_val": 0.01,
     "paulo_gold_trend_filter_val": false,
     "allow_reentry_val": true
 }
