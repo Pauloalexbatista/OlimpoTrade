@@ -568,7 +568,7 @@ if run_button:
     st.markdown("### 🚀 Recolhendo dados e processando simulação...")
     progress_bar = st.progress(0)
     # Obter dados da Binance
-    collector = DataCollector(exchange_id='binance', symbol=symbol, timeframe=timeframe)
+    collector = DataCollector({'EXCHANGE_NAME': 'binance', 'SYMBOL': symbol, 'TIMEFRAME': timeframe})
     progress_bar.progress(30)
     df_ohlcv = collector.get_ohlcv(limit=limit_candles)
     progress_bar.progress(60)
@@ -1131,7 +1131,7 @@ with tab_simulator:
             st.info(f"📈 Usando dados históricos de **{symbol} ({timeframe})** com {len(sim_df)} velas como base de testes!")
         else:
             st.warning("⚠️ Não foram encontrados dados reais na memória. Puxando dados rápidos da Binance...")
-            collector = DataCollector(exchange_id='binance', symbol=symbol, timeframe=timeframe)
+            collector = DataCollector({'EXCHANGE_NAME': 'binance', 'SYMBOL': symbol, 'TIMEFRAME': timeframe})
             sim_df = collector.get_ohlcv(limit=limit_candles)
             if sim_df is not None and not sim_df.empty:
                 st.session_state.backtest_df = sim_df
@@ -1698,7 +1698,17 @@ with tab_trader_game:
             """Constroi o grafico Plotly. Reutilizavel para modo jogo e modo revisao."""
             y_min = float(sub_df['close'].min() * 0.995)
             y_max = float(sub_df['close'].max() * 1.005)
-            fig = make_subplots(rows=2, cols=1, shared_xaxes=True, row_heights=[0.82, 0.18], vertical_spacing=0.03)
+            
+            subchart_type = st.session_state.get('tg_subchart_type', 'Heatmap (Vel/Acel)')
+            if subchart_type == "Nenhum":
+                fig = make_subplots(rows=1, cols=1)
+                chart_height = 450
+            elif subchart_type == "Ambos":
+                fig = make_subplots(rows=3, cols=1, shared_xaxes=True, row_heights=[0.70, 0.15, 0.15], vertical_spacing=0.03)
+                chart_height = 600
+            else:
+                fig = make_subplots(rows=2, cols=1, shared_xaxes=True, row_heights=[0.82, 0.18], vertical_spacing=0.03)
+                chart_height = 520 if show_full_range else 500
             upper_band = sub_df['avg_sma'] + 1.0 * sub_df['sma_std']
             lower_band = sub_df['avg_sma'] - 1.0 * sub_df['sma_std']
             fig.add_trace(go.Scatter(
@@ -1858,14 +1868,42 @@ with tab_trader_game:
                             x0=exit_time, x1=exit_time, y0=y_min, y1=y_max,
                             line=dict(color=exit_color, width=1.5, dash='dash'),
                             row=1, col=1)
-            vel_dir = sub_df['velocity'].apply(lambda x: 1.0 if x > 0 else (-1.0 if x < 0 else 0.0)).tolist()
-            acc_dir = sub_df['acceleration'].apply(lambda x: 1.0 if x > 0 else (-1.0 if x < 0 else 0.0)).tolist()
-            fig.add_trace(go.Heatmap(
-                x=sub_df.index, y=['Forca (Acel.)', 'Direcao (Vel.)'], z=[acc_dir, vel_dir],
-                colorscale=[[0.0,'#e74c3c'],[0.5,'#cbd5e1'],[1.0,'#2ecc71']],
-                showscale=False, hovertemplate='%{x}<br>%{y}: %{z}<extra></extra>'
-            ), row=2, col=1)
-            chart_height = 520 if show_full_range else 500
+            if subchart_type in ("Heatmap (Vel/Acel)", "Ambos"):
+                vel_dir = sub_df['velocity'].apply(lambda x: 1.0 if x > 0 else (-1.0 if x < 0 else 0.0)).tolist()
+                acc_dir = sub_df['acceleration'].apply(lambda x: 1.0 if x > 0 else (-1.0 if x < 0 else 0.0)).tolist()
+                fig.add_trace(go.Heatmap(
+                    x=sub_df.index, y=['Forca (Acel.)', 'Direcao (Vel.)'], z=[acc_dir, vel_dir],
+                    colorscale=[[0.0,'#e74c3c'],[0.5,'#cbd5e1'],[1.0,'#2ecc71']],
+                    showscale=False, hovertemplate='%{x}<br>%{y}: %{z}<extra></extra>'
+                ), row=2, col=1)
+
+            if subchart_type in ("Histograma MACD", "Ambos"):
+                macd_row = 3 if subchart_type == "Ambos" else 2
+                macd_vals = sub_df['macd_hist'].fillna(0.0).tolist()
+                macd_colors = []
+                for idx in range(len(macd_vals)):
+                    val = macd_vals[idx]
+                    prev_val = macd_vals[idx-1] if idx > 0 else 0.0
+                    if val >= 0:
+                        if val > prev_val:
+                            macd_colors.append('#2ecc71')  # Verde brilhante (acelera)
+                        else:
+                            macd_colors.append('#27ae60')  # Verde escuro (desacelera)
+                    else:
+                        if val < prev_val:
+                            macd_colors.append('#e74c3c')  # Vermelho brilhante (acelera)
+                        else:
+                            macd_colors.append('#c0392b')  # Vermelho escuro (desacelera)
+                
+                fig.add_trace(go.Bar(
+                    x=sub_df.index,
+                    y=macd_vals,
+                    marker_color=macd_colors,
+                    name='Histograma MACD',
+                    showlegend=False,
+                    hovertemplate='%{x}<br>MACD Hist: %{y:.4f}<extra></extra>'
+                ), row=macd_row, col=1)
+
             fig.update_layout(
                 title=title_str,
                 hovermode='x unified', template='plotly_white', height=chart_height,
@@ -1881,6 +1919,15 @@ with tab_trader_game:
             )
             fig.update_xaxes(showgrid=True, gridcolor='#e2e8f0', row=1, col=1)
             fig.update_yaxes(showgrid=True, gridcolor='#e2e8f0', row=1, col=1)
+
+            if subchart_type in ("Heatmap (Vel/Acel)", "Ambos"):
+                fig.update_xaxes(showgrid=True, gridcolor='#e2e8f0', row=2, col=1)
+                fig.update_yaxes(showgrid=True, gridcolor='#e2e8f0', row=2, col=1)
+            if subchart_type in ("Histograma MACD", "Ambos"):
+                macd_row = 3 if subchart_type == "Ambos" else 2
+                fig.update_xaxes(showgrid=True, gridcolor='#e2e8f0', row=macd_row, col=1)
+                fig.update_yaxes(showgrid=True, gridcolor='#e2e8f0', row=macd_row, col=1)
+
             return fig
         def generate_game_market():
             np.random.seed(int(time.time() * 100) % 100000)
@@ -1933,7 +1980,7 @@ with tab_trader_game:
             df['avg_sma'] = df[smas].mean(axis=1)
             df['sma_std'] = df[smas].std(axis=1)
             df['stretching'] = df[smas].sub(df['avg_sma'], axis=0).abs().mean(axis=1).div(df['avg_sma']).mul(100)
-            df['velocity'] = df['sma_5'].diff(periods=2)
+            df['velocity'] = df['close'].diff(periods=1)
             df['acceleration'] = df['velocity'].diff(periods=2)
             df['volatility'] = df['close'].rolling(window=20, min_periods=1).std()
             
@@ -2002,7 +2049,7 @@ with tab_trader_game:
                 df['avg_sma'] = df[smas].mean(axis=1)
                 df['sma_std'] = df[smas].std(axis=1)
                 df['stretching'] = df[smas].sub(df['avg_sma'], axis=0).abs().mean(axis=1).div(df['avg_sma']).mul(100)
-                df['velocity'] = df['sma_5'].diff(periods=2)
+                df['velocity'] = df['close'].diff(periods=1)
                 df['acceleration'] = df['velocity'].diff(periods=2)
                 df['volatility'] = df['close'].rolling(window=20, min_periods=1).std()
                 
@@ -2065,19 +2112,56 @@ with tab_trader_game:
             recalculate_indicators()
             st.session_state.tg_last_calculated_smas = current_smas
         def compute_bot_signal(df, step):
-            """Calcula sinal do bot: LONG / SHORT / HOLD com confianca 0-100%."""
+            """Calcula sinal do bot com os filtros universais aplicados (Squeeze e Momentum)."""
             if step < 10:
                 return "HOLD", 0.0, {}
 
-            # ── FILTRO UNIVERSAL DE DISPERSÃO (todas as estratégias) ──────────────
+            # 1. Filtro de Squeeze / Dispersão Percentual (bloqueia antes de calcular a estratégia se estiver em compressão)
             _disp_min = st.session_state.get('tg_lagarta_min_disp', 0.0)
-            if _disp_min > 0.0 and 'sma_std' in df.columns:
-                _disp_now = float(df['sma_std'].iloc[step])
-                if _disp_now < _disp_min:
+            if _disp_min > 0.0 and 'mola_pct' in df.columns:
+                _disp_now = float(df['mola_pct'].iloc[step])
+                _disp_prev = float(df['mola_pct'].iloc[step-1]) if step > 0 else _disp_now
+                
+                if st.session_state.get('tg_filter_squeeze_active', False):
+                    # Filtro de Squeeze Ativo: Atua como ESCUDO. 
+                    # Se as médias estão muito juntas (compressão), não deixa entrar de todo.
+                    if _disp_now < _disp_min:
+                        return "HOLD", 0.0, {
+                            "Filtro Squeeze Ativo": f"Mola: {_disp_now:.3f}% < Mínimo: {_disp_min:.2f}%",
+                            "Estado": "⏸️ Em compressão. Sinais da estratégia bloqueados."
+                        }
+                else:
+                    # Antes o slider sozinho ativava. Agora, se a checkbox estiver desligada, 
+                    # o slider não bloqueia nada (para evitar confusões).
+                    pass
+
+            # 2. Calcular o sinal bruto da estratégia ativa
+            sig, conf, conds = _compute_bot_signal_raw(df, step)
+
+            # 3. Filtro de Momentum (Física do preço: direção e aceleração)
+            if st.session_state.get('tg_filter_momentum_active', False) and sig in ("LONG", "SHORT"):
+                vel = df['velocity'].iloc[step] if 'velocity' in df.columns else 0.0
+                acc = df['acceleration'].iloc[step] if 'acceleration' in df.columns else 0.0
+                
+                if sig == "LONG" and (vel <= 0 or acc <= 0):
                     return "HOLD", 0.0, {
-                        "Dispersão SMAs": f"{_disp_now:.3f}",
-                        f"Mínimo ({_disp_min:.2f})": "⏸ SMAs comprimidas — aguardar expansão",
+                        **conds,
+                        "Filtro Momentum": "Cancelado (LONG exige Velocidade > 0 e Aceleração > 0)",
+                        "Estado Físico": f"Vel: {vel:.4f}, Acc: {acc:.4f}"
                     }
+                elif sig == "SHORT" and (vel >= 0 or acc >= 0):
+                    return "HOLD", 0.0, {
+                        **conds,
+                        "Filtro Momentum": "Cancelado (SHORT exige Velocidade < 0 e Aceleração < 0)",
+                        "Estado Físico": f"Vel: {vel:.4f}, Acc: {acc:.4f}"
+                    }
+
+            return sig, conf, conds
+
+        def _compute_bot_signal_raw(df, step):
+            """Calcula sinal do bot bruto: LONG / SHORT / HOLD com confianca 0-100%."""
+            if step < 10:
+                return "HOLD", 0.0, {}
 
             # ─── ESTRATÉGIA CLAUDE v4 — PIRÂMIDE FIBONACCI (FLAT EXIT) ───────────────
             # v4: quando pirâmide parte → VAI PARA FLAT (não reverte imediatamente)
@@ -2168,6 +2252,25 @@ with tab_trader_game:
                     return "SHORT", 100.0, {**cond_dict, "Gatilho": "Reentrada 2ª Média (P3) de Baixa"}
                 else:
                     return "HOLD", 0.0, cond_dict
+
+            elif "Momentum Puro" in st.session_state.get("tg_strategy_type", "Default"):
+                vel = df['velocity'].iloc[step] if 'velocity' in df.columns else 0.0
+                acc = df['acceleration'].iloc[step] if 'acceleration' in df.columns else 0.0
+                
+                cond_dict = {"Velocidade": vel, "Aceleração": acc}
+                _cur = st.session_state.get("tg_position", "NONE")
+                
+                if vel > 0 and acc > 0:
+                    return "LONG", 100.0, cond_dict
+                elif vel < 0 and acc < 0:
+                    return "SHORT", 100.0, cond_dict
+                    
+                if _cur == "LONG" and vel < 0:
+                    return "HOLD", 100.0, {**cond_dict, "Gatilho": "Saída Direção Negativa"}
+                elif _cur == "SHORT" and vel > 0:
+                    return "HOLD", 100.0, {**cond_dict, "Gatilho": "Saída Direção Positiva"}
+                    
+                return "HOLD", 0.0, cond_dict
 
             # --- ESTRATÉGIA CUSTOMIZADA: CRUZAMENTO DE LINHA ÚNICA ---
             _s_typ = st.session_state.get("tg_strategy_type", "Default")
@@ -2499,11 +2602,14 @@ with tab_trader_game:
             l_eff = (_l_wins / len(_l_trades) * 100) if _l_trades else 0.0
             s_eff = (_s_wins / len(_s_trades) * 100) if _s_trades else 0.0
             
+            num_tests = st.session_state.get("tg_max_candles", 100)
+            
             scores.append({
                 "name": name, 
                 "capital": float(final_capital),
                 "return": float(final_capital - 100.0), 
                 "trades": int(trades_count),
+                "num_tests": int(num_tests),
                 "strategy": strat_type,
                 "ref_line": ref_line,
                 "bot_mode": bot_mode,
@@ -3733,6 +3839,14 @@ box-shadow:0 4px 24px rgba(0,0,0,0.4);">
             
             # 2. Leaderboards - Melhores e Piores ocupando a tela toda em tabs
             st.markdown("### 🏆 Leaderboards da Arena (Histórico Cumulativo)")
+            col_ldr1, col_ldr2 = st.columns([8, 2])
+            with col_ldr2:
+                if st.button("🗑️ Apagar Histórico", key="clear_leaderboard"):
+                    if os.path.exists(highscores_file):
+                        os.remove(highscores_file)
+                    st.toast("Histórico da Arena apagado com sucesso!")
+                    st.rerun()
+
             scores = load_highscores()
             
             if scores:
@@ -3757,6 +3871,7 @@ box-shadow:0 4px 24px rgba(0,0,0,0.4);">
                             "Banca Final": f"{s.get('capital', 100.0):.2f} EUR",
                             "Retorno": f"{s.get('return', 0.0):+.2f}%",
                             "Trades": s.get("trades", 0),
+                            "Testes": s.get("num_tests", 100),
                             "Eficácia L/S": ef_ls,
                             "Estratégia": s.get("strategy", "Default (Fórmula do Jogo)"),
                             "Linha Ref.": s.get("ref_line", "-") if s.get("ref_line") else "-",
@@ -3847,7 +3962,7 @@ with tab_bot_brain:
                     from data_collector import DataCollector
                     symbol = "BTC/USDT" if "BTC" in training_source else "ETH/USDT"
                     try:
-                        collector = DataCollector(exchange_id='binance', symbol=symbol, timeframe='1h')
+                        collector = DataCollector({'EXCHANGE_NAME': 'binance', 'SYMBOL': symbol, 'TIMEFRAME': '1h'})
                         df_train = collector.get_ohlcv(limit=int(training_candles))
                     except Exception as e:
                         st.error(f"Erro ao descarregar da Binance: {e}")
@@ -3869,7 +3984,7 @@ with tab_bot_brain:
                     df_train['avg_sma'] = df_train[smas_t].mean(axis=1)
                     df_train['sma_std'] = df_train[smas_t].std(axis=1)
                     df_train['stretching'] = df_train[smas_t].sub(df_train['avg_sma'], axis=0).abs().mean(axis=1).div(df_train['avg_sma']).mul(100)
-                    df_train['velocity'] = df_train['sma_5'].diff(periods=2)
+                    df_train['velocity'] = df_train['close'].diff(periods=1)
                     df_train['acceleration'] = df_train['velocity'].diff(periods=2)
                     df_train['volatility'] = df_train['close'].rolling(window=20, min_periods=1).std()
                     # 4 novos indicadores dinâmicos

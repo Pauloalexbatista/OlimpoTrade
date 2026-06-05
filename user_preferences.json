@@ -1,14 +1,14 @@
 {
-    "tg_p2": 9,
-    "tg_p3": 27,
-    "tg_p4": 45,
-    "tg_p5": 63,
-    "tg_p6": 91,
+    "tg_p2": 10,
+    "tg_p3": 20,
+    "tg_p4": 30,
+    "tg_p5": 40,
+    "tg_p6": 50,
     "short_window_val": 9,
     "long_window_val": 21,
     "paulo_gold_min_dist_pct_val": 0.0,
     "tg_bot_compress_thresh": 0.6,
-    "tg_min_confidence_pct": 70.0,
+    "tg_min_confidence_pct": 75.0,
     "tg_sl_pct": 0.5,
     "tg_sl_pct_active": true,
     "tg_tp_pct": 0.0,
@@ -20,5 +20,8 @@
     "slippage_pct_val": 0.05,
     "paulo_gold_trend_filter_val": false,
     "allow_reentry_val": true,
-    "tg_only_one_move_per_candle": false
+    "tg_only_one_move_per_candle": false,
+    "tg_filter_momentum_active": false,
+    "tg_filter_squeeze_active": true,
+    "tg_subchart_type": "Ambos"
 }

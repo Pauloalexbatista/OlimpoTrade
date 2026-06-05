@@ -261,6 +261,15 @@ def initialize_variables_registry():
     if "paulo_gold_trend_filter_val" not in st.session_state:
         st.session_state.paulo_gold_trend_filter_val = prefs.get(
             'paulo_gold_trend_filter_val', False)
+    if "tg_filter_momentum_active" not in st.session_state:
+        st.session_state.tg_filter_momentum_active = prefs.get(
+            'tg_filter_momentum_active', False)
+    if "tg_filter_squeeze_active" not in st.session_state:
+        st.session_state.tg_filter_squeeze_active = prefs.get(
+            'tg_filter_squeeze_active', False)
+    if "tg_subchart_type" not in st.session_state:
+        st.session_state.tg_subchart_type = prefs.get(
+            'tg_subchart_type', 'Heatmap (Vel/Acel)')
     if "allow_reentry_val" not in st.session_state:
         st.session_state.allow_reentry_val = prefs.get(
             'allow_reentry_val', True)
@@ -425,6 +434,24 @@ def render_variables_dashboard(compact=False):
             if selected_size != st.session_state.get('math_size'):
                 st.session_state.math_size = selected_size
 
+        # Seletor do Sub-grafico
+        st.markdown("<div style='margin-top:15px;'></div>", unsafe_allow_html=True)
+        subchart_options = ["Heatmap (Vel/Acel)", "Histograma MACD", "Ambos", "Nenhum"]
+        current_subchart = st.session_state.get('tg_subchart_type', 'Heatmap (Vel/Acel)')
+        if current_subchart not in subchart_options:
+            current_subchart = 'Heatmap (Vel/Acel)'
+        selected_subchart = st.selectbox(
+            "📊 Painel do Sub-gráfico",
+            subchart_options,
+            index=subchart_options.index(current_subchart),
+            key="cc_subchart_type",
+            help="Selecione o indicador secundário exibido abaixo do gráfico de preços principal."
+        )
+        if selected_subchart != st.session_state.get('tg_subchart_type'):
+            st.session_state.tg_subchart_type = selected_subchart
+            st.rerun()
+
+
     # 🎯 COLUNA 2: Algoritmo & Gatilhos
     with col2:
         st.markdown("##### 🧠 Algoritmo & Gatilhos")
@@ -436,6 +463,7 @@ def render_variables_dashboard(compact=False):
         _arena_strategies = [
             'Default (Manual)',
             'Cérebro de Consenso (IA)',
+            'Momentum Puro',
             'Lagarta (Todas as Linhas)',
             'Linha Solitária',
             'Média Camadas (Duas Linhas)',
@@ -472,6 +500,18 @@ def render_variables_dashboard(compact=False):
               st.session_state.tg_bot_mode = "Bot Autonomo"
               st.session_state.tg_lagarta_min_disp = 0.3  # filtro recomendado para Lagarta
               st.toast('Lagarta: SL=1% TS=1% Dispersão≥0.30 — Bot Autónomo ligado!')
+          elif 'Momentum Puro' in _arena_selected:
+              st.session_state.tg_sl_pct_active = True
+              st.session_state.tg_sl_active = True
+              st.session_state.tg_sl_pct = 0.5
+              st.session_state.tg_ts_pct_active = True
+              st.session_state.tg_ts_active = True
+              st.session_state.tg_ts_pct = 0.5
+              st.session_state.tg_tp_pct_active = False
+              st.session_state.tg_tp_active = False
+              st.session_state.tg_bot_mode = "Bot Autonomo"
+              st.session_state.tg_lagarta_min_disp = 0.0
+              st.toast('Momentum Puro: SL=0.5% TS=0.5% - Só entra com Vel 1:1 Acel 1!')
           elif 'Camadas' in _arena_selected or 'Esmigalhador' in _arena_selected:
               st.session_state.tg_sl_pct_active = True
               st.session_state.tg_sl_active = True
@@ -546,6 +586,19 @@ def render_variables_dashboard(compact=False):
                             '• Combina o sinal de 6 sensores quantitativos: <b>Tendência</b>, <b>Aceleração</b>, <b>Volatilidade</b>, <b>Canal Desvio Padrão</b>, <b>Saturação (RSI)</b> e <b>Stop Loss Dinâmico</b>.<br>'
                             '• O bot só executa uma ordem quando o consenso ponderado dos sensores ultrapassa **80%** de confiança.<br><br>'
                             '<b>⚠️ Configuração Importante:</b> As médias móveis (P2 a P6) são configuradas de forma automática pelo sistema com base no DNA gerado no Laboratório Matemático (`bot_consensus_dna.json`).'
+                },
+                'Momentum Puro': {
+                    'gradient': 'linear-gradient(135deg, rgba(239,68,68,0.15) 0%, rgba(185,28,28,0.3) 100%)',
+                    'border': 'rgba(239,68,68,0.2)',
+                    'icon': '⚡',
+                    'color': '#ef4444',
+                    'title': 'Estratégia Momentum Puro',
+                    'desc': '<b>🔥 Funcionamento:</b><br>'
+                            '  Ignora as linhas e usa apenas a física de mercado (Aceleração e Velocidade).<br>'
+                            '  <b>Gatilho LONG:</b> Entra APENAS quando Velocidade > 0 e Aceleração > 0.<br>'
+                            '  <b>Saída LONG:</b> Sai quando a Velocidade inverte para negativo.<br>'
+                            '  <b>Gatilho SHORT:</b> Entra APENAS quando Velocidade < 0 e Aceleração < 0.<br>'
+                            '  <b>Saída SHORT:</b> Sai quando a Velocidade inverte para positivo.'
                 },
                 'Lagarta (Todas as Linhas)': {
                     'gradient': 'linear-gradient(135deg, rgba(16,185,129,0.15) 0%, rgba(4,120,87,0.3) 100%)',
@@ -703,6 +756,20 @@ def render_variables_dashboard(compact=False):
             help="Impede o robô de entrar numa nova posição na mesma vela após fechar uma anterior. Se desativado, permite até 2 movimentos (reversão automática)."
         )
 
+
+        st.session_state.tg_filter_momentum_active = st.checkbox(
+            "⚡ Ativar Filtro de Momentum",
+            value=st.session_state.get("tg_filter_momentum_active", False),
+            key="tg_chk_filter_momentum",
+            help="LONG só entra se for (1, 1) [subida acelerada]. Bloqueia entradas LONG se for (-1, -1) [queda acelerada] ou (1, -1) [subida a travar]. E o inverso para SHORT."
+        )
+
+        st.session_state.tg_filter_squeeze_active = st.checkbox(
+            "⏳ Ativar Filtro de Squeeze",
+            value=st.session_state.get("tg_filter_squeeze_active", False),
+            key="tg_chk_filter_squeeze",
+            help="Bloqueia entradas quando as SMAs estão muito comprimidas (lateralização) e só permite entrada no 1º ponto de afastamento (rompimento)."
+        )
         # Custos & Fricções de Mercado
         cost_vars = [v for v in VARIABLES if v.category == "Custos de Mercado"]
         for var in cost_vars:
@@ -730,6 +797,12 @@ def render_variables_dashboard(compact=False):
                 prefs_to_save["allow_reentry_val"] = st.session_state["allow_reentry_val"]
             if "tg_only_one_move_per_candle" in st.session_state:
                 prefs_to_save["tg_only_one_move_per_candle"] = st.session_state["tg_only_one_move_per_candle"]
+            if "tg_filter_momentum_active" in st.session_state:
+                prefs_to_save["tg_filter_momentum_active"] = st.session_state["tg_filter_momentum_active"]
+            if "tg_filter_squeeze_active" in st.session_state:
+                prefs_to_save["tg_filter_squeeze_active"] = st.session_state["tg_filter_squeeze_active"]
+            if "tg_subchart_type" in st.session_state:
+                prefs_to_save["tg_subchart_type"] = st.session_state["tg_subchart_type"]
             save_user_preferences(prefs_to_save)
             st.success("Configurações do painel e Cérebro guardadas com sucesso na memória local!")
             
@@ -747,6 +820,9 @@ def render_variables_dashboard(compact=False):
             st.session_state.paulo_gold_trend_filter_val = False
             st.session_state.allow_reentry_val = True
             st.session_state.tg_only_one_move_per_candle = True
+            st.session_state.tg_filter_momentum_active = False
+            st.session_state.tg_filter_squeeze_active = False
+            st.session_state.tg_subchart_type = 'Heatmap (Vel/Acel)'
             st.session_state.symbol_val = "🧪 Cenário Didático (Fictício)"
             st.toast("Valores padrões repostos com sucesso!")
             st.rerun()
