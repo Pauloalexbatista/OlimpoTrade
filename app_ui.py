@@ -1589,6 +1589,10 @@ with tab_trader_game:
         if "tg_position" not in st.session_state: st.session_state.tg_position = "NONE"
         if "tg_last_exit_step" not in st.session_state: st.session_state.tg_last_exit_step = -1
         if "tg_entry_price" not in st.session_state: st.session_state.tg_entry_price = 0.0
+        if "tg_entry_atr" not in st.session_state: st.session_state.tg_entry_atr = 0.0
+        if "tg_macd_weakness_count" not in st.session_state: st.session_state.tg_macd_weakness_count = 0
+        if "tg_entry_atr" not in st.session_state: st.session_state.tg_entry_atr = 0.0
+        if "tg_macd_weakness_count" not in st.session_state: st.session_state.tg_macd_weakness_count = 0
         if "tg_entry_step" not in st.session_state: st.session_state.tg_entry_step = 0
         if "tg_trades" not in st.session_state: st.session_state.tg_trades = []
         if "tg_data" not in st.session_state: st.session_state.tg_data = None
@@ -1699,16 +1703,28 @@ with tab_trader_game:
             y_min = float(sub_df['close'].min() * 0.995)
             y_max = float(sub_df['close'].max() * 1.005)
             
-            subchart_type = st.session_state.get('tg_subchart_type', 'Heatmap (Vel/Acel)')
-            if subchart_type == "Nenhum":
+            subchart_type = st.session_state.get('tg_subchart_type', ['Heatmap (Vel/Acel)'])
+            if isinstance(subchart_type, str):
+                if subchart_type == "Ambos": subchart_type = ["Heatmap (Vel/Acel)", "Histograma MACD"]
+                elif subchart_type == "Nenhum": subchart_type = []
+                else: subchart_type = [subchart_type]
+            
+            num_subcharts = len(subchart_type)
+            if num_subcharts == 0:
                 fig = make_subplots(rows=1, cols=1)
                 chart_height = 450
-            elif subchart_type == "Ambos":
-                fig = make_subplots(rows=3, cols=1, shared_xaxes=True, row_heights=[0.70, 0.15, 0.15], vertical_spacing=0.03)
-                chart_height = 600
-            else:
-                fig = make_subplots(rows=2, cols=1, shared_xaxes=True, row_heights=[0.82, 0.18], vertical_spacing=0.03)
+            elif num_subcharts == 1:
+                fig = make_subplots(rows=2, cols=1, shared_xaxes=True, row_heights=[0.8, 0.2], vertical_spacing=0.03)
                 chart_height = 520 if show_full_range else 500
+            elif num_subcharts == 2:
+                fig = make_subplots(rows=3, cols=1, shared_xaxes=True, row_heights=[0.7, 0.15, 0.15], vertical_spacing=0.03)
+                chart_height = 620
+            elif num_subcharts == 3:
+                fig = make_subplots(rows=4, cols=1, shared_xaxes=True, row_heights=[0.55, 0.15, 0.15, 0.15], vertical_spacing=0.03)
+                chart_height = 720
+            else:
+                fig = make_subplots(rows=5, cols=1, shared_xaxes=True, row_heights=[0.4, 0.15, 0.15, 0.15, 0.15], vertical_spacing=0.03)
+                chart_height = 820
             upper_band = sub_df['avg_sma'] + 1.0 * sub_df['sma_std']
             lower_band = sub_df['avg_sma'] - 1.0 * sub_df['sma_std']
             fig.add_trace(go.Scatter(
@@ -1868,41 +1884,56 @@ with tab_trader_game:
                             x0=exit_time, x1=exit_time, y0=y_min, y1=y_max,
                             line=dict(color=exit_color, width=1.5, dash='dash'),
                             row=1, col=1)
-            if subchart_type in ("Heatmap (Vel/Acel)", "Ambos"):
-                vel_dir = sub_df['velocity'].apply(lambda x: 1.0 if x > 0 else (-1.0 if x < 0 else 0.0)).tolist()
-                acc_dir = sub_df['acceleration'].apply(lambda x: 1.0 if x > 0 else (-1.0 if x < 0 else 0.0)).tolist()
-                fig.add_trace(go.Heatmap(
-                    x=sub_df.index, y=['Forca (Acel.)', 'Direcao (Vel.)'], z=[acc_dir, vel_dir],
-                    colorscale=[[0.0,'#e74c3c'],[0.5,'#cbd5e1'],[1.0,'#2ecc71']],
-                    showscale=False, hovertemplate='%{x}<br>%{y}: %{z}<extra></extra>'
-                ), row=2, col=1)
-
-            if subchart_type in ("Histograma MACD", "Ambos"):
-                macd_row = 3 if subchart_type == "Ambos" else 2
-                macd_vals = sub_df['macd_hist'].fillna(0.0).tolist()
-                macd_colors = []
-                for idx in range(len(macd_vals)):
-                    val = macd_vals[idx]
-                    prev_val = macd_vals[idx-1] if idx > 0 else 0.0
-                    if val >= 0:
-                        if val > prev_val:
-                            macd_colors.append('#2ecc71')  # Verde brilhante (acelera)
-                        else:
-                            macd_colors.append('#27ae60')  # Verde escuro (desacelera)
-                    else:
-                        if val < prev_val:
-                            macd_colors.append('#e74c3c')  # Vermelho brilhante (acelera)
-                        else:
-                            macd_colors.append('#c0392b')  # Vermelho escuro (desacelera)
+            current_row = 2
+            for sub in subchart_type:
+                if sub == "Heatmap (Vel/Acel)":
+                    vel_dir = sub_df['velocity'].apply(lambda x: 1.0 if x > 0 else (-1.0 if x < 0 else 0.0)).tolist()
+                    acc_dir = sub_df['acceleration'].apply(lambda x: 1.0 if x > 0 else (-1.0 if x < 0 else 0.0)).tolist()
+                    fig.add_trace(go.Heatmap(
+                        x=sub_df.index, y=['Forca (Acel.)', 'Direcao (Vel.)'], z=[acc_dir, vel_dir],
+                        colorscale=[[0.0,'#e74c3c'],[0.5,'#cbd5e1'],[1.0,'#2ecc71']],
+                        showscale=False, hovertemplate='%{x}<br>%{y}: %{z}<extra></extra>'
+                    ), row=current_row, col=1)
                 
-                fig.add_trace(go.Bar(
-                    x=sub_df.index,
-                    y=macd_vals,
-                    marker_color=macd_colors,
-                    name='Histograma MACD',
-                    showlegend=False,
-                    hovertemplate='%{x}<br>MACD Hist: %{y:.4f}<extra></extra>'
-                ), row=macd_row, col=1)
+                elif sub == "Histograma MACD":
+                    macd_vals = sub_df['macd_hist'].fillna(0.0).tolist()
+                    macd_colors = []
+                    for idx in range(len(macd_vals)):
+                        val = macd_vals[idx]
+                        prev_val = macd_vals[idx-1] if idx > 0 else 0.0
+                        if val >= 0:
+                            if val > prev_val: macd_colors.append('#2ecc71')
+                            else: macd_colors.append('#27ae60')
+                        else:
+                            if val < prev_val: macd_colors.append('#e74c3c')
+                            else: macd_colors.append('#c0392b')
+                    
+                    fig.add_trace(go.Bar(
+                        x=sub_df.index, y=macd_vals, marker_color=macd_colors, name='Histograma MACD',
+                        showlegend=False, hovertemplate='%{x}<br>MACD Hist: %{y:.4f}<extra></extra>'
+                    ), row=current_row, col=1)
+
+                elif sub == "Volume":
+                    vol_colors = ['#10B981' if c >= o else '#EF4444' for c, o in zip(sub_df['close'], sub_df['open'])]
+                    fig.add_trace(go.Bar(
+                        x=sub_df.index, y=sub_df['volume'], marker_color=vol_colors, name='Volume', showlegend=False
+                    ), row=current_row, col=1)
+                    if 'volume_sma_20' in sub_df.columns:
+                        fig.add_trace(go.Scatter(
+                            x=sub_df.index, y=sub_df['volume_sma_20'], line=dict(color='#F59E0B', width=2), name='SMA Volume (20)', showlegend=False
+                        ), row=current_row, col=1)
+                
+                elif sub == "ADX (Tendência)":
+                    if 'adx_14' in sub_df.columns:
+                        fig.add_trace(go.Scatter(
+                            x=sub_df.index, y=sub_df['adx_14'], line=dict(color='#3B82F6', width=2), name='ADX (14)', showlegend=False
+                        ), row=current_row, col=1)
+                        # Add ADX 25 threshold line
+                        fig.add_shape(type="line",
+                            x0=sub_df.index[0], x1=sub_df.index[-1], y0=25, y1=25,
+                            line=dict(color='rgba(239,68,68,0.8)', width=1.5, dash='dot'),
+                            row=current_row, col=1)
+                current_row += 1
 
             fig.update_layout(
                 title=title_str,
@@ -1920,13 +1951,11 @@ with tab_trader_game:
             fig.update_xaxes(showgrid=True, gridcolor='#e2e8f0', row=1, col=1)
             fig.update_yaxes(showgrid=True, gridcolor='#e2e8f0', row=1, col=1)
 
-            if subchart_type in ("Heatmap (Vel/Acel)", "Ambos"):
-                fig.update_xaxes(showgrid=True, gridcolor='#e2e8f0', row=2, col=1)
-                fig.update_yaxes(showgrid=True, gridcolor='#e2e8f0', row=2, col=1)
-            if subchart_type in ("Histograma MACD", "Ambos"):
-                macd_row = 3 if subchart_type == "Ambos" else 2
-                fig.update_xaxes(showgrid=True, gridcolor='#e2e8f0', row=macd_row, col=1)
-                fig.update_yaxes(showgrid=True, gridcolor='#e2e8f0', row=macd_row, col=1)
+            current_row = 2
+            for sub in subchart_type:
+                fig.update_xaxes(showgrid=True, gridcolor='#e2e8f0', row=current_row, col=1)
+                fig.update_yaxes(showgrid=True, gridcolor='#e2e8f0', row=current_row, col=1)
+                current_row += 1
 
             return fig
         def generate_game_market():
@@ -2034,6 +2063,13 @@ with tab_trader_game:
             else:
                 tr_t = df['close'].diff().abs()
             df['atr_14'] = tr_t.rolling(window=14).mean()
+            try:
+                import ta
+                df['adx_14'] = ta.trend.ADXIndicator(high=df['high'], low=df['low'], close=df['close'], window=14).adx()
+            except Exception:
+                df['adx_14'] = 0.0
+            df['volume_sma_20'] = df['volume'].rolling(window=20).mean()
+            df['volume_pct_diff'] = ((df['volume'] - df['volume_sma_20']) / df['volume_sma_20']) * 100.0
             
             df.bfill(inplace=True)
             return df
@@ -2103,9 +2139,16 @@ with tab_trader_game:
                 else:
                     tr_t = df['close'].diff().abs()
                 df['atr_14'] = tr_t.rolling(window=14).mean()
-                
-                df.bfill(inplace=True)
-                st.session_state.tg_data = df
+            try:
+                import ta
+                df['adx_14'] = ta.trend.ADXIndicator(high=df['high'], low=df['low'], close=df['close'], window=14).adx()
+            except Exception:
+                df['adx_14'] = 0.0
+            df['volume_sma_20'] = df['volume'].rolling(window=20).mean()
+            df['volume_pct_diff'] = ((df['volume'] - df['volume_sma_20']) / df['volume_sma_20']) * 100.0
+            
+            df.bfill(inplace=True)
+            st.session_state.tg_data = df
         # Sincronização automática se as médias mudaram
         current_smas = (st.session_state.tg_p2, st.session_state.tg_p3, st.session_state.tg_p4, st.session_state.tg_p5, st.session_state.tg_p6)
         if st.session_state.get('tg_last_calculated_smas') != current_smas:
@@ -2155,6 +2198,34 @@ with tab_trader_game:
                         "Filtro Momentum": "Cancelado (SHORT exige Velocidade < 0 e Aceleração < 0)",
                         "Estado Físico": f"Vel: {vel:.4f}, Acc: {acc:.4f}"
                     }
+            # 4. Filtro Global MACD (Entradas e Saídas)
+            if st.session_state.get('tg_filter_macd_active', False):
+                macd = df['macd_hist'].iloc[step] if 'macd_hist' in df.columns else 0.0
+                macd_long_entry = st.session_state.get("tg_macd_long_entry", 0.1)
+                macd_long_exit = st.session_state.get("tg_macd_long_exit", 0.1)
+                macd_short_entry = st.session_state.get("tg_macd_short_entry", -0.1)
+                macd_short_exit = st.session_state.get("tg_macd_short_exit", -0.1)
+                
+                _cur_pos = st.session_state.get("tg_position", "NONE")
+                
+                # Saídas forçadas
+                if _cur_pos == "LONG" and macd < macd_long_exit:
+                    return "HOLD", 100.0, {**conds, "Filtro MACD": "Saída Forçada (MACD Sem Força)"}
+                elif _cur_pos == "SHORT" and macd > macd_short_exit:
+                    return "HOLD", 100.0, {**conds, "Filtro MACD": "Saída Forçada (MACD Sem Força)"}
+                    
+                # Bloqueio de Entradas
+                if sig == "LONG" and macd < macd_long_entry:
+                    return "HOLD", 0.0, {**conds, "Filtro MACD": "Cancelado (MACD < Long Entry)"}
+                elif sig == "SHORT" and macd > macd_short_entry:
+                    return "HOLD", 0.0, {**conds, "Filtro MACD": "Cancelado (MACD > Short Entry)"}
+
+            # 5. Filtro de Volume
+            if st.session_state.get('tg_filter_volume_active', False) and sig in ("LONG", "SHORT"):
+                vol_pct = df['volume_pct_diff'].iloc[step] if 'volume_pct_diff' in df.columns else 0.0
+                thresh = st.session_state.get('tg_volume_threshold_pct', 0.0)
+                if vol_pct < thresh:
+                    return "HOLD", 0.0, {**conds, "Filtro Volume": f"Cancelado (Volume {vol_pct:.1f}% vs Exigido {thresh:.1f}%)"}
 
             return sig, conf, conds
 
@@ -2252,6 +2323,30 @@ with tab_trader_game:
                     return "SHORT", 100.0, {**cond_dict, "Gatilho": "Reentrada 2ª Média (P3) de Baixa"}
                 else:
                     return "HOLD", 0.0, cond_dict
+
+            elif "Momentum & MACD" in st.session_state.get("tg_strategy_type", "Default"):
+                vel = df['velocity'].iloc[step] if 'velocity' in df.columns else 0.0
+                acc = df['acceleration'].iloc[step] if 'acceleration' in df.columns else 0.0
+                macd = df['macd_hist'].iloc[step] if 'macd_hist' in df.columns else 0.0
+                
+                cond_dict = {"Velocidade": vel, "Aceleração": acc, "MACD Hist": macd}
+                
+                if vel > 0 and acc > 0:
+                    return "LONG", 100.0, cond_dict
+                elif vel < 0 and acc < 0:
+                    return "SHORT", 100.0, cond_dict
+                else:
+                    return "HOLD", 0.0, cond_dict
+                    
+                macd_long_exit = st.session_state.get("tg_macd_long_exit", 0.0)
+                macd_short_exit = st.session_state.get("tg_macd_short_exit", 0.0)
+
+                if _cur == "LONG" and macd < macd_long_exit:
+                    return "HOLD", 100.0, {**cond_dict, "Gatilho": "Saída MACD Sem Força"}
+                elif _cur == "SHORT" and macd > macd_short_exit:
+                    return "HOLD", 100.0, {**cond_dict, "Gatilho": "Saída MACD Sem Força"}
+                    
+                return "HOLD", 0.0, cond_dict
 
             elif "Momentum Puro" in st.session_state.get("tg_strategy_type", "Default"):
                 vel = df['velocity'].iloc[step] if 'velocity' in df.columns else 0.0
@@ -2565,6 +2660,8 @@ with tab_trader_game:
             st.session_state.tg_position = "NONE"
             st.session_state.tg_last_exit_step = -1
             st.session_state.tg_entry_price = 0.0
+            st.session_state.tg_entry_atr = 0.0
+            st.session_state.tg_macd_weakness_count = 0
             st.session_state.tg_entry_step = 0
             st.session_state.tg_trades = []
             st.session_state.tg_active = True
@@ -3226,9 +3323,12 @@ border: 1px solid rgba(255,255,255,0.08);
                     elif (st.session_state.get("tg_tp_pct", 0) > 0) and price_now >= entry_p * (1 + st.session_state.tg_tp_pct/100.0):
                         triggered, trigger_reason = True, "TAKE PROFIT"
                         executed_price = entry_p * (1 + st.session_state.tg_tp_pct/100.0)
-                    elif (st.session_state.get("tg_ts_pct", 0) > 0) and price_now <= st.session_state.tg_highest_price * (1 - st.session_state.tg_ts_pct/100.0):
-                        triggered, trigger_reason = True, "TRAILING STOP"
-                        executed_price = st.session_state.tg_highest_price * (1 - st.session_state.tg_ts_pct/100.0)
+                    elif st.session_state.get("tg_ts_active", False):
+                                      ts_mult = st.session_state.get("tg_ts_atr_end", 0.2) if st.session_state.tg_macd_weakness_count >= st.session_state.get("tg_ts_weakness_bars", 2) else st.session_state.get("tg_ts_atr_start", 1.5)
+                                      ts_dist = st.session_state.tg_entry_atr * ts_mult
+                                      if price_now <= st.session_state.tg_highest_price - ts_dist:
+                                          triggered, trigger_reason = True, "TRAILING STOP"
+                                          executed_price = st.session_state.tg_highest_price - ts_dist
                 elif st.session_state.tg_position == "SHORT":
                     st.session_state.tg_lowest_price = min(st.session_state.tg_lowest_price, price_now)
                     if (st.session_state.get("tg_sl_pct", 0) > 0) and price_now >= entry_p * (1 + st.session_state.tg_sl_pct/100.0):
@@ -3237,9 +3337,12 @@ border: 1px solid rgba(255,255,255,0.08);
                     elif (st.session_state.get("tg_tp_pct", 0) > 0) and price_now <= entry_p * (1 - st.session_state.tg_tp_pct/100.0):
                         triggered, trigger_reason = True, "TAKE PROFIT"
                         executed_price = entry_p * (1 - st.session_state.tg_tp_pct/100.0)
-                    elif (st.session_state.get("tg_ts_pct", 0) > 0) and price_now >= st.session_state.tg_lowest_price * (1 + st.session_state.tg_ts_pct/100.0):
-                        triggered, trigger_reason = True, "TRAILING STOP"
-                        executed_price = st.session_state.tg_lowest_price * (1 + st.session_state.tg_ts_pct/100.0)
+                    elif st.session_state.get("tg_ts_active", False):
+                                      ts_mult = st.session_state.get("tg_ts_atr_end", 0.2) if st.session_state.tg_macd_weakness_count >= st.session_state.get("tg_ts_weakness_bars", 2) else st.session_state.get("tg_ts_atr_start", 1.5)
+                                      ts_dist = st.session_state.tg_entry_atr * ts_mult
+                                      if price_now >= st.session_state.tg_lowest_price + ts_dist:
+                                          triggered, trigger_reason = True, "TRAILING STOP"
+                                          executed_price = st.session_state.tg_lowest_price + ts_dist
                 if triggered:
                     commissions = st.session_state.tg_capital * ((st.session_state.get('fee_pct_val', 0.1) + st.session_state.get('slippage_pct_val', 0.05)) / 100.0) * 2
                     if st.session_state.tg_position == "LONG":
@@ -3396,9 +3499,12 @@ box-shadow:0 4px 24px rgba(0,0,0,0.4);">
                                 elif (st.session_state.get("tg_tp_pct", 0) > 0) and price_now >= entry_p * (1 + st.session_state.tg_tp_pct/100.0):
                                     triggered, trigger_reason = True, "TAKE PROFIT"
                                     executed_price = entry_p * (1 + st.session_state.tg_tp_pct/100.0)
-                                elif (st.session_state.get("tg_ts_pct", 0) > 0) and price_now <= st.session_state.tg_highest_price * (1 - st.session_state.tg_ts_pct/100.0):
-                                    triggered, trigger_reason = True, "TRAILING STOP"
-                                    executed_price = st.session_state.tg_highest_price * (1 - st.session_state.tg_ts_pct/100.0)
+                                elif st.session_state.get("tg_ts_active", False):
+                                      ts_mult = st.session_state.get("tg_ts_atr_end", 0.2) if st.session_state.tg_macd_weakness_count >= st.session_state.get("tg_ts_weakness_bars", 2) else st.session_state.get("tg_ts_atr_start", 1.5)
+                                      ts_dist = st.session_state.tg_entry_atr * ts_mult
+                                      if price_now <= st.session_state.tg_highest_price - ts_dist:
+                                          triggered, trigger_reason = True, "TRAILING STOP"
+                                          executed_price = st.session_state.tg_highest_price - ts_dist
                             elif st.session_state.tg_position == "SHORT":
                                 st.session_state.tg_lowest_price = min(st.session_state.tg_lowest_price, price_now)
                                 if (st.session_state.get("tg_sl_pct", 0) > 0) and price_now >= entry_p * (1 + st.session_state.tg_sl_pct/100.0):
@@ -3407,9 +3513,12 @@ box-shadow:0 4px 24px rgba(0,0,0,0.4);">
                                 elif (st.session_state.get("tg_tp_pct", 0) > 0) and price_now <= entry_p * (1 - st.session_state.tg_tp_pct/100.0):
                                     triggered, trigger_reason = True, "TAKE PROFIT"
                                     executed_price = entry_p * (1 - st.session_state.tg_tp_pct/100.0)
-                                elif (st.session_state.get("tg_ts_pct", 0) > 0) and price_now >= st.session_state.tg_lowest_price * (1 + st.session_state.tg_ts_pct/100.0):
-                                    triggered, trigger_reason = True, "TRAILING STOP"
-                                    executed_price = st.session_state.tg_lowest_price * (1 + st.session_state.tg_ts_pct/100.0)
+                                elif st.session_state.get("tg_ts_active", False):
+                                      ts_mult = st.session_state.get("tg_ts_atr_end", 0.2) if st.session_state.tg_macd_weakness_count >= st.session_state.get("tg_ts_weakness_bars", 2) else st.session_state.get("tg_ts_atr_start", 1.5)
+                                      ts_dist = st.session_state.tg_entry_atr * ts_mult
+                                      if price_now >= st.session_state.tg_lowest_price + ts_dist:
+                                          triggered, trigger_reason = True, "TRAILING STOP"
+                                          executed_price = st.session_state.tg_lowest_price + ts_dist
                                     
                             if triggered:
                                 commissions = st.session_state.tg_capital * ((st.session_state.get('fee_pct_val', 0.1) + st.session_state.get('slippage_pct_val', 0.05)) / 100.0) * 2
@@ -3470,11 +3579,15 @@ box-shadow:0 4px 24px rgba(0,0,0,0.4);">
                                 if _bot_signal == "LONG":
                                     st.session_state.tg_position = "LONG"
                                     st.session_state.tg_entry_price = price_now
+                                    st.session_state.tg_entry_atr = df['atr_14'].iloc[current_step] if 'atr_14' in df.columns and not pd.isna(df['atr_14'].iloc[current_step]) else 1.0
+                                    st.session_state.tg_macd_weakness_count = 0
                                     st.session_state.tg_entry_step = current_step
                                     st.session_state.tg_highest_price = price_now
                                 elif _bot_signal == "SHORT":
                                     st.session_state.tg_position = "SHORT"
                                     st.session_state.tg_entry_price = price_now
+                                    st.session_state.tg_entry_atr = df['atr_14'].iloc[current_step] if 'atr_14' in df.columns and not pd.isna(df['atr_14'].iloc[current_step]) else 1.0
+                                    st.session_state.tg_macd_weakness_count = 0
                                     st.session_state.tg_entry_step = current_step
                                     st.session_state.tg_lowest_price = price_now
                     st.rerun()
@@ -3541,12 +3654,16 @@ box-shadow:0 4px 24px rgba(0,0,0,0.4);">
                         if _bot_signal == "LONG":
                             st.session_state.tg_position = "LONG"
                             st.session_state.tg_entry_price = price_now
+                            st.session_state.tg_entry_atr = df['atr_14'].iloc[current_step] if 'atr_14' in df.columns and not pd.isna(df['atr_14'].iloc[current_step]) else 1.0
+                            st.session_state.tg_macd_weakness_count = 0
                             st.session_state.tg_entry_step = current_step
                             st.session_state.tg_highest_price = price_now
                             st.toast(f"Bot entrou LONG a {price_now:.2f}")
                         elif _bot_signal == "SHORT":
                             st.session_state.tg_position = "SHORT"
                             st.session_state.tg_entry_price = price_now
+                            st.session_state.tg_entry_atr = df['atr_14'].iloc[current_step] if 'atr_14' in df.columns and not pd.isna(df['atr_14'].iloc[current_step]) else 1.0
+                            st.session_state.tg_macd_weakness_count = 0
                             st.session_state.tg_entry_step = current_step
                             st.session_state.tg_lowest_price = price_now
                             st.toast(f"Bot entrou SHORT a {price_now:.2f}")
@@ -3581,6 +3698,8 @@ box-shadow:0 4px 24px rgba(0,0,0,0.4);">
                         if st.button("ENTRAR LONG  [OFF]", width="stretch", key="tg_btn_long_inact"):
                             st.session_state.tg_position = "LONG"
                             st.session_state.tg_entry_price = price_now
+                            st.session_state.tg_entry_atr = df['atr_14'].iloc[current_step] if 'atr_14' in df.columns and not pd.isna(df['atr_14'].iloc[current_step]) else 1.0
+                            st.session_state.tg_macd_weakness_count = 0
                             st.session_state.tg_entry_step = current_step
                             st.session_state.tg_highest_price = price_now
                             st.toast(f"LONG ativado a {price_now:.2f}")
@@ -3616,6 +3735,8 @@ box-shadow:0 4px 24px rgba(0,0,0,0.4);">
                         if st.button("ENTRAR SHORT  [OFF]", width="stretch", key="tg_btn_short_inact"):
                             st.session_state.tg_position = "SHORT"
                             st.session_state.tg_entry_price = price_now
+                            st.session_state.tg_entry_atr = df['atr_14'].iloc[current_step] if 'atr_14' in df.columns and not pd.isna(df['atr_14'].iloc[current_step]) else 1.0
+                            st.session_state.tg_macd_weakness_count = 0
                             st.session_state.tg_entry_step = current_step
                             st.session_state.tg_lowest_price = price_now
                             st.toast(f"SHORT ativado a {price_now:.2f}")
@@ -3664,6 +3785,25 @@ box-shadow:0 4px 24px rgba(0,0,0,0.4);">
                         f'<div style="font-size:13.5px;padding:3px 0;color:#cbd5e1;line-height:1.4;">'
                         f'<span style="color:{_ccolor};font-weight:bold;margin-right:6px;">{_cmark}</span>{_ck}</div>'
                     )
+
+                adx_val = df['adx_14'].iloc[current_step] if 'adx_14' in df.columns else 0.0
+                adx_color = "#10B981" if adx_val > 25 else "#F59E0B"
+                adx_text = "Em Tendência" if adx_val > 25 else "Lateral"
+                adx_icon = "🟢" if adx_val > 25 else "🟡"
+                
+                conds_html.append(
+                    f'<div style="font-size:13.5px;padding:3px 0;color:#cbd5e1;line-height:1.4;">'
+                    f'<span style="font-weight:bold;margin-right:6px;">{adx_icon}</span>Tendência (ADX): <span style="color:{adx_color};font-weight:bold;">{adx_text} ({adx_val:.1f})</span></div>'
+                )
+
+                vol_pct = df['volume_pct_diff'].iloc[current_step] if 'volume_pct_diff' in df.columns else 0.0
+                vol_color = "#10B981" if vol_pct >= 0 else "#EF4444"
+                vol_icon = "✅" if vol_pct >= 0 else "❌"
+                
+                conds_html.append(
+                    f'<div style="font-size:13.5px;padding:3px 0;color:#cbd5e1;line-height:1.4;">'
+                    f'<span style="font-weight:bold;margin-right:6px;">{vol_icon}</span>Volume (VS Média): <span style="color:{vol_color};font-weight:bold;">{vol_pct:+.1f}%</span></div>'
+                )
                 
                 conds_block = (
                     f'<div style="background:rgba(15,23,42,0.7);border-radius:10px;padding:12px 14px;'

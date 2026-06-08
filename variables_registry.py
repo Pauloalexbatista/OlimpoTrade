@@ -264,6 +264,12 @@ def initialize_variables_registry():
     if "tg_filter_momentum_active" not in st.session_state:
         st.session_state.tg_filter_momentum_active = prefs.get(
             'tg_filter_momentum_active', False)
+        
+        st.session_state.tg_filter_macd_active = prefs.get('tg_filter_macd_active', False)
+        
+        for k, v in [('tg_macd_long_entry', 0.1), ('tg_macd_long_exit', 0.1), ('tg_macd_short_entry', -0.1), ('tg_macd_short_exit', -0.1)]:
+            if k not in st.session_state:
+                st.session_state[k] = prefs.get(k, v)
     if "tg_filter_squeeze_active" not in st.session_state:
         st.session_state.tg_filter_squeeze_active = prefs.get(
             'tg_filter_squeeze_active', False)
@@ -436,19 +442,30 @@ def render_variables_dashboard(compact=False):
 
         # Seletor do Sub-grafico
         st.markdown("<div style='margin-top:15px;'></div>", unsafe_allow_html=True)
-        subchart_options = ["Heatmap (Vel/Acel)", "Histograma MACD", "Ambos", "Nenhum"]
-        current_subchart = st.session_state.get('tg_subchart_type', 'Heatmap (Vel/Acel)')
-        if current_subchart not in subchart_options:
-            current_subchart = 'Heatmap (Vel/Acel)'
-        selected_subchart = st.selectbox(
+        subchart_options = [
+            'Heatmap (Vel/Acel)',
+            'Histograma MACD',
+            'Volume',
+            'ADX (Tendência)'
+        ]
+        
+        current_subcharts = st.session_state.get('tg_subchart_type', ['Heatmap (Vel/Acel)'])
+        if isinstance(current_subcharts, str):
+            if current_subcharts == "Ambos": current_subcharts = ["Heatmap (Vel/Acel)", "Histograma MACD"]
+            elif current_subcharts == "Nenhum": current_subcharts = []
+            else: current_subcharts = [current_subcharts]
+            
+        current_subcharts = [c for c in current_subcharts if c in subchart_options]
+
+        selected_subcharts = st.multiselect(
             "📊 Painel do Sub-gráfico",
-            subchart_options,
-            index=subchart_options.index(current_subchart),
+            options=subchart_options,
+            default=current_subcharts,
             key="cc_subchart_type",
-            help="Selecione o indicador secundário exibido abaixo do gráfico de preços principal."
+            help="Selecione os indicadores secundários exibidos abaixo do gráfico principal."
         )
-        if selected_subchart != st.session_state.get('tg_subchart_type'):
-            st.session_state.tg_subchart_type = selected_subchart
+        if selected_subcharts != st.session_state.get('tg_subchart_type'):
+            st.session_state.tg_subchart_type = selected_subcharts
             st.rerun()
 
 
@@ -464,6 +481,7 @@ def render_variables_dashboard(compact=False):
             'Default (Manual)',
             'Cérebro de Consenso (IA)',
             'Momentum Puro',
+            'Momentum & MACD',
             'Lagarta (Todas as Linhas)',
             'Linha Solitária',
             'Média Camadas (Duas Linhas)',
@@ -500,6 +518,16 @@ def render_variables_dashboard(compact=False):
               st.session_state.tg_bot_mode = "Bot Autonomo"
               st.session_state.tg_lagarta_min_disp = 0.3  # filtro recomendado para Lagarta
               st.toast('Lagarta: SL=1% TS=1% Dispersão≥0.30 — Bot Autónomo ligado!')
+          elif 'Momentum & MACD' in _arena_selected:
+              st.session_state.tg_sl_pct_active = True
+              st.session_state.tg_sl_active = True
+              st.session_state.tg_sl_pct = 0.5
+              st.session_state.tg_ts_pct_active = True
+              st.session_state.tg_ts_active = True
+              st.session_state.tg_tp_active = False
+              st.session_state.tg_bot_mode = "Bot Autonomo"
+              st.session_state.tg_lagarta_min_disp = 0.0
+              st.toast('Momentum & MACD: SL=0.5% TS=0.5% - Usa Heatmap e MACD!')
           elif 'Momentum Puro' in _arena_selected:
               st.session_state.tg_sl_pct_active = True
               st.session_state.tg_sl_active = True
@@ -586,6 +614,19 @@ def render_variables_dashboard(compact=False):
                             '• Combina o sinal de 6 sensores quantitativos: <b>Tendência</b>, <b>Aceleração</b>, <b>Volatilidade</b>, <b>Canal Desvio Padrão</b>, <b>Saturação (RSI)</b> e <b>Stop Loss Dinâmico</b>.<br>'
                             '• O bot só executa uma ordem quando o consenso ponderado dos sensores ultrapassa **80%** de confiança.<br><br>'
                             '<b>⚠️ Configuração Importante:</b> As médias móveis (P2 a P6) são configuradas de forma automática pelo sistema com base no DNA gerado no Laboratório Matemático (`bot_consensus_dna.json`).'
+                },
+                'Momentum & MACD': {
+                    'gradient': 'linear-gradient(135deg, rgba(139,92,246,0.15) 0%, rgba(109,40,217,0.3) 100%)',
+                    'border': 'rgba(139,92,246,0.2)',
+                    'icon': '📊',
+                    'color': '#8b5cf6',
+                    'title': 'Estratégia Momentum & MACD',
+                    'desc': '<b>🔥 Funcionamento:</b><br>'
+                            '  Combina a física de mercado (HeatMap) com Histograma MACD.<br>'
+                            '  <b>Gatilho LONG:</b> Entra quando Heatmap 1:1 e Histograma Positivo.<br>'
+                            '  <b>Saída LONG:</b> Sai quando Histograma fica Negativo.<br>'
+                            '  <b>Gatilho SHORT:</b> Entra quando Heatmap -1:-1 e Histograma Negativo.<br>'
+                            '  <b>Saída SHORT:</b> Sai quando Histograma fica Positivo.<br>'
                 },
                 'Momentum Puro': {
                     'gradient': 'linear-gradient(135deg, rgba(239,68,68,0.15) 0%, rgba(185,28,28,0.3) 100%)',
@@ -745,9 +786,20 @@ def render_variables_dashboard(compact=False):
         )
         st.markdown("<p style='font-size:11px;color:#64748b;margin-top:-8px;'>0 = desativado | 0.30 = recomendado | 0.50 = conservador</p>", unsafe_allow_html=True)
 
-        risk_vars = [v for v in VARIABLES if v.key in ["tg_sl_pct", "tg_tp_pct", "tg_ts_pct"]]
+        risk_vars = [v for v in VARIABLES if v.key in ["tg_sl_pct", "tg_tp_pct"]]
         for var in risk_vars:
             render_variable_widget(var)
+
+        st.markdown("##### 🌊 Trailing Stop Dinâmico (Efeito Garrafão)")
+        st.session_state.tg_ts_active = st.checkbox("Ativar Efeito Garrafão (TS Baseado em ATR)", value=st.session_state.get("tg_ts_active", False))
+        
+        col_ts1, col_ts2, col_ts3 = st.columns(3)
+        with col_ts1:
+            st.session_state.tg_ts_atr_start = st.number_input("Torneira Aberta (xATR)", min_value=0.0, step=0.1, value=st.session_state.get("tg_ts_atr_start", 1.5))
+        with col_ts2:
+            st.session_state.tg_ts_atr_end = st.number_input("Torneira Fechada (xATR)", min_value=0.0, step=0.1, value=st.session_state.get("tg_ts_atr_end", 0.2))
+        with col_ts3:
+            st.session_state.tg_ts_weakness_bars = st.number_input("Velas Exaustão (MACD)", min_value=1, step=1, value=int(st.session_state.get("tg_ts_weakness_bars", 2)))
 
         st.session_state.tg_only_one_move_per_candle = st.checkbox(
             "Apenas 1 Movimento por Vela",
@@ -763,6 +815,26 @@ def render_variables_dashboard(compact=False):
             key="tg_chk_filter_momentum",
             help="LONG só entra se for (1, 1) [subida acelerada]. Bloqueia entradas LONG se for (-1, -1) [queda acelerada] ou (1, -1) [subida a travar]. E o inverso para SHORT."
         )
+
+        st.session_state.tg_filter_macd_active = st.checkbox(
+            "🔴 Ativar Filtro MACD",
+            value=st.session_state.get("tg_filter_macd_active", False),
+            key="tg_chk_filter_macd",
+            help="Força todas as estratégias a respeitarem os limites do MACD Histograma definidos abaixo."
+        )
+
+        st.markdown("###### Limites Histograma MACD (0 = desativado)")
+        c_long1, c_long2 = st.columns(2)
+        with c_long1:
+            st.session_state.tg_macd_long_entry = st.number_input("MACD Long Entry (ex: 0.1)", value=st.session_state.get("tg_macd_long_entry", 0.1), step=0.01)
+        with c_long2:
+            st.session_state.tg_macd_long_exit = st.number_input("MACD Long Exit (ex: 0.01)", value=st.session_state.get("tg_macd_long_exit", 0.1), step=0.01)
+
+        c_short1, c_short2 = st.columns(2)
+        with c_short1:
+            st.session_state.tg_macd_short_entry = st.number_input("MACD Short Entry (ex: -0.1)", value=st.session_state.get("tg_macd_short_entry", -0.1), step=0.01)
+        with c_short2:
+            st.session_state.tg_macd_short_exit = st.number_input("MACD Short Exit (ex: -0.01)", value=st.session_state.get("tg_macd_short_exit", -0.1), step=0.01)
 
         st.session_state.tg_filter_squeeze_active = st.checkbox(
             "⏳ Ativar Filtro de Squeeze",
@@ -799,6 +871,11 @@ def render_variables_dashboard(compact=False):
                 prefs_to_save["tg_only_one_move_per_candle"] = st.session_state["tg_only_one_move_per_candle"]
             if "tg_filter_momentum_active" in st.session_state:
                 prefs_to_save["tg_filter_momentum_active"] = st.session_state["tg_filter_momentum_active"]
+            if "tg_filter_macd_active" in st.session_state:
+                prefs_to_save["tg_filter_macd_active"] = st.session_state["tg_filter_macd_active"]
+            for k in ['tg_macd_long_entry', 'tg_macd_long_exit', 'tg_macd_short_entry', 'tg_macd_short_exit']:
+                if k in st.session_state:
+                    prefs_to_save[k] = st.session_state[k]
             if "tg_filter_squeeze_active" in st.session_state:
                 prefs_to_save["tg_filter_squeeze_active"] = st.session_state["tg_filter_squeeze_active"]
             if "tg_subchart_type" in st.session_state:
@@ -821,8 +898,13 @@ def render_variables_dashboard(compact=False):
             st.session_state.allow_reentry_val = True
             st.session_state.tg_only_one_move_per_candle = True
             st.session_state.tg_filter_momentum_active = False
+            st.session_state.tg_filter_macd_active = False
+            st.session_state.tg_filter_volume_active = False
+            st.session_state.tg_volume_threshold_pct = 0.0
+            for k, v in [('tg_macd_long_entry', 0.1), ('tg_macd_long_exit', 0.1), ('tg_macd_short_entry', -0.1), ('tg_macd_short_exit', -0.1)]:
+                st.session_state[k] = v
             st.session_state.tg_filter_squeeze_active = False
-            st.session_state.tg_subchart_type = 'Heatmap (Vel/Acel)'
+            st.session_state.tg_subchart_type = ['Heatmap (Vel/Acel)']
             st.session_state.symbol_val = "🧪 Cenário Didático (Fictício)"
             st.toast("Valores padrões repostos com sucesso!")
             st.rerun()
