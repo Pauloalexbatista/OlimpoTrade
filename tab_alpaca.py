@@ -6,10 +6,18 @@ import pandas as pd
 
 
 def render():
+    # CSS compacto estilo Sala de Controlo (métricas e espaçamentos mais pequenos)
+    st.markdown("""<style>
+    div[data-testid="stMetric"] { padding: 4px 8px !important; }
+    div[data-testid="stMetric"] label { font-size: 0.72rem !important; }
+    div[data-testid="stMetricValue"] { font-size: 1.05rem !important; }
+    div[data-testid="stMetricDelta"] { font-size: 0.70rem !important; }
+    </style>""", unsafe_allow_html=True)
+
     # ── Barra de topo compacta: Título + Ligação ────────────────────────────────
-    col_title, col_status, col_btn = st.columns([2.2, 2.8, 1])
+    col_title, col_status, col_btn = st.columns([2.0, 3.0, 1.0])
     with col_title:
-        st.markdown("### 🎛️ Sala de Controlo — Alpaca")
+        st.markdown("#### 🎛️ Sala de Controlo — Alpaca")
     with col_btn:
         test_btn = st.button("🔌 Testar Ligação", use_container_width=True)
 
@@ -36,21 +44,10 @@ def render():
 
     from alpaca_connector import get_account, get_positions, get_orders, place_order, close_position, get_market_clock, SYMBOL_MAP
 
-    # ── Painel superior compacto: Mercados + Conta ─────────────────────────────
-    _render_open_markets_panel(get_market_clock)
+    # ── Faixa única compacta: Mercados + Conta ─────────────────────────────────
+    _render_compact_status_bar(get_market_clock, get_account)
 
-    try:
-        acc = get_account()
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Saldo (Cash)", f"${acc['cash']:,.2f}")
-        c2.metric("Equity Total", f"${acc['equity']:,.2f}")
-        c3.metric("Buying Power", f"${acc['buying_power']:,.2f}")
-        c4.metric("Modo", "📄 PAPER" if acc["paper"] else "🔴 LIVE")
-    except Exception as e:
-        st.error(f"Erro ao obter conta: {e}")
-
-    # ── Sala de Controlo do Bot Automático ─────────────────────────────────────
-    st.markdown("#### 🤖 Bot Automático")
+    # ── Controlo do Bot Automático (1 linha) ───────────────────────────────────
     all_syms = list(SYMBOL_MAP.keys())
     default_i = all_syms.index("SPY") if "SPY" in all_syms else 0
     strategies = [
@@ -64,7 +61,7 @@ def render():
     ]
     interval_options = [10, 30, 60, 120, 300, 600, 900, 1800, 3600]
 
-    col_b1, col_b2, col_b3, col_b4 = st.columns([1.1, 2.2, 1.0, 0.9])
+    col_b1, col_b2, col_b3, col_b4, col_b5, col_b6 = st.columns([1.0, 2.0, 0.85, 0.75, 0.9, 0.9])
     with col_b1:
         bot_symbol = st.selectbox("Ativo", all_syms, index=default_i, key="alpaca_bot_sym")
     with col_b2:
@@ -74,14 +71,13 @@ def render():
                                       value=100.0, step=10.0, key="alpaca_bot_capital")
     with col_b4:
         interval_sec = st.selectbox(
-            "Intervalo",
+            "Ciclo",
             options=interval_options,
             index=2,
-            format_func=lambda x: f"{x}s" if x < 60 else f"{x//60}min" if x < 3600 else "1h",
+            format_func=lambda x: f"{x}s" if x < 60 else f"{x//60}m" if x < 3600 else "1h",
             key="alpaca_interval",
         )
 
-    # Parâmetros lidos automaticamente do Centro de Comando
     p2 = int(st.session_state.get("tg_p2", 5))
     p3 = int(st.session_state.get("tg_p3", 13))
     p4 = int(st.session_state.get("tg_p4", 21))
@@ -94,11 +90,9 @@ def render():
     if "alpaca_bot_log" not in st.session_state:
         st.session_state.alpaca_bot_log = []
 
-    col_info, col_start, col_stop = st.columns([2.6, 1, 1])
-    with col_info:
-        st.caption(f"🧬 Centro de Comando: **P2={p2} · P3={p3} · P4={p4} · P5={p5} · P6={p6} · SL={sl_pct}%**")
-    with col_start:
-        if st.button("▶️ Iniciar Bot", type="primary", use_container_width=True,
+    with col_b5:
+        st.markdown("<div style='height:26px'></div>", unsafe_allow_html=True)
+        if st.button("▶️ Iniciar", type="primary", use_container_width=True,
                      disabled=st.session_state.alpaca_bot_running):
             st.session_state.alpaca_bot_running = True
             st.session_state.alpaca_bot_log = []
@@ -114,11 +108,14 @@ def render():
                 "position": None,
             }
             st.rerun()
-    with col_stop:
-        if st.button("⏹️ Parar Bot", use_container_width=True,
+    with col_b6:
+        st.markdown("<div style='height:26px'></div>", unsafe_allow_html=True)
+        if st.button("⏹️ Parar", use_container_width=True,
                      disabled=not st.session_state.alpaca_bot_running):
             st.session_state.alpaca_bot_running = False
             st.rerun()
+
+    st.caption(f"🧬 Centro de Comando: **P2={p2} · P3={p3} · P4={p4} · P5={p5} · P6={p6} · SL={sl_pct}%**")
 
     # Estado ativo + ciclo
     if st.session_state.alpaca_bot_running:
@@ -131,10 +128,17 @@ def render():
         st.success(f"🟢 Bot ATIVO — **{cfg.get('symbol')}** | **{cfg.get('strategy')}** | **${cfg.get('capital'):.0f}/ordem** | ciclo **{interval}s**")
         _run_bot_cycle(place_order, close_position, get_positions)
 
-    # ── Posições & Ordens lado a lado (compacto) ───────────────────────────────
-    col_pos, col_ord = st.columns(2)
+    # ── Ecrã Principal 50% / 50%: Gráfico ao Vivo + Lista de Movimentos ────────
+    col_chart, col_moves = st.columns([1.05, 1.0])
+    with col_chart:
+        _render_live_chart(bot_symbol, p2, p3, p4, p5, p6)
+    with col_moves:
+        _render_market_checks_log()
+
+    # ── Rodapé compacto: Posições | Ordens | Log ───────────────────────────────
+    col_pos, col_ord, col_log = st.columns(3)
     with col_pos:
-        st.markdown("#### 📊 Posições Abertas")
+        st.markdown("**📊 Posições Abertas**")
         try:
             positions = get_positions()
             if positions:
@@ -142,34 +146,30 @@ def render():
                 df_pos["unrealized_plpc"] = df_pos["unrealized_plpc"].map(lambda x: f"{x:.2f}%")
                 df_pos["unrealized_pl"] = df_pos["unrealized_pl"].map(lambda x: f"${x:+.2f}")
                 df_pos.columns = ["Símbolo", "Qty", "Entrada", "Atual", "P&L ($)", "P&L (%)", "Dir."]
-                st.dataframe(df_pos, use_container_width=True, height=180)
+                st.dataframe(df_pos, use_container_width=True, height=150, hide_index=True)
             else:
-                st.caption("Nenhuma posição aberta de momento.")
+                st.caption("Nenhuma posição aberta.")
         except Exception as e:
-            st.error(f"Erro ao obter posições: {e}")
+            st.error(f"Erro: {e}")
 
     with col_ord:
-        st.markdown("#### 📋 Ordens Recentes")
+        st.markdown("**📋 Ordens Recentes**")
         try:
             orders_open = get_orders(status="open", limit=5)
             orders_closed = get_orders(status="closed", limit=5)
             if orders_open:
-                st.caption("🟡 **Abertas**")
-                st.dataframe(pd.DataFrame(orders_open)[["symbol", "side", "qty", "status"]], use_container_width=True, height=120)
+                st.dataframe(pd.DataFrame(orders_open)[["symbol", "side", "qty", "status"]], use_container_width=True, height=100, hide_index=True)
             if orders_closed:
-                st.caption("✅ **Fechadas (últimas 5)**")
-                st.dataframe(pd.DataFrame(orders_closed)[["symbol", "side", "qty", "filled_avg_price", "status"]], use_container_width=True, height=150)
+                st.dataframe(pd.DataFrame(orders_closed)[["symbol", "side", "qty", "filled_avg_price", "status"]], use_container_width=True, height=150, hide_index=True)
             if not orders_open and not orders_closed:
                 st.caption("Nenhuma ordem recente.")
         except Exception as e:
-            st.error(f"Erro ao obter ordens: {e}")
+            st.error(f"Erro: {e}")
 
-    # Log de atividade + histórico de sinais
-    if st.session_state.alpaca_bot_log:
-        col_log1, col_log2 = st.columns([2, 1])
-        with col_log1:
-            st.markdown("#### 📋 Log de Atividade")
-            for entry in reversed(st.session_state.alpaca_bot_log[-30:]):
+    with col_log:
+        st.markdown("**📋 Log de Atividade**")
+        if st.session_state.alpaca_bot_log:
+            for entry in reversed(st.session_state.alpaca_bot_log[-8:]):
                 if "BUY" in entry:
                     st.markdown(f"🟢 `{entry}`")
                 elif "SELL" in entry or "CLOSE" in entry:
@@ -178,21 +178,115 @@ def render():
                     st.markdown(f"❌ `{entry}`")
                 else:
                     st.caption(entry)
-        with col_log2:
-            st.markdown("#### 📊 Resumo")
-            buys  = sum(1 for e in st.session_state.alpaca_bot_log if "BUY" in e)
-            sells = sum(1 for e in st.session_state.alpaca_bot_log if "SELL" in e or "CLOSE" in e)
-            total = len(st.session_state.alpaca_bot_log)
-            st.metric("Ciclos executados", total)
-            st.metric("Ordens BUY", buys)
-            st.metric("Ordens SELL", sells)
             if st.button("🗑️ Limpar Log", key="alpaca_clear_log"):
                 st.session_state.alpaca_bot_log = []
                 st.rerun()
+        else:
+            st.caption("Sem eventos recentes.")
 
 
-    # Log persistente em CSV para análise de horários
-    _render_market_checks_log()
+def _render_compact_status_bar(get_market_clock, get_account):
+    """Faixa única compacta com estado dos mercados e saldo da conta."""
+    us_txt = "—"
+    ny_txt = "—"
+    try:
+        clk = get_market_clock()
+        us_open = clk["is_open"]
+        us_txt = "🟢 ABERTO" if us_open else "🔴 FECHADO"
+        ny_txt = clk["timestamp"].strftime("%H:%M NY")
+    except Exception:
+        pass
+
+    cash_txt = eq_txt = bp_txt = mode_txt = "—"
+    try:
+        acc = get_account()
+        cash_txt = f"${acc['cash']:,.2f}"
+        eq_txt = f"${acc['equity']:,.2f}"
+        bp_txt = f"${acc['buying_power']:,.2f}"
+        mode_txt = "📄 PAPER" if acc["paper"] else "🔴 LIVE"
+    except Exception as e:
+        st.error(f"Erro ao obter conta: {e}")
+
+    c1, c2, c3, c4, c5, c6, c7 = st.columns(7)
+    c1.metric("Bolsa EUA", us_txt)
+    c2.metric("Cripto 24/7", "🟢 ABERTO")
+    c3.metric("Nova Iorque", ny_txt)
+    c4.metric("Saldo (Cash)", cash_txt)
+    c5.metric("Equity", eq_txt)
+    c6.metric("Buying Power", bp_txt)
+    c7.metric("Modo", mode_txt)
+
+
+def _render_live_chart(symbol: str, p2: int, p3: int, p4: int, p5: int, p6: int):
+    """Gráfico candlestick + médias P2..P6 em tempo real (metade esquerda da Sala de Controlo)."""
+    import plotly.graph_objects as go
+
+    st.markdown(f"**📈 Gráfico ao Vivo — {symbol} (5m)**")
+    df = st.session_state.get("alpaca_last_df")
+    if df is None or df.empty or st.session_state.get("alpaca_last_symbol") != symbol:
+        try:
+            from alpaca_connector import get_ohlcv
+            df_fetch = get_ohlcv(symbol, timeframe="5m", limit=max(p6 * 2, 120))
+            if df_fetch is not None and not df_fetch.empty:
+                df_fetch["P2"] = df_fetch["close"].rolling(p2).mean()
+                df_fetch["P3"] = df_fetch["close"].rolling(p3).mean()
+                df_fetch["P4"] = df_fetch["close"].rolling(p4).mean()
+                df_fetch["P5"] = df_fetch["close"].rolling(p5).mean()
+                df_fetch["P6"] = df_fetch["close"].rolling(p6).mean()
+                df = df_fetch.tail(100)
+                st.session_state["alpaca_last_df"] = df
+                st.session_state["alpaca_last_symbol"] = symbol
+        except Exception as e:
+            st.caption(f"A aguardar dados para o gráfico: {e}")
+            return
+
+    if df is None or df.empty:
+        st.info("Inicia o bot para construir o gráfico em tempo real.")
+        return
+
+    df_plot = df.tail(100)
+    fig = go.Figure()
+    if all(c in df_plot.columns for c in ("open", "high", "low", "close")):
+        fig.add_trace(go.Candlestick(
+            x=df_plot.index,
+            open=df_plot["open"],
+            high=df_plot["high"],
+            low=df_plot["low"],
+            close=df_plot["close"],
+            name=symbol,
+            increasing_line_color="#10b981",
+            decreasing_line_color="#ef4444",
+        ))
+    else:
+        fig.add_trace(go.Scatter(x=df_plot.index, y=df_plot["close"], name=symbol, line=dict(color="#60a5fa", width=2)))
+
+    ma_styles = [
+        ("P2", f"P2 ({p2})", "#3b82f6", 1.5),
+        ("P3", f"P3 ({p3})", "#f59e0b", 1.5),
+        ("P4", f"P4 ({p4})", "#ec4899", 1.5),
+        ("P5", f"P5 ({p5})", "#8b5cf6", 1.5),
+        ("P6", f"P6 ({p6})", "#10b981", 1.8),
+    ]
+    for col_name, label, color, width in ma_styles:
+        if col_name in df_plot.columns:
+            fig.add_trace(go.Scatter(
+                x=df_plot.index,
+                y=df_plot[col_name],
+                name=label,
+                line=dict(color=color, width=width),
+                opacity=0.85,
+            ))
+
+    fig.update_layout(
+        height=380,
+        margin=dict(l=8, r=8, t=10, b=10),
+        xaxis_rangeslider_visible=False,
+        legend=dict(orientation="h", yanchor="bottom", y=1.01, xanchor="left", x=0, font=dict(size=10)),
+        template="plotly_dark",
+        paper_bgcolor="#0f172a",
+        plot_bgcolor="#0f172a",
+    )
+    st.plotly_chart(fig, use_container_width=True)
 
 
 def _render_open_markets_panel(get_market_clock):
@@ -248,26 +342,28 @@ def _append_market_check_log(row: dict):
 
 
 def _render_market_checks_log():
-    """Mostra resumo e download do histórico persistente de verificações de mercado."""
+    """Mostra resumo e download do histórico persistente de verificações de mercado (metade direita)."""
     from pathlib import Path
     log_path = Path(__file__).resolve().parent / "alpaca_market_checks.csv"
+    st.markdown("**🕒 Movimentos & Verificações (`alpaca_market_checks.csv`)**")
     if not log_path.exists():
+        st.caption("Ainda sem registos. O histórico aparece aqui após o primeiro ciclo.")
         return
-    st.markdown("---")
-    st.markdown("### 🕒 Registo de Tentativas de Mercado (`alpaca_market_checks.csv`)")
     try:
         df_log = pd.read_csv(log_path)
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Total de verificações", len(df_log))
-        c2.metric("Sinais gerados", int(df_log["signal"].isin(["BUY", "SELL"]).sum()) if "signal" in df_log else 0)
-        c3.download_button(
-            "⬇️ Exportar CSV de Horários",
-            data=log_path.read_bytes(),
-            file_name="alpaca_market_checks.csv",
-            mime="text/csv",
-            use_container_width=True,
-        )
-        st.dataframe(df_log.tail(15).iloc[::-1], use_container_width=True, hide_index=True)
+        c1, c2, c3 = st.columns([1, 1, 1.3])
+        c1.metric("Verificações", len(df_log))
+        c2.metric("Sinais", int(df_log["signal"].isin(["BUY", "SELL"]).sum()) if "signal" in df_log else 0)
+        with c3:
+            st.download_button(
+                "⬇️ Exportar CSV",
+                data=log_path.read_bytes(),
+                file_name="alpaca_market_checks.csv",
+                mime="text/csv",
+                use_container_width=True,
+            )
+        cols_show = [c for c in ["timestamp_local", "symbol", "price", "signal", "order_action", "notes"] if c in df_log.columns]
+        st.dataframe(df_log[cols_show].tail(20).iloc[::-1], use_container_width=True, hide_index=True, height=310)
     except Exception as e:
         st.caption(f"Não foi possível ler o histórico de verificações: {e}")
 
@@ -325,6 +421,8 @@ def _run_bot_cycle(place_order, close_position, get_positions):
         df["P4"] = df["close"].rolling(p4).mean()
         df["P5"] = df["close"].rolling(p5).mean()
         df["P6"] = df["close"].rolling(p6).mean()
+        st.session_state["alpaca_last_df"] = df.tail(120).copy()
+        st.session_state["alpaca_last_symbol"] = symbol
         last = df.iloc[-1]
         prev = df.iloc[-2]
         current_price = float(last["close"])
