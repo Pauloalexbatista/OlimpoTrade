@@ -7,6 +7,7 @@ services:
     environment:
       - ENV=${ENV:-production}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - OLIMPO_PASSWORD=${OLIMPO_PASSWORD:-}
       - API_KEY=${API_KEY:-}
       - API_SECRET=${API_SECRET:-}
       - ALPACA_API_KEY=${ALPACA_API_KEY:-}
@@ -32,6 +33,7 @@ services:
     environment:
       - ENV=${ENV:-production}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - OLIMPO_PASSWORD=${OLIMPO_PASSWORD:-}
       - API_KEY=${API_KEY:-}
       - API_SECRET=${API_SECRET:-}
       - ALPACA_API_KEY=${ALPACA_API_KEY:-}
