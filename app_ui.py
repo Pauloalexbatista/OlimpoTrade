@@ -206,25 +206,47 @@ header[data-testid="stHeader"] { display: none !important; }
 html, body, [data-testid="stAppViewContainer"], .stApp {
     background: linear-gradient(135deg, #07080f 0%, #0d1224 50%, #07080f 100%);
 }
-/* Input da password — texto branco sobre fundo escuro */
-div[data-testid="stTextInput"] input {
-    background: rgba(255,255,255,0.07) !important;
-    border: 1px solid rgba(99,179,237,0.25) !important;
+/* Input da password — texto claro sobre fundo escuro */
+div[data-testid="stTextInput"] div[data-baseweb="input"],
+div[data-testid="stTextInput"] div[data-baseweb="base-input"] {
+    background-color: #0f172a !important;
+    border: 1px solid rgba(99,179,237,0.35) !important;
     border-radius: 10px !important;
-    color: #f1f5f9 !important;
+}
+div[data-testid="stTextInput"] div[data-baseweb="input"]:focus-within {
+    border-color: rgba(99,179,237,0.75) !important;
+    box-shadow: 0 0 0 3px rgba(99,179,237,0.18) !important;
+}
+div[data-testid="stTextInput"] input {
+    background-color: #0f172a !important;
+    color: #f8fafc !important;
+    -webkit-text-fill-color: #f8fafc !important;
+    caret-color: #63b3ed !important;
     font-size: 1.1rem !important;
     letter-spacing: 4px !important;
     text-align: center !important;
+    border: none !important;
 }
-div[data-testid="stTextInput"] input::placeholder { color: #475569 !important; letter-spacing: 2px; }
-div[data-testid="stTextInput"] input:focus {
-    border-color: rgba(99,179,237,0.6) !important;
-    box-shadow: 0 0 0 3px rgba(99,179,237,0.15) !important;
+div[data-testid="stTextInput"] input:-webkit-autofill,
+div[data-testid="stTextInput"] input:-webkit-autofill:focus {
+    -webkit-box-shadow: 0 0 0 1000px #0f172a inset !important;
+    -webkit-text-fill-color: #f8fafc !important;
+}
+div[data-testid="stTextInput"] button[title],
+div[data-testid="stTextInput"] button {
+    background: transparent !important;
+    color: #94a3b8 !important;
+}
+div[data-testid="stTextInput"] input::placeholder {
+    color: #64748b !important;
+    -webkit-text-fill-color: #64748b !important;
+    letter-spacing: 2px;
 }
 /* Label do input — esconder (usamos placeholder) */
 div[data-testid="stTextInput"] label { display: none !important; }
 /* Botão de login */
-div[data-testid="stButton"] button {
+div[data-testid="stButton"] button,
+div[data-testid="stFormSubmitButton"] button {
     background: linear-gradient(135deg, #2563eb, #7c3aed) !important;
     color: white !important; border: none !important;
     border-radius: 10px !important; font-size: 1rem !important;
