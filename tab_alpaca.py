@@ -14,35 +14,37 @@ def render():
     div[data-testid="stMetricDelta"] { font-size: 0.70rem !important; }
     </style>""", unsafe_allow_html=True)
 
-    # ── Barra de topo compacta: Título + Ligação ────────────────────────────────
+    # ── Barra de topo compacta: Título + Ligação Automática ─────────────────────
     col_title, col_status, col_btn = st.columns([2.0, 3.0, 1.0])
     with col_title:
         st.markdown("#### 🎛️ Sala de Controlo — Alpaca")
     with col_btn:
-        test_btn = st.button("🔌 Testar Ligação", use_container_width=True)
+        test_btn = st.button("🔄 Atualizar", use_container_width=True)
 
-    if test_btn or st.session_state.get("alpaca_connected"):
-        try:
-            from alpaca_connector import test_connection, get_account, get_positions, get_orders
+    # Liga automaticamente à Alpaca ao abrir (não perde após F5)
+    try:
+        from alpaca_connector import test_connection
+        if test_btn or not st.session_state.get("alpaca_connected"):
             ok, msg = test_connection()
-            with col_status:
-                if ok:
-                    st.success(msg)
-                    st.session_state.alpaca_connected = True
-                else:
-                    st.error(msg)
-                    st.session_state.alpaca_connected = False
-        except ImportError:
-            with col_status:
-                st.error("❌ alpaca_connector.py não encontrado.")
-            return
+            st.session_state.alpaca_connected = bool(ok)
+            st.session_state.alpaca_status_msg = msg
+        with col_status:
+            if st.session_state.get("alpaca_connected"):
+                st.success(st.session_state.get("alpaca_status_msg", "Ligado"))
+            else:
+                st.error(st.session_state.get("alpaca_status_msg", "Desligado"))
+    except ImportError:
+        with col_status:
+            st.error("❌ alpaca_connector.py não encontrado.")
+        return
 
     if not st.session_state.get("alpaca_connected"):
-        st.info("👆 Clica em **Testar Ligação** para iniciar a Sala de Controlo.")
+        st.info("Verifica as chaves `ALPACA_API_KEY` / `ALPACA_SECRET_KEY` nas variáveis de ambiente.")
         _show_env_help()
         return
 
-    from alpaca_connector import get_account, get_positions, get_orders, place_order, close_position, get_market_clock, SYMBOL_MAP
+    from alpaca_connector import get_account, get_positions, get_orders, get_market_clock, SYMBOL_MAP
+    from alpaca_bot_runner import read_bot_state, write_bot_state
 
     # ── Faixa única compacta: Mercados + Conta ─────────────────────────────────
     _render_compact_status_bar(get_market_clock, get_account)
@@ -85,48 +87,49 @@ def render():
     p6 = int(st.session_state.get("tg_p6", 144))
     sl_pct = float(st.session_state.get("tg_sl_pct", 1.0))
 
-    if "alpaca_bot_running" not in st.session_state:
-        st.session_state.alpaca_bot_running = False
+    bot_state = read_bot_state()
+    is_bot_running = bool(bot_state.get("enabled", False))
     if "alpaca_bot_log" not in st.session_state:
         st.session_state.alpaca_bot_log = []
 
     with col_b5:
         st.markdown("<div style='height:26px'></div>", unsafe_allow_html=True)
-        if st.button("▶️ Iniciar", type="primary", use_container_width=True,
-                     disabled=st.session_state.alpaca_bot_running):
-            st.session_state.alpaca_bot_running = True
-            st.session_state.alpaca_bot_log = []
-            st.session_state.alpaca_bot_config = {
+        if st.button("▶️ Iniciar", type="primary", use_container_width=True, disabled=is_bot_running):
+            write_bot_state({
+                "enabled": True,
                 "symbol": bot_symbol,
                 "strategy": bot_strategy,
-                "capital": bot_capital,
+                "capital": float(bot_capital),
                 "p2": int(p2), "p3": int(p3), "p4": int(p4),
                 "p5": int(p5), "p6": int(p6),
                 "sl_pct": float(sl_pct),
+                "min_p2_p3_pct": float(st.session_state.get("tg_min_p2_p3_pct", 0.15) or 0.15),
                 "interval": int(interval_sec),
                 "last_signal": None,
-                "position": None,
-            }
+            })
             st.rerun()
     with col_b6:
         st.markdown("<div style='height:26px'></div>", unsafe_allow_html=True)
-        if st.button("⏹️ Parar", use_container_width=True,
-                     disabled=not st.session_state.alpaca_bot_running):
-            st.session_state.alpaca_bot_running = False
+        if st.button("⏹️ Parar", use_container_width=True, disabled=not is_bot_running):
+            bot_state["enabled"] = False
+            write_bot_state(bot_state)
             st.rerun()
 
     st.caption(f"🧬 Centro de Comando: **P2={p2} · P3={p3} · P4={p4} · P5={p5} · P6={p6} · SL={sl_pct}%**")
 
-    # Estado ativo + ciclo
-    if st.session_state.alpaca_bot_running:
+    # Estado persistente do Bot 24h na VPS (mantém-se ligado mesmo com PC desligado!)
+    if is_bot_running:
         from streamlit_autorefresh import st_autorefresh
 
-        cfg = st.session_state.get("alpaca_bot_config", {})
-        interval = cfg.get("interval", 60)
+        interval = int(bot_state.get("interval", 60))
         st_autorefresh(interval=interval * 1000, key="alpaca_autorefresh")
-
-        st.success(f"🟢 Bot ATIVO — **{cfg.get('symbol')}** | **{cfg.get('strategy')}** | **${cfg.get('capital'):.0f}/ordem** | ciclo **{interval}s**")
-        _run_bot_cycle(place_order, close_position, get_positions)
+        last_msg = bot_state.get("last_message", "A aguardar próximo ciclo na VPS...")
+        st.success(
+            f"🟢 **Bot ATIVO 24h na VPS** — **{bot_state.get('symbol')}** | **{bot_state.get('strategy')}** | "
+            f"**${float(bot_state.get('capital', 100)):.0f}/ordem** | ciclo **{interval}s** · Último: `{last_msg}`"
+        )
+        # Atualiza o gráfico ao vivo a partir da Alpaca
+        bot_symbol = bot_state.get("symbol", bot_symbol)
 
     # ── Ecrã Principal 50% / 50%: Gráfico ao Vivo + Lista de Movimentos ────────
     col_chart, col_moves = st.columns([1.05, 1.0])
@@ -343,8 +346,8 @@ def _append_market_check_log(row: dict):
 
 def _render_market_checks_log():
     """Mostra resumo e download do histórico persistente de verificações de mercado (metade direita)."""
-    from pathlib import Path
-    log_path = Path(__file__).resolve().parent / "alpaca_market_checks.csv"
+    from alpaca_bot_runner import get_checks_csv_file
+    log_path = get_checks_csv_file()
     st.markdown("**🕒 Movimentos & Verificações (`alpaca_market_checks.csv`)**")
     if not log_path.exists():
         st.caption("Ainda sem registos. O histórico aparece aqui após o primeiro ciclo.")

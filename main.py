@@ -110,6 +110,18 @@ async def main():
     order_executor = OrderExecutor(config, logger)
 
     while True:
+        # 1) Se o Bot da Sala de Controlo Alpaca estiver ativo, executa o ciclo 24h na VPS
+        try:
+            from alpaca_bot_runner import read_bot_state, run_alpaca_paper_cycle
+            alpaca_state = read_bot_state()
+            if alpaca_state.get("enabled"):
+                _, res = run_alpaca_paper_cycle(alpaca_state)
+                logger.info(f"[ALPACA 24h] {res.get('message', '')}")
+                await asyncio.sleep(int(alpaca_state.get("interval", 60)))
+                continue
+        except Exception as alpaca_exc:
+            logger.error(f"Erro no ciclo Alpaca 24h: {alpaca_exc}", exc_info=True)
+
         ctrl = _read_json(CONTROL_FILE)
         if ctrl and not ctrl.get("enabled", True):
             logger.info("Kill-Switch detetado (enabled=False). A encerrar motor autónomo com segurança.")
