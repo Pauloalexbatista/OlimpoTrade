@@ -1,0 +1,44 @@
+services:
+  ui:
+    build: .
+    command: ["python", "-m", "streamlit", "run", "app_ui.py", "--server.port=8501", "--server.address=0.0.0.0", "--server.headless=true"]
+    expose:
+      - "8501"
+    environment:
+      - ENV=${ENV:-production}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - API_KEY=${API_KEY:-}
+      - API_SECRET=${API_SECRET:-}
+      - ALPACA_API_KEY=${ALPACA_API_KEY:-}
+      - ALPACA_SECRET_KEY=${ALPACA_SECRET_KEY:-}
+      - ALPACA_PAPER=${ALPACA_PAPER:-true}
+    volumes:
+      - olimpo_relatorios:/app/relatorios
+      - olimpo_arena:/app/arena_history
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8501/_stcore/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+
+  bot:
+    build: .
+    command: ["python", "main.py"]
+    environment:
+      - ENV=${ENV:-production}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - API_KEY=${API_KEY:-}
+      - API_SECRET=${API_SECRET:-}
+      - ALPACA_API_KEY=${ALPACA_API_KEY:-}
+      - ALPACA_SECRET_KEY=${ALPACA_SECRET_KEY:-}
+      - ALPACA_PAPER=${ALPACA_PAPER:-true}
+    volumes:
+      - olimpo_relatorios:/app/relatorios
+      - olimpo_arena:/app/arena_history
+    restart: unless-stopped
+
+volumes:
+  olimpo_relatorios:
+  olimpo_arena:

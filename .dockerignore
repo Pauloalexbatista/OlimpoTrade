@@ -1,0 +1,25 @@
+# Git and IDE
+.git/
+.gitignore
+.claude/
+.vscode/
+
+# Python caches & virtualenvs
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+
+# Local secrets & logs (Coolify injects env vars)
+.env
+.env.*
+!.env.example
+*.log
+vps_*.log
+
+# Local scratch / OS
+temp_scripts/
+.DS_Store
+Thumbs.db
+*.bak

@@ -1,0 +1,1043 @@
+﻿import pandas as pd
+import ta
+from abc import ABC, abstractmethod
+
+class BaseStrategy(ABC):
+    @abstractmethod
+    def generate_signal(self, ohlcv_data: pd.DataFrame) -> dict:
+        """
+        Gera um sinal de compra/venda com base na estratégia implementada.
+        :param ohlcv_data: DataFrame com dados OHLCV (open, high, low, close, volume).
+        :return: Dicionário com 'action' ('BUY', 'SELL', 'HOLD'), 'signal' ('BUY' | 'SELL' | 'HOLD'),
+                 'price' (preço de fecho mais recente), e 'message' (detalhes do sinal).
+        """
+        pass
+
+class SMACrossoverStrategy(BaseStrategy):
+    """
+    Estratégia clássica de cruzamento de duas Médias Móveis Simples (SMA).
+    """
+    def __init__(self, short_window=9, long_window=21, logger=None):
+        self.short_window = short_window
+        self.long_window = long_window
+        self.logger = logger
+        msg = f"Estratégia SMA Crossover inicializada (Curta={self.short_window}, Longa={self.long_window})"
+        if self.logger:
+            self.logger.info(msg)
+        else:
+            print(msg)
+
+    def generate_signal(self, ohlcv_data: pd.DataFrame) -> dict:
+        if ohlcv_data.empty or len(ohlcv_data) < max(self.short_window, self.long_window):
+            return {"action": "HOLD", "signal": "HOLD", "price": None, "message": "Dados insuficientes para calcular médias móveis simples."}
+
+        df = ohlcv_data.copy()
+        df['SMA_Short'] = ta.trend.sma_indicator(df['close'], window=self.short_window)
+        df['SMA_Long'] = ta.trend.sma_indicator(df['close'], window=self.long_window)
+        df = df.dropna(subset=['SMA_Short', 'SMA_Long'])
+
+        if df.empty:
+            return {"action": "HOLD", "signal": "HOLD", "price": None, "message": "Dados insuficientes após cálculo de médias."}
+
+        last_row = df.iloc[-1]
+        previous_row = df.iloc[-2] if len(df) >= 2 else None
+
+        current_price = last_row['close']
+        current_sma_short = last_row['SMA_Short']
+        current_sma_long = last_row['SMA_Long']
+
+        signal = "HOLD"
+        message = "Nenhum sinal claro (SMA)."
+
+        if previous_row is not None:
+            previous_sma_short = previous_row['SMA_Short']
+            previous_sma_long = previous_row['SMA_Long']
+
+            if previous_sma_short <= previous_sma_long and current_sma_short > current_sma_long:
+                signal = "BUY"
+                message = f"Sinal de COMPRA: SMA Curta ({self.short_window}) cruzou acima da Longa ({self.long_window})."
+            elif previous_sma_short >= previous_sma_long and current_sma_short < current_sma_long:
+                signal = "SELL"
+                message = f"Sinal de VENDA: SMA Curta ({self.short_window}) cruzou abaixo da Longa ({self.long_window})."
+
+        return {"action": signal, "signal": signal, "price": current_price, "message": message}
+
+class EMACrossoverStrategy(BaseStrategy):
+    """
+    Estratégia de cruzamento de duas Médias Móveis Exponenciais (EMA).
+    Dá maior peso aos dados recentes e reage mais rápido às tendências.
+    """
+    def __init__(self, short_window=9, long_window=21, logger=None):
+        self.short_window = short_window
+        self.long_window = long_window
+        self.logger = logger
+        msg = f"Estratégia EMA Crossover inicializada (Curta={self.short_window}, Longa={self.long_window})"
+        if self.logger:
+            self.logger.info(msg)
+        else:
+            print(msg)
+
+    def generate_signal(self, ohlcv_data: pd.DataFrame) -> dict:
+        if ohlcv_data.empty or len(ohlcv_data) < max(self.short_window, self.long_window):
+            return {"action": "HOLD", "signal": "HOLD", "price": None, "message": "Dados insuficientes para calcular médias móveis exponenciais."}
+
+        df = ohlcv_data.copy()
+        df['EMA_Short'] = ta.trend.ema_indicator(df['close'], window=self.short_window)
+        df['EMA_Long'] = ta.trend.ema_indicator(df['close'], window=self.long_window)
+        df = df.dropna(subset=['EMA_Short', 'EMA_Long'])
+
+        if df.empty:
+            return {"action": "HOLD", "signal": "HOLD", "price": None, "message": "Dados insuficientes após cálculo de médias."}
+
+        last_row = df.iloc[-1]
+        previous_row = df.iloc[-2] if len(df) >= 2 else None
+
+        current_price = last_row['close']
+        current_ema_short = last_row['EMA_Short']
+        current_ema_long = last_row['EMA_Long']
+
+        signal = "HOLD"
+        message = "Nenhum sinal claro (EMA)."
+
+        if previous_row is not None:
+            previous_ema_short = previous_row['EMA_Short']
+            previous_ema_long = previous_row['EMA_Long']
+
+            if previous_ema_short <= previous_ema_long and current_ema_short > current_ema_long:
+                signal = "BUY"
+                message = f"Sinal de COMPRA: EMA Curta ({self.short_window}) cruzou acima da Longa ({self.long_window})."
+            elif previous_ema_short >= previous_ema_long and current_ema_short < current_ema_long:
+                signal = "SELL"
+                message = f"Sinal de VENDA: EMA Curta ({self.short_window}) cruzou abaixo da Longa ({self.long_window})."
+
+        return {"action": signal, "signal": signal, "price": current_price, "message": message}
+
+class MultiPointVectorStrategy(BaseStrategy):
+    """
+    Estratégia inovadora dos 5 Pontos de Medição (Vetor de Estado).
+    Compara o preço atual em tempo real contra 4 médias móveis de diferentes prazos.
+    Possui Modo Ágil (4 pontos) e Modo Conservador (5 pontos) com Filtro de Exaustão de Preço.
+    """
+    def __init__(self, p2_window=9, p3_window=21, p4_window=50, p5_window=200, 
+                 mode="AGILE", exhaustion_filter=True, exhaustion_threshold=2.5, p5_filter_active=True, 
+                 entry_mode="4PONTOS", exit_mode="P3", operation_mode="TREND_FOLLOWING", logger=None):
+        self.p2_window = p2_window  # Muito Rápida (Média 9)
+        self.p3_window = p3_window  # Curta (Média 21)
+        self.p4_window = p4_window  # Média (Média 50)
+        self.p5_window = p5_window  # Longa (Média 200)
+        self.mode = mode.upper()     # "AGILE" ou "CONSERVATIVE"
+        self.exhaustion_filter = exhaustion_filter
+        self.exhaustion_threshold = exhaustion_threshold
+        self.p5_filter_active = p5_filter_active
+        self.entry_mode = entry_mode.upper() if entry_mode else "4PONTOS"
+        self.exit_mode = exit_mode.upper() if exit_mode else "P3"
+        self.operation_mode = operation_mode.upper() if operation_mode else "TREND_FOLLOWING"
+        self.logger = logger
+
+        msg = (f"Estratégia Vetor de 5 Pontos inicializada | Entrada={self.entry_mode} | Saída={self.exit_mode} | "
+               f"P2={self.p2_window}, P3={self.p3_window}, P4={self.p4_window}, P5={self.p5_window} | "
+               f"Filtro Exaustão={self.exhaustion_filter} (Limiar={self.exhaustion_threshold}%) | Filtro P5={self.p5_filter_active}")
+        if self.logger:
+            self.logger.info(msg)
+        else:
+            print(msg)
+
+    def generate_signal(self, ohlcv_data: pd.DataFrame) -> dict:
+        max_window = max(self.p2_window, self.p3_window, self.p4_window, self.p5_window)
+        if ohlcv_data.empty or len(ohlcv_data) < max_window:
+            return {"action": "HOLD", "signal": "HOLD", "price": None, "message": "Dados insuficientes para calcular os 5 pontos de medição."}
+
+        df = ohlcv_data.copy()
+        
+        # Calcular as 4 médias móveis simples (SMA) que representam P2, P3, P4 e P5
+        df['P2_MA'] = ta.trend.sma_indicator(df['close'], window=self.p2_window)
+        df['P3_MA'] = ta.trend.sma_indicator(df['close'], window=self.p3_window)
+        df['P4_MA'] = ta.trend.sma_indicator(df['close'], window=self.p4_window)
+        df['P5_MA'] = ta.trend.sma_indicator(df['close'], window=self.p5_window)
+        
+        needed_cols = ['P2_MA', 'P3_MA', 'P4_MA']
+        if self.mode == "CONSERVATIVE" or self.p5_filter_active:
+            needed_cols.append('P5_MA')
+        df = df.dropna(subset=needed_cols)
+        
+        if df.empty:
+            return {"action": "HOLD", "signal": "HOLD", "price": None, "message": "Dados insuficientes após cálculo de vetores."}
+
+        last_row = df.iloc[-1]
+        previous_row = df.iloc[-2] if len(df) >= 2 else None
+
+        # Definição dos 5 Pontos Correntes
+        p1_curr = last_row['close']   # Preço exato atual
+        p2_curr = last_row['P2_MA']   # Média Rápida
+        p3_curr = last_row['P3_MA']   # Média Curta
+        p4_curr = last_row['P4_MA']   # Média Média
+        p5_curr = last_row['P5_MA']   # Média Longa
+
+        # Definição dos 5 Pontos Anteriores (para verificação de gatilho/cruzamento)
+        if previous_row is not None:
+            p1_prev = previous_row['close']
+            p2_prev = previous_row['P2_MA']
+            p3_prev = previous_row['P3_MA']
+            p4_prev = previous_row['P4_MA']
+            p5_prev = previous_row['P5_MA']
+        else:
+            p1_prev = p2_prev = p3_prev = p4_prev = p5_prev = None
+
+        signal = "HOLD"
+        message = "Aguardando alinhamento dos 5 pontos."
+
+        # Avaliação de Alinhamento
+        if self.mode == "CONSERVATIVE":
+            # Modo Conservador: Exige alinhamento absoluto dos 5 pontos (P1 > P2 > P3 > P4 > P5)
+            curr_aligned = (p1_curr > p2_curr) and (p2_curr > p3_curr) and (p3_curr > p4_curr) and (p4_curr > p5_curr)
+            prev_aligned = (p1_prev is not None) and (p1_prev > p2_prev) and (p2_prev > p3_prev) and (p3_prev > p4_prev) and (p4_prev > p5_prev)
+        else:
+            # Modo Ágil (Padrão): Exige alinhamento dos 4 pontos dinâmicos (P1 > P2 > P3 > P4)
+            # A de 200 períodos (P5) é usada apenas como filtro de inclinação (slope) para evitar bear markets fortes.
+            p5_slope_positive = (p5_prev is not None) and (p5_curr >= p5_prev)
+            if self.p5_filter_active:
+                curr_aligned = (p1_curr > p2_curr) and (p2_curr > p3_curr) and (p3_curr > p4_curr) and p5_slope_positive
+            else:
+                curr_aligned = (p1_curr > p2_curr) and (p2_curr > p3_curr) and (p3_curr > p4_curr)
+            prev_aligned = (p1_prev is not None) and (p1_prev > p2_prev) and (p2_prev > p3_prev) and (p3_prev > p4_prev)
+
+        # GATILHO DE COMPRA: Acaba de alinhar
+        if curr_aligned and not prev_aligned:
+            # Validar Filtro de Exaustão (Preço Esticado)
+            if self.exhaustion_filter:
+                dist_pct = ((p1_curr - p2_curr) / p2_curr) * 100
+                if dist_pct > self.exhaustion_threshold:
+                    return {
+                        "action": "HOLD",
+                        "signal": "HOLD",
+                        "price": p1_curr,
+                        "message": f"🔒 COMPRA BLOQUEADA: Preço muito esticado em relação à Média Rápida ({dist_pct:.2f}% > {self.exhaustion_threshold}%)."
+                    }
+            
+            signal = "BUY"
+            message = f"🚀 GATILHO COMPRA (Vetor 5 Pontos - {self.mode}): Alinhamento de tendência detetado!"
+
+        # GATILHO DE VENDA: Perda de suporte
+        # Em vez de esperar pelo cruzamento lento de 200, saímos rapidamente se o preço atual cair abaixo da média confirmadora (P3)
+        elif (p1_prev is not None) and (p1_curr < p3_curr) and (p1_prev >= p3_prev):
+            signal = "SELL"
+            message = "⚠️ GATILHO VENDA: Preço caiu abaixo da Média Confirmadora (P3), indicando fim do impulso."
+
+        return {"action": signal, "signal": signal, "price": p1_curr, "message": message}
+
+class PauloGoldStrategy(BaseStrategy):
+    """
+    Estratégia Exclusiva PAULO_GOLD (Breakout Puro).
+    Entrada (BUY): Assim que cruza a 1ª linha quando vai a subir - compra.
+    Saída (SELL): Assim que cruza a 1ª linha quando vai a descer - vende.
+    """
+    def __init__(self, short_window=9, long_window=21, trend_filter=False, min_dist_pct=0.0, logger=None):
+        self.short_window = short_window
+        self.long_window = long_window
+        self.trend_filter = trend_filter
+        self.min_dist_pct = min_dist_pct
+        self.logger = logger
+        msg = f"Estratégia Exclusiva PAULO_GOLD inicializada (Curta={self.short_window}, Longa={self.long_window}, FiltroTendência={self.trend_filter}, DistMin={self.min_dist_pct}%)"
+        if self.logger:
+            self.logger.info(msg)
+        else:
+            print(msg)
+
+    def generate_signal(self, ohlcv_data: pd.DataFrame) -> dict:
+        if ohlcv_data.empty or len(ohlcv_data) < max(self.short_window, self.long_window):
+            return {"action": "HOLD", "signal": "HOLD", "price": None, "message": "Dados insuficientes para calcular médias móveis simples."}
+
+        df = ohlcv_data.copy()
+        df['Line_1'] = ta.trend.sma_indicator(df['close'], window=self.short_window)
+        df['Line_2'] = ta.trend.sma_indicator(df['close'], window=self.long_window)
+        df = df.dropna(subset=['Line_1', 'Line_2'])
+
+        if df.empty:
+            return {"action": "HOLD", "signal": "HOLD", "price": None, "message": "Dados insuficientes após cálculo de médias."}
+
+        last_row = df.iloc[-1]
+        previous_row = df.iloc[-2] if len(df) >= 2 else None
+
+        current_price = last_row['close']
+        current_l1 = last_row['Line_1']
+        current_l2 = last_row['Line_2']
+
+        signal = "HOLD"
+        message = "Aguardando rompimento..."
+
+        if previous_row is not None:
+            previous_price = previous_row['close']
+            previous_l1 = previous_row['Line_1']
+            previous_l2 = previous_row['Line_2']
+
+            # Gatilhos de Entrada (COMPRA): 
+            # 1. Cruzamento de alta de QUALQUER das duas linhas
+            cross_above_l1 = (previous_price <= previous_l1) and (current_price > current_l1)
+            cross_above_l2 = (previous_price <= previous_l2) and (current_price > current_l2)
+            cross_above = cross_above_l1 or cross_above_l2
+
+            # 2. Re-Entrada por Alinhamento (Preço > Azul > Laranja e a subir)
+            price_is_growing = (current_price > previous_price)
+            reentry_aligned = price_is_growing and (current_price > current_l1) and (current_l1 > current_l2)
+
+            # Gatilhos de Saída (VENDA): Cruzamento de baixa de QUALQUER das duas linhas
+            cross_below_l1 = (previous_price >= previous_l1) and (current_price < current_l1)
+            cross_below_l2 = (previous_price >= previous_l2) and (current_price < current_l2)
+            cross_below = cross_below_l1 or cross_below_l2
+
+            # Filtro de Tendência se ativado
+            trend_allows_buy = True
+            if self.trend_filter:
+                trend_allows_buy = (current_l1 > current_l2 * (1 + self.min_dist_pct / 100.0))
+
+            if (cross_above or reentry_aligned) and trend_allows_buy:
+                signal = "BUY"
+                if reentry_aligned:
+                    message = f"🚀 Re-Entrada por Alinhamento (PAULO_GOLD): Preço em alta ({current_price:.2f} > {current_l1:.2f} > {current_l2:.2f})."
+                else:
+                    line_name = "Média Curta (Line_1)" if cross_above_l1 else "Média Lenta (Line_2)"
+                    message = f"🚀 Sinal de COMPRA (PAULO_GOLD): Preço ({current_price:.2f}) cruzou acima da {line_name}."
+            elif cross_below:
+                signal = "SELL"
+                line_name = "Média Curta (Line_1)" if cross_below_l1 else "Média Lenta (Line_2)"
+                message = f"🚨 Sinal de VENDA (PAULO_GOLD): Preço ({current_price:.2f}) cruzou abaixo da {line_name}."
+        else:
+            # Entrada Imediata se Alinhado no início da simulação
+            trend_allows_buy = True
+            if self.trend_filter:
+                trend_allows_buy = (current_l1 > current_l2 * (1 + self.min_dist_pct / 100.0))
+            
+            if current_price > max(current_l1, current_l2) and trend_allows_buy:
+                signal = "BUY"
+                message = f"🚀 Entrada Imediata (PAULO_GOLD): Preço já nasceu alinhado em alta ({current_price:.2f} > {max(current_l1, current_l2):.2f})."
+
+        return {"action": signal, "signal": signal, "price": current_price, "message": message}
+
+
+
+import numpy as np
+
+
+
+class QuantumConsensusStrategy(BaseStrategy):
+    """
+    Estratégia Quantum Consensus (Fórmula Mágica).
+    Lê o ficheiro 'bot_consensus_dna.json' e executa apenas as regras estatísticas 
+    que passaram no teste de estabilidade (unânimes e sem contradição) para cada regime de mercado.
+    """
+    def __init__(self, logger=None):
+        self.logger = logger
+        self.dna_path = "bot_consensus_dna.json"
+        self.dna = None
+        self.load_dna()
+
+    def load_dna(self):
+        import json, os
+        if os.path.exists(self.dna_path):
+            try:
+                with open(self.dna_path, "r", encoding="utf-8") as f:
+                    self.dna = json.load(f)
+                msg = f"🔮 DNA de Consenso carregado! Sintonizado com {len(self.dna.get('selected_tests', []))} testes. Última atualização: {self.dna.get('last_updated', 'N/A')}"
+                if self.logger: self.logger.info(msg)
+                else: print(msg)
+            except Exception as e:
+                msg = f"Erro ao ler o DNA de Consenso: {e}"
+                if self.logger: self.logger.error(msg)
+                else: print(msg)
+        else:
+            msg = "⚠️ Ficheiro 'bot_consensus_dna.json' não encontrado! Usando fallback passivo."
+            if self.logger: self.logger.warning(msg)
+            else: print(msg)
+
+    def generate_signal(self, ohlcv_data: pd.DataFrame) -> dict:
+        if self.dna is None:
+            self.load_dna()
+            if self.dna is None:
+                return {"action": "HOLD", "signal": "HOLD", "price": None, "message": "Sem DNA de Consenso ativo."}
+
+        smas_periods = self.dna.get("smas", [5, 13, 21, 55, 144])
+        p2, p3, p4, p5, p6 = smas_periods
+        max_window = max(smas_periods)
+
+        if ohlcv_data.empty or len(ohlcv_data) < max_window:
+            return {"action": "HOLD", "signal": "HOLD", "price": None, "message": "Dados insuficientes para as médias do DNA de Consenso."}
+
+        df = ohlcv_data.copy()
+        
+        # Calcular médias móveis simples (SMA)
+        df['sma_p2'] = ta.trend.sma_indicator(df['close'], window=p2)
+        df['sma_p3'] = ta.trend.sma_indicator(df['close'], window=p3)
+        df['sma_p4'] = ta.trend.sma_indicator(df['close'], window=p4)
+        df['sma_p5'] = ta.trend.sma_indicator(df['close'], window=p5)
+        df['sma_p6'] = ta.trend.sma_indicator(df['close'], window=p6)
+        
+        needed_cols = ['sma_p2', 'sma_p3', 'sma_p4', 'sma_p5', 'sma_p6']
+        df = df.dropna(subset=needed_cols)
+        
+        if df.empty:
+            return {"action": "HOLD", "signal": "HOLD", "price": None, "message": "Dados insuficientes após cálculo das SMAs do DNA."}
+
+        # Calcular indicadores do cockpit
+        df['velocity'] = df['sma_p2'].diff(1)
+        df['acceleration'] = df['velocity'].diff(1)
+        df['volatility'] = df['close'].rolling(window=20, min_periods=1).std()
+        
+        smas_cols = ['sma_p2', 'sma_p3', 'sma_p4', 'sma_p5', 'sma_p6']
+        avg_sma = df[smas_cols].mean(axis=1)
+        df['stretching'] = df[smas_cols].sub(avg_sma, axis=0).abs().mean(axis=1).div(avg_sma).mul(100)
+        
+        # Classificar regime
+        last_row = df.iloc[-1]
+        previous_row = df.iloc[-2] if len(df) >= 2 else None
+        
+        p_c = last_row['close']
+        s2_c = last_row['sma_p2']
+        s3_c = last_row['sma_p3']
+        s4_c = last_row['sma_p4']
+        s5_c = last_row['sma_p5']
+        s6_c = last_row['sma_p6']
+        v_c = last_row['velocity']
+        vol_c = last_row['volatility']
+        stretch_c = last_row['stretching']
+        
+        if pd.isna(s6_c) or pd.isna(v_c) or pd.isna(vol_c) or pd.isna(stretch_c):
+            regime = "LATERAL"
+        else:
+            is_bull_trend = (s2_c > s3_c) and (s3_c > s4_c) and (s4_c > s5_c) and (v_c > 0)
+            is_bear_trend = (s2_c < s3_c) and (s3_c < s4_c) and (s4_c < s5_c) and (v_c < 0)
+            if stretch_c < 0.6:
+                regime = "LATERAL"
+            elif is_bull_trend:
+                regime = "BULL"
+            elif is_bear_trend:
+                regime = "BEAR"
+            elif vol_c > p_c * 0.012:
+                regime = "CAOTICO"
+            else:
+                regime = "LATERAL"
+
+        # Obter regras do regime ativo
+        reg_rules = self.dna.get("regimes", {}).get(regime, {})
+        if not reg_rules:
+            return {"action": "HOLD", "signal": "HOLD", "price": p_c, "message": f"Sem regras definidas para o regime {regime}."}
+            
+        buy_rules = reg_rules.get("buy_rules", {})
+        sell_rules = reg_rules.get("sell_rules", {})
+
+        # Calcular sensores adicionais das médias
+        std_val = np.std([s2_c, s3_c, s4_c, s5_c, s6_c])
+        mean_val = np.mean([s2_c, s3_c, s4_c, s5_c, s6_c])
+        mola_c = (std_val / mean_val * 100) if mean_val != 0 else 0.0
+        
+        infil_bull_c = (s2_c > s3_c > s4_c and s5_c < s6_c)
+        infil_bear_c = (s2_c < s3_c < s4_c and s5_c > s6_c)
+        
+        dist_p5 = (abs(p_c - s5_c) / s5_c * 100) if s5_c != 0 else 999.0
+        dist_p6 = (abs(p_c - s6_c) / s6_c * 100) if s6_c != 0 else 999.0
+        reteste_c = (dist_p5 < 0.8 or dist_p6 < 0.8)
+        
+        disp_c = ((s2_c - s6_c) / s6_c * 100) if s6_c != 0 else 0.0
+        acc_c = last_row['acceleration']
+
+        # --- GATILHOS DE ENTRADA (BUY) ---
+        crossover_buy = (s2_c > s3_c) # Gatilho primário
+        if previous_row is not None:
+            prev_price = previous_row['close']
+            price_growing = (p_c > prev_price)
+        else:
+            price_growing = True
+
+        buy_signals_passed = True
+        buy_debug_msgs = []
+
+        if crossover_buy and price_growing:
+            # Validar regras estáveis do DNA
+            # 1. Stretching
+            strt_r = buy_rules.get("stretching", {})
+            if strt_r.get("stable", False):
+                min_l = strt_r.get("min_limit")
+                max_l = strt_r.get("max_limit")
+                if min_l is not None and max_l is not None:
+                    if not (min_l <= stretch_c <= max_l):
+                        buy_signals_passed = False
+                        buy_debug_msgs.append(f"Stretching fora ({stretch_c:.2f}% vs [{min_l:.2f}%, {max_l:.2f}%])")
+            
+            # 2. Mola (Compressão)
+            mola_r = buy_rules.get("mola", {})
+            if mola_r.get("stable", False):
+                max_l = mola_r.get("max_limit")
+                if max_l is not None:
+                    if mola_c > max_l:
+                        buy_signals_passed = False
+                        buy_debug_msgs.append(f"Mola muito esticada ({mola_c:.2f}% > {max_l:.2f}%)")
+            
+            # 3. Disp (Dispersão)
+            disp_r = buy_rules.get("disp", {})
+            if disp_r.get("stable", False):
+                max_l = disp_r.get("max_limit")
+                if max_l is not None:
+                    if disp_c > max_l:
+                        buy_signals_passed = False
+                        buy_debug_msgs.append(f"Disp. Vetorial acima ({disp_c:.2f}% > {max_l:.2f}%)")
+
+            # 4. Acceleration
+            acc_r = buy_rules.get("acceleration", {})
+            if acc_r.get("stable", False):
+                mean_l = acc_r.get("mean", 0.0)
+                if acc_c <= mean_l:
+                    buy_signals_passed = False
+                    buy_debug_msgs.append(f"Aceleração fraca ({acc_c:+.4f} <= {mean_l:+.4f})")
+
+            # 5. Infiltração
+            infil_r = buy_rules.get("infil", {})
+            if infil_r.get("active", False):
+                if not infil_bull_c:
+                    buy_signals_passed = False
+                    buy_debug_msgs.append("Sem Infiltração Bull")
+
+            # 6. Reteste Gravitacional
+            reteste_r = buy_rules.get("reteste", {})
+            if reteste_r.get("active", False):
+                if not reteste_c:
+                    buy_signals_passed = False
+                    buy_debug_msgs.append("Sem Reteste de Suporte")
+        else:
+            buy_signals_passed = False
+
+        if crossover_buy and price_growing and buy_signals_passed:
+            msg = f"🔮 BUY Consenso ({regime}): Sinais estáveis validados! Mola={mola_c:.2f}% Stretch={stretch_c:.2f}%"
+            return {"action": "BUY", "signal": "BUY", "price": p_c, "message": msg}
+
+        # --- GATILHOS DE SAÍDA (SELL) ---
+        crossover_sell = (s2_c < s3_c)
+        sell_triggered = False
+        sell_reason = ""
+
+        if crossover_sell:
+            sell_triggered = True
+            sell_reason = f"Cruzamento de queda rápido ({p2} < {p3})"
+        else:
+            # Validar regras estáveis de saída do DNA
+            # 1. Stretching excessivo de topo
+            strt_s = sell_rules.get("stretching", {})
+            if strt_s.get("stable", False):
+                max_l = strt_s.get("max_limit")
+                if max_l is not None and stretch_c > max_l * 1.5:
+                    sell_triggered = True
+                    sell_reason = f"Esticamento de topo crítico ({stretch_c:.2f}% > {max_l*1.5:.2f}%)"
+
+            # 2. Dispersion abaixo do limite da Parede
+            disp_s = sell_rules.get("disp", {})
+            if disp_s.get("stable", False):
+                limit_l = disp_s.get("limit")
+                if limit_l is not None and disp_c < limit_l:
+                    sell_triggered = True
+                    sell_reason = f"Fuga de dispersão da parede ({disp_c:.2f}% < {limit_l:.2f}%)"
+
+            # 3. Aceleração negativa extrema
+            acc_s = sell_rules.get("acceleration", {})
+            if acc_s.get("stable", False):
+                mean_l = acc_s.get("mean", 0.0)
+                if acc_c < mean_l * 1.5:
+                    sell_triggered = True
+                    sell_reason = f"Desaceleração severa de topo ({acc_c:+.4f})"
+
+        if sell_triggered:
+            msg = f"🔮 SELL Consenso ({regime}): {sell_reason}"
+            return {"action": "SELL", "signal": "SELL", "price": p_c, "message": msg}
+
+        # --- MANTER POSIÇÃO (HOLD) ---
+        msg = f"Regime: {regime} | Mola={mola_c:.2f}% | Stretch={stretch_c:.2f}% | Disp={disp_c:.2f}%"
+        if buy_debug_msgs:
+            msg += " | Bloqueios: " + ", ".join(buy_debug_msgs)
+        return {"action": "HOLD", "signal": "HOLD", "price": p_c, "message": msg}
+
+
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# FAMÍLIA LAGARTA — estratégias baseadas no motor do Arena/Jogo
+# ─────────────────────────────────────────────────────────────────────────────
+
+class LagartaOneLineStrategy(BaseStrategy):
+    """
+    Lagarta — 1 Linha.
+    Entrada LONG quando o preço cruza para cima UMA SMA específica.
+    Saída quando cruza para baixo essa mesma linha.
+    Estratégia directa, sem filtros extra.
+    """
+    SMA_OPTIONS = [5, 13, 21, 55, 144]
+
+    def __init__(self, ref_window=13, logger=None):
+        self.ref_window = ref_window
+        self.logger = logger
+        msg = f"Lagarta 1-Linha inicializada | SMA ref = {ref_window}"
+        if self.logger: self.logger.info(msg)
+        else: print(msg)
+
+    def generate_signal(self, ohlcv_data: pd.DataFrame) -> dict:
+        if ohlcv_data.empty or len(ohlcv_data) < self.ref_window + 2:
+            return {"action": "HOLD", "signal": "HOLD", "price": None,
+                    "message": "Dados insuficientes para Lagarta 1-Linha."}
+
+        df = ohlcv_data.copy()
+        col = f'sma_{self.ref_window}'
+        df[col] = ta.trend.sma_indicator(df['close'], window=self.ref_window)
+        df = df.dropna(subset=[col])
+        if len(df) < 2:
+            return {"action": "HOLD", "signal": "HOLD", "price": None, "message": "Dados insuficientes."}
+
+        price_now  = df['close'].iloc[-1]
+        price_prev = df['close'].iloc[-2]
+        ln         = df[col].iloc[-1]
+        lp         = df[col].iloc[-2]
+
+        if (price_prev <= lp) and (price_now > ln):
+            return {"action": "BUY", "signal": "BUY", "price": price_now,
+                    "message": f"🐛 COMPRA Lagarta 1L: preço ({price_now:.4f}) cruzou SMA{self.ref_window} ({ln:.4f}) para cima."}
+        elif (price_prev >= lp) and (price_now < ln):
+            return {"action": "SELL", "signal": "SELL", "price": price_now,
+                    "message": f"🐛 VENDA Lagarta 1L: preço ({price_now:.4f}) cruzou SMA{self.ref_window} ({ln:.4f}) para baixo."}
+
+        return {"action": "HOLD", "signal": "HOLD", "price": price_now,
+                "message": f"Aguardar cruzamento da SMA{self.ref_window}."}
+
+
+class LagartaFiveLinesStrategy(BaseStrategy):
+    """
+    Lagarta — 5 Linhas (Lagarta-Qualquer).
+    Monitora 5 SMAs em simultâneo: entra no primeiro cruzamento que encontrar,
+    sai no primeiro cruzamento inverso.
+    Mais reactiva, maior frequência de trades.
+    """
+    def __init__(self, p2=5, p3=13, p4=21, p5=55, p6=144, logger=None):
+        self.windows = [p2, p3, p4, p5, p6]
+        self.logger = logger
+        msg = f"Lagarta 5-Linhas inicializada | SMAs = {self.windows}"
+        if self.logger: self.logger.info(msg)
+        else: print(msg)
+
+    def generate_signal(self, ohlcv_data: pd.DataFrame) -> dict:
+        max_w = max(self.windows)
+        if ohlcv_data.empty or len(ohlcv_data) < max_w + 2:
+            return {"action": "HOLD", "signal": "HOLD", "price": None,
+                    "message": "Dados insuficientes para Lagarta 5-Linhas."}
+
+        df = ohlcv_data.copy()
+        cols = []
+        for w in self.windows:
+            col = f'sma_{w}'
+            df[col] = ta.trend.sma_indicator(df['close'], window=w)
+            cols.append(col)
+        df = df.dropna(subset=cols)
+        if len(df) < 2:
+            return {"action": "HOLD", "signal": "HOLD", "price": None, "message": "Dados insuficientes."}
+
+        price_now  = df['close'].iloc[-1]
+        price_prev = df['close'].iloc[-2]
+
+        first_long = first_short = None
+        for col in cols:
+            ln = df[col].iloc[-1]
+            lp = df[col].iloc[-2]
+            if abs(ln - price_now) < 1e-9:
+                continue
+            if (price_prev <= lp) and (price_now > ln) and first_long is None:
+                first_long = col
+            elif (price_prev >= lp) and (price_now < ln) and first_short is None:
+                first_short = col
+
+        if first_long and not first_short:
+            return {"action": "BUY", "signal": "BUY", "price": price_now,
+                    "message": f"🐛 COMPRA Lagarta 5L: preço cruzou {first_long} para cima."}
+        elif first_short and not first_long:
+            return {"action": "SELL", "signal": "SELL", "price": price_now,
+                    "message": f"🐛 VENDA Lagarta 5L: preço cruzou {first_short} para baixo."}
+
+        return {"action": "HOLD", "signal": "HOLD", "price": price_now,
+                "message": "Sem cruzamento nas 5 linhas."}
+
+
+class LagartaTwoLinesStrategy(BaseStrategy):
+    """
+    Lagarta — 2 Linhas (Pirâmide / Camadas).
+    P2 (linha rápida) cruza P3 (linha confirmadora) com filtro de P4.
+    Inspirada na estratégia 'Claude' do Arena: entrada mais selectiva,
+    só entra quando a velocidade confirma a direcção.
+    Variante 'Camadas': usa P4 como gatilho principal e P3 como reentrada.
+    """
+    def __init__(self, p2_window=5, p3_window=13, p4_window=21,
+                 mode="PIRAMIDE", velocity_filter=True, logger=None):
+        self.p2_window = p2_window
+        self.p3_window = p3_window
+        self.p4_window = p4_window
+        self.mode = mode.upper()           # "PIRAMIDE" ou "CAMADAS"
+        self.velocity_filter = velocity_filter
+        self.logger = logger
+        msg = (f"Lagarta 2-Linhas inicializada | Modo={self.mode} | "
+               f"P2={p2_window}, P3={p3_window}, P4={p4_window} | VelFiltro={velocity_filter}")
+        if self.logger: self.logger.info(msg)
+        else: print(msg)
+
+    def generate_signal(self, ohlcv_data: pd.DataFrame) -> dict:
+        max_w = max(self.p2_window, self.p3_window, self.p4_window)
+        if ohlcv_data.empty or len(ohlcv_data) < max_w + 3:
+            return {"action": "HOLD", "signal": "HOLD", "price": None,
+                    "message": "Dados insuficientes para Lagarta 2-Linhas."}
+
+        df = ohlcv_data.copy()
+        df['p2'] = ta.trend.sma_indicator(df['close'], window=self.p2_window)
+        df['p3'] = ta.trend.sma_indicator(df['close'], window=self.p3_window)
+        df['p4'] = ta.trend.sma_indicator(df['close'], window=self.p4_window)
+        df = df.dropna(subset=['p2', 'p3', 'p4'])
+        if len(df) < 3:
+            return {"action": "HOLD", "signal": "HOLD", "price": None, "message": "Dados insuficientes."}
+
+        p2_now  = df['p2'].iloc[-1];  p2_prev = df['p2'].iloc[-2]
+        p3_now  = df['p3'].iloc[-1];  p3_prev = df['p3'].iloc[-2]
+        p4_now  = df['p4'].iloc[-1];  p4_prev = df['p4'].iloc[-2]
+        price   = df['close'].iloc[-1]
+
+        # Velocidade: derivada da P2 (2 períodos)
+        vel = df['p2'].iloc[-1] - df['p2'].iloc[-3] if len(df) >= 3 else 0.0
+
+        if self.mode == "PIRAMIDE":
+            # Entrada: P2 cruza P3, confirmada por P4 e velocidade
+            cross_up   = (p2_prev <= p3_prev) and (p2_now > p3_now)
+            cross_down = (p2_prev >= p3_prev) and (p2_now < p3_now)
+
+            vel_ok_long  = (vel > 0) if self.velocity_filter else True
+            vel_ok_short = (vel < 0) if self.velocity_filter else True
+
+            if cross_up and p2_now > p4_now and vel_ok_long:
+                return {"action": "BUY", "signal": "BUY", "price": price,
+                        "message": f"🐛 COMPRA Lagarta 2L Pirâmide: P2 cruzou P3 para cima, acima de P4 ▲"}
+            elif cross_down and p2_now < p4_now and vel_ok_short:
+                return {"action": "SELL", "signal": "SELL", "price": price,
+                        "message": f"🐛 VENDA Lagarta 2L Pirâmide: P2 cruzou P3 para baixo, abaixo de P4 ▼"}
+            # Saída se cruzamento contrário
+            elif cross_down:
+                return {"action": "SELL", "signal": "SELL", "price": price,
+                        "message": "🐛 SAÍDA Lagarta 2L: Pirâmide quebrou ↓"}
+            elif cross_up:
+                return {"action": "BUY", "signal": "BUY", "price": price,
+                        "message": "🐛 COMPRA Lagarta 2L: Pirâmide formou ↑"}
+
+        else:  # CAMADAS
+            # Entrada principal: P2 cruza P4
+            c_p4_long  = (p2_prev <= p4_prev) and (p2_now > p4_now)
+            c_p4_short = (p2_prev >= p4_prev) and (p2_now < p4_now)
+            # Reentrada: P2 cruza P3 enquanto P2 já está acima/abaixo de P4
+            c_p3_long  = (p2_prev <= p3_prev) and (p2_now > p3_now) and (p2_now > p4_now)
+            c_p3_short = (p2_prev >= p3_prev) and (p2_now < p3_now) and (p2_now < p4_now)
+
+            if c_p4_long or c_p3_long:
+                tag = "P2 rompe P4" if c_p4_long else "Reentrada P3"
+                return {"action": "BUY", "signal": "BUY", "price": price,
+                        "message": f"🐛 COMPRA Lagarta Camadas: {tag} ↑"}
+            elif c_p4_short or c_p3_short:
+                tag = "P2 rompe P4" if c_p4_short else "Reentrada P3"
+                return {"action": "SELL", "signal": "SELL", "price": price,
+                        "message": f"🐛 VENDA Lagarta Camadas: {tag} ↓"}
+
+        return {"action": "HOLD", "signal": "HOLD", "price": price,
+                "message": "Aguardar formação da Lagarta."}
+
+
+class BollingerRSIReversionStrategy(BaseStrategy):
+    """
+    Estratégia de Reversão à Média com Bandas de Bollinger + RSI.
+    Ideal para mercados laterais: compra em sobrevenda junto à Banda Inferior
+    e vende quando o preço recupera à média/Banda Superior ou o RSI entra em sobrecompra.
+    """
+    def __init__(
+        self,
+        bb_window: int = 20,
+        bb_std: float = 2.0,
+        rsi_window: int = 14,
+        rsi_oversold: float = 35.0,
+        rsi_overbought: float = 65.0,
+        logger=None,
+    ):
+        self.bb_window = bb_window
+        self.bb_std = bb_std
+        self.rsi_window = rsi_window
+        self.rsi_oversold = rsi_oversold
+        self.rsi_overbought = rsi_overbought
+        self.logger = logger
+        msg = (
+            f"Estratégia Bollinger+RSI Reversão inicializada "
+            f"(BB={self.bb_window}/{self.bb_std}σ, RSI={self.rsi_window} [{self.rsi_oversold}/{self.rsi_overbought}])"
+        )
+        if self.logger:
+            self.logger.info(msg)
+
+    def generate_signal(self, ohlcv_data: pd.DataFrame) -> dict:
+        min_len = max(self.bb_window, self.rsi_window) + 2
+        if ohlcv_data is None or ohlcv_data.empty or len(ohlcv_data) < min_len:
+            return {
+                "action": "HOLD",
+                "signal": "HOLD",
+                "price": None,
+                "message": "Dados insuficientes para calcular Bandas de Bollinger e RSI.",
+            }
+
+        df = ohlcv_data.copy()
+        bb = ta.volatility.BollingerBands(close=df["close"], window=self.bb_window, window_dev=self.bb_std)
+        df["BB_Lower"] = bb.bollinger_lband()
+        df["BB_Mid"] = bb.bollinger_mavg()
+        df["BB_Upper"] = bb.bollinger_hband()
+        df["RSI"] = ta.momentum.rsi(df["close"], window=self.rsi_window)
+        df = df.dropna(subset=["BB_Lower", "BB_Mid", "BB_Upper", "RSI"])
+
+        if df.empty:
+            return {"action": "HOLD", "signal": "HOLD", "price": None, "message": "Indicadores ainda em aquecimento."}
+
+        last = df.iloc[-1]
+        prev = df.iloc[-2] if len(df) >= 2 else last
+
+        price = float(last["close"])
+        rsi_val = float(last["RSI"])
+        bb_low = float(last["BB_Lower"])
+        bb_mid = float(last["BB_Mid"])
+        bb_high = float(last["BB_Upper"])
+
+        touched_or_bounced_low = (price <= bb_low * 1.002) or (
+            float(prev["close"]) <= float(prev["BB_Lower"]) and price > bb_low
+        )
+
+        if touched_or_bounced_low and rsi_val <= self.rsi_oversold:
+            return {
+                "action": "BUY",
+                "signal": "BUY",
+                "price": price,
+                "message": (
+                    f"🎯 COMPRA Reversão (BB+RSI): Preço ({price:.2f}) na Banda Inferior ({bb_low:.2f}) "
+                    f"com RSI sobrevendido ({rsi_val:.1f} ≤ {self.rsi_oversold})."
+                ),
+            }
+
+        if price >= bb_high or rsi_val >= self.rsi_overbought or (price >= bb_mid and rsi_val >= 55.0):
+            return {
+                "action": "SELL",
+                "signal": "SELL",
+                "price": price,
+                "message": (
+                    f"🎯 VENDA Reversão (BB+RSI): Preço recuperou ({price:.2f}, Média={bb_mid:.2f}) "
+                    f"com RSI={rsi_val:.1f}."
+                ),
+            }
+
+        return {
+            "action": "HOLD",
+            "signal": "HOLD",
+            "price": price,
+            "message": f"Aguardar extremo Bollinger+RSI (RSI={rsi_val:.1f}).",
+        }
+
+
+class ChameleonADXStrategy(BaseStrategy):
+    """
+    Estratégia Camaleão 2.0 ADX (3 Mercados: Alta, Baixa e Lateral).
+    Usa o ADX(14) como semáforo de regime:
+      - ADX <= 25 (Mercado Lateral): Reversão à Média (Bollinger >= 2.5% + RSI + macro plano)
+      - ADX > adx_threshold (Tendência Forte, default 27): Seguidor de Tendência (Pirâmide a abrir + MACD + anti-serrilha P2-P3)
+    """
+    def __init__(
+        self,
+        adx_threshold: float = 27.0,
+        fast_window: int = 5,
+        mid_window: int = 13,
+        slow_window: int = 21,
+        bb_window: int = 20,
+        bb_std: float = 2.0,
+        rsi_window: int = 14,
+        min_p2_p3_pct: float = 0.15,
+        logger=None,
+    ):
+        self.adx_threshold = adx_threshold
+        self.fast_window = fast_window
+        self.mid_window = mid_window
+        self.slow_window = slow_window
+        self.bb_window = bb_window
+        self.bb_std = bb_std
+        self.rsi_window = rsi_window
+        self.min_p2_p3_pct = min_p2_p3_pct
+        self.logger = logger
+
+    def generate_signal(self, ohlcv_data: pd.DataFrame) -> dict:
+        min_len = max(self.slow_window, self.bb_window, self.rsi_window, 70) + 2
+        if ohlcv_data is None or ohlcv_data.empty or len(ohlcv_data) < min_len:
+            return {"action": "HOLD", "signal": "HOLD", "price": None, "message": "Dados insuficientes para Camaleão 2.0 ADX."}
+
+        df = ohlcv_data.copy()
+        df["SMA_F"] = ta.trend.sma_indicator(df["close"], window=self.fast_window)
+        df["SMA_M"] = ta.trend.sma_indicator(df["close"], window=self.mid_window)
+        df["SMA_S"] = ta.trend.sma_indicator(df["close"], window=self.slow_window)
+        df["SMA_50"] = ta.trend.sma_indicator(df["close"], window=50)
+        bb = ta.volatility.BollingerBands(close=df["close"], window=self.bb_window, window_dev=self.bb_std)
+        df["BB_Low"] = bb.bollinger_lband()
+        df["BB_Mid"] = bb.bollinger_mavg()
+        df["BB_High"] = bb.bollinger_hband()
+        df["RSI"] = ta.momentum.rsi(df["close"], window=self.rsi_window)
+        df["ADX"] = ta.trend.ADXIndicator(high=df["high"], low=df["low"], close=df["close"], window=14).adx()
+        df["MACD_H"] = ta.trend.MACD(close=df["close"]).macd_diff()
+        df = df.dropna(subset=["SMA_F", "SMA_M", "SMA_S", "SMA_50", "BB_Low", "RSI"])
+        if len(df) < 3:
+            return {"action": "HOLD", "signal": "HOLD", "price": None, "message": "Indicadores em aquecimento."}
+
+        last = df.iloc[-1]
+        prev = df.iloc[-2]
+        price = float(last["close"])
+        prev_price = float(prev["close"])
+        adx_val = float(last["ADX"]) if not pd.isna(last["ADX"]) else 20.0
+        rsi_val = float(last["RSI"])
+        macd_h = float(last["MACD_H"]) if not pd.isna(last["MACD_H"]) else 0.0
+        p2_n, p2_p = float(last["SMA_F"]), float(prev["SMA_F"])
+        p3_n, p3_p = float(last["SMA_M"]), float(prev["SMA_M"])
+        p4_n = float(last["SMA_S"])
+
+        if adx_val > self.adx_threshold:
+            # MODO TENDÊNCIA FORTE (ADX > 27)
+            sep_pct = abs(p2_n - p3_n) / p3_n * 100.0 if p3_n > 0 else 0.0
+            spread_expanding = (p2_n - p3_n) > (p2_p - p3_p) and p2_n > p2_p
+            if (
+                p2_n > p3_n > p4_n
+                and price > p2_n
+                and spread_expanding
+                and price > prev_price
+                and macd_h > 0
+                and rsi_val < 70.0
+                and sep_pct >= self.min_p2_p3_pct
+            ):
+                return {
+                    "action": "BUY",
+                    "signal": "BUY",
+                    "price": price,
+                    "message": f"🦎 Camaleão 2.0 [TENDÊNCIA ADX={adx_val:.1f}]: Alta confirmada (sep={sep_pct:.2f}%).",
+                }
+            if p2_n < p3_n or (price < p3_n and price < prev_price):
+                return {
+                    "action": "SELL",
+                    "signal": "SELL",
+                    "price": price,
+                    "message": f"🦎 Camaleão 2.0 [TENDÊNCIA ADX={adx_val:.1f}]: Quebra de tendência (P2/P3).",
+                }
+        elif adx_val <= 25.0:
+            # MODO LATERAL (REVERSÃO À MÉDIA)
+            bb_low = float(last["BB_Low"])
+            bb_mid = float(last["BB_Mid"])
+            bb_std_val = (float(last["BB_High"]) - bb_low) / 4.0
+            bw_pct = (4.0 * bb_std_val / bb_mid) * 100.0 if bb_mid > 0 else 0.0
+            sma50_now = float(last["SMA_50"])
+            sma50_prev = float(df["SMA_50"].iloc[max(0, len(df) - 21)])
+            slope50 = ((sma50_now - sma50_prev) / sma50_prev * 100.0) if sma50_prev > 0 else 0.0
+            rec_low = float(df["close"].iloc[-3:].min())
+            rec_rsi_min = float(df["RSI"].iloc[-3:].min())
+            if bw_pct >= 2.5 and slope50 >= -0.15 and rec_low <= bb_low and rec_rsi_min <= 35.0 and price > prev_price:
+                return {
+                    "action": "BUY",
+                    "signal": "BUY",
+                    "price": price,
+                    "message": f"🦎 Camaleão 2.0 [LATERAL ADX={adx_val:.1f}]: Viragem após sobrevenda (RSI={rsi_val:.1f}).",
+                }
+            if price >= (bb_mid + 0.45 * bb_std_val) or rsi_val >= 65.0:
+                return {
+                    "action": "SELL",
+                    "signal": "SELL",
+                    "price": price,
+                    "message": f"🦎 Camaleão 2.0 [LATERAL ADX={adx_val:.1f}]: Alvo de retorno à média atingido.",
+                }
+
+        return {"action": "HOLD", "signal": "HOLD", "price": price, "message": f"🦎 Camaleão 2.0 a vigiar (ADX={adx_val:.1f})."}
+
+
+class StrategyFactory:
+    @staticmethod
+    def get_strategy(config: dict, logger=None) -> BaseStrategy:
+        strategy_type = config.get("STRATEGY_TYPE", "SMA_CROSSOVER")
+        
+        if strategy_type == "QUANTUM_CONSENSUS":
+            return QuantumConsensusStrategy(logger=logger)
+        elif strategy_type == "PAULO_GOLD":
+            return PauloGoldStrategy(
+                short_window=int(config.get("SHORT_WINDOW", 9)),
+                long_window=int(config.get("LONG_WINDOW", 21)),
+                trend_filter=config.get("PAULO_GOLD_TREND_FILTER", False),
+                min_dist_pct=float(config.get("PAULO_GOLD_MIN_DIST_PCT", 0.0)),
+                logger=logger
+            )
+        elif strategy_type == "SMA_CROSSOVER":
+            return SMACrossoverStrategy(
+                short_window=int(config.get("SHORT_WINDOW", 9)),
+                long_window=int(config.get("LONG_WINDOW", 21)),
+                logger=logger
+            )
+        elif strategy_type == "EMA_CROSSOVER":
+            return EMACrossoverStrategy(
+                short_window=int(config.get("SHORT_WINDOW", 9)),
+                long_window=int(config.get("LONG_WINDOW", 21)),
+                logger=logger
+            )
+        elif strategy_type == "MULTIPOINT_VECTOR":
+            return MultiPointVectorStrategy(
+                p2_window=int(config.get("P2_WINDOW", 9)),
+                p3_window=int(config.get("P3_WINDOW", 21)),
+                p4_window=int(config.get("P4_WINDOW", 50)),
+                p5_window=int(config.get("P5_WINDOW", 200)),
+                mode=config.get("MULTIPOINT_MODE", "AGILE"),
+                exhaustion_filter=config.get("EXHAUSTION_FILTER", True),
+                exhaustion_threshold=float(config.get("EXHAUSTION_THRESHOLD", 2.5)),
+                p5_filter_active=config.get("P5_SLOPE_FILTER_ACTIVE", True),
+                entry_mode=config.get("ENTRY_MODE", "4PONTOS"),
+                exit_mode=config.get("EXIT_MODE", "P3"),
+                operation_mode=config.get("OPERATION_MODE", "TREND_FOLLOWING"),
+                logger=logger
+            )
+        elif strategy_type == "LAGARTA_1LINE":
+            return LagartaOneLineStrategy(
+                ref_window=int(config.get("LAGARTA_REF_WINDOW", 13)),
+                logger=logger
+            )
+        elif strategy_type == "LAGARTA_5LINES":
+            return LagartaFiveLinesStrategy(
+                p2=int(config.get("LAGARTA_P2", 5)),
+                p3=int(config.get("LAGARTA_P3", 13)),
+                p4=int(config.get("LAGARTA_P4", 21)),
+                p5=int(config.get("LAGARTA_P5", 55)),
+                p6=int(config.get("LAGARTA_P6", 144)),
+                logger=logger
+            )
+        elif strategy_type == "CAMALEAO_ADX" or "Camaleão" in str(strategy_type):
+            return ChameleonADXStrategy(
+                adx_threshold=float(config.get("ADX_THRESHOLD", 27.0)),
+                fast_window=int(config.get("SHORT_WINDOW", 5)),
+                mid_window=int(config.get("P3_WINDOW", 13)),
+                slow_window=int(config.get("LONG_WINDOW", 21)),
+                min_p2_p3_pct=float(config.get("MIN_P2_P3_PCT", 0.15)),
+                logger=logger,
+            )
+        elif strategy_type == "BB_RSI_REVERSION" or "Reversão à Média" in str(strategy_type) or "Bollinger" in str(strategy_type):
+            return BollingerRSIReversionStrategy(
+                bb_window=int(config.get("BB_WINDOW", 20)),
+                bb_std=float(config.get("BB_STD", 2.0)),
+                rsi_window=int(config.get("RSI_WINDOW", 14)),
+                rsi_oversold=float(config.get("BB_RSI_OVERSOLD", 35.0)),
+                rsi_overbought=float(config.get("BB_RSI_OVERBOUGHT", 65.0)),
+                logger=logger,
+            )
+        elif strategy_type == "LAGARTA_2LINES":
+            return LagartaTwoLinesStrategy(
+                p2_window=int(config.get("LAGARTA_P2", 5)),
+                p3_window=int(config.get("LAGARTA_P3", 13)),
+                p4_window=int(config.get("LAGARTA_P4", 21)),
+                mode=config.get("LAGARTA_MODE", "PIRAMIDE"),
+                velocity_filter=config.get("LAGARTA_VEL_FILTER", True),
+                logger=logger
+            )
+        else:
+            return SMACrossoverStrategy(
+                short_window=int(config.get("SHORT_WINDOW", 9)),
+                long_window=int(config.get("LONG_WINDOW", 21)),
+                logger=logger
+            )

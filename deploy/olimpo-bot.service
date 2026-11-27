@@ -1,0 +1,18 @@
+[Unit]
+Description=OlimpoTrade 2.0 Autonomous Trading Bot (main.py)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=__VPS_USER__
+WorkingDirectory=__APP_DIR__
+EnvironmentFile=__APP_DIR__/.env
+ExecStart=__APP_DIR__/.venv/bin/python __APP_DIR__/main.py
+Restart=always
+RestartSec=10
+StandardOutput=append:__APP_DIR__/vps_bot_stdout.log
+StandardError=append:__APP_DIR__/vps_bot_stderr.log
+
+[Install]
+WantedBy=multi-user.target

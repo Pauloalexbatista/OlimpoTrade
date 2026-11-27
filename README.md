@@ -1,0 +1,66 @@
+# 🏆 OlimpoTrade - Algorithmic Trading Lab
+
+Bem-vindo ao **OlimpoTrade**, um laboratório quantitativo e simulador interativo de alto desempenho, desenhado para testar, otimizar e evoluir estratégias automatizadas de trading de criptomoedas com realismo absoluto e dinâmica visual premium.
+
+A aplicação foi desenvolvida usando o ecossistema moderno **Python**, **Streamlit** e **Plotly**, oferecendo um visual glassmorphic, micro-animações dinâmicas e contabilidade financeira realista que reflete exatamente as restrições e custos do mercado ao vivo.
+
+---
+
+## 💎 Características Principais & Upgrades de Realismo
+
+Para garantir que cada simulação de investimento corresponda à realidade operacional, o sistema integra por padrão três pilares de fricção de mercado:
+
+1. **Taxa de Operação da API (Comissão - default: 0.1%):**
+   - Deduzida instantaneamente na compra e na venda para todas as abas (Backtests, Simulador Excel e Jogo). Simula os custos regulados de corretagem spot de exchanges de topo (ex: Binance).
+2. **Imposto do Estado sobre Mais-Valias (default: 28.0%):**
+   - Retido automaticamente sobre os lucros líquidos positivos no final de cada período de teste ou rodada do jogo. O património líquido final exibido representa o saldo líquido real após impostos.
+3. **Deslizamento de Execução (Slippage - default: 0.05%):**
+   - Simula o atraso de rede e a profundidade de liquidez limitada.
+   - Piora o preço de execução a mercado (compra $0.05\%$ acima do preço de fecho; venda $0.05\%$ abaixo), evitando lucros artificiais e irrealistas em mercados hiper-rápidos.
+
+---
+
+## 🧭 Módulos do Laboratório (Abas da Aplicação)
+
+### 📊 1. Simulação & Gráficos Real
+* Descarrega dados históricos reais em tempo real a partir da API oficial da Binance (qualquer moeda, timeframe e período de candles).
+* Executa backtests cronológicos completos da estratégia exclusiva **PAULO_GOLD (Breakout de Médias com Re-entrada)** ou **MULTIPOINT_VECTOR (Lagarta de 5 Pontos)**.
+* Exibe métricas institucionais completas: Win Rate (%), Fator de Lucro, Drawdown Máximo, Sharpe Ratio e Sortino Ratio.
+* Gráfico interativo com marcações estéticas exatas de compra/venda e o rasto de capital acumulado.
+
+### 🔬 2. Laboratório de Simulação & Otimização
+* Permite testar na hora o impacto financeiro de **todas as 9 combinações** de Médias de Entrada (3P, 4P, 5P) e Suportes de Saída (P2, P3, P4) da Lagarta Pura sobre o mercado ativo.
+* Matriz quantitativa de inteligência para descobrir instantaneamente qual o melhor vetor de movimento perante as ondas de mercado.
+* Módulo de otimização sintética para descobrir a combinação perfeita de Médias Móveis, Stop Loss e Trailing Stop.
+
+### 💓 3. Laboratório Heartbeat (Análise Manual)
+* Uma **planilha interativa estilo Excel** que se comporta exatamente como uma folha de cálculo clássica de teste manual.
+* Permite preencher a coluna **Decisão** vela-a-vela (`esperar`, `entrar`, `manter`, `sair`).
+* O sistema calcula dinamicamente e de forma encadeada (VBA style) o Preço de Entrada, Preço de Saída, PnL bruto, taxas de operação deduzidas e o imposto sobre mais-valias.
+* O gráfico Plotly à direita pinta-se em tempo real a verde brilhante ou vermelho rubi acompanhando e validando as decisões da planilha manual.
+
+### 🐛 4. O Jogo da Lagarta IA (Evolução Evolutiva)
+* Um simulador interativo gamificado que corre em dois modos:
+  - **Manual (Humano):** Tu és o cérebro da lagarta. Dás o batimento (clock) e decides quando ela abre a boca (comprar) ou fecha a boca (jejuar) perante a flutuação do preço. A banca é o Peso da Lagarta. Se o peso chegar a 0 EUR, ela morre!
+  - **IA Evolutiva (Motor Genético):** Simula uma população de **20 lagartas** com DNAs e cérebros matemáticos diferentes criados aleatoriamente. 
+  - **Os 6 Sensores (Genes):** As lagartas pensam ponderando a Tendência (S1), Aceleração das Médias (S2), Volatilidade do Terreno (S3), Distância ao Chão (S4), Fome/Saturação RSI (S5) e Instinto de Sobrevivência/Stop Loss (S6).
+  - **Processo Darwiniano:** A cada geração, as piores lagartas morrem ou são eliminadas. As melhores campeãs têm os seus DNAs misturados (Crossover) e aplicamos uma **Taxa de Mutação** ajustável para criar a próxima geração adaptada.
+  - **Sinergia Real:** Dispõe de um botão especial **🧬 Aplicar DNA da Campeã no Robô Real** para transferir instantaneamente as melhores configurações sintonizadas pela IA evolutiva (SL ideal, Médias Móveis ótimas) para o robô global clássico.
+
+---
+
+## 🚀 Como Iniciar a Aplicação
+
+1. Certifica-te de que tens as dependências instaladas:
+   ```bash
+   pip install streamlit pandas numpy plotly ta python-dotenv ccxt
+   ```
+2. Executa o script acelerador:
+   ```bash
+   .\run_app.bat
+   ```
+   *Ou manualmente pelo terminal:*
+   ```bash
+   streamlit run app_ui.py
+   ```
+3. Acede ao teu navegador web favorito em: **[http://localhost:8501](http://localhost:8501)** e desfruta do laboratório do futuro!

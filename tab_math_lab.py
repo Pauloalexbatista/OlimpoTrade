@@ -1,0 +1,1611 @@
+import streamlit as st
+import json
+import pandas as pd
+import numpy as np
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+import datetime
+import time
+import os
+import io
+
+def generate_math_market(scenario="Didatico Classico", noise=1.0):
+    np.random.seed(int(datetime.datetime.now().timestamp()))
+    prices = [1000.0]
+    
+    if scenario == "Didatico Classico":
+        for _ in range(200):
+            change = np.random.normal(0.5, 2.0 * noise)
+            prices.append(max(10.0, prices[-1] + change))
+        for _ in range(200):
+            change = np.random.normal(0.0, 1.2 * noise)
+            prices.append(max(10.0, prices[-1] + change))
+        for _ in range(200):
+            change = np.random.normal(-1.2, 2.5 * noise)
+            prices.append(max(10.0, prices[-1] + change))
+        for _ in range(200):
+            change = np.random.normal(0.0, 6.0 * noise)
+            prices.append(max(10.0, prices[-1] + change))
+        for _ in range(199):
+            change = np.random.normal(0.8, 1.5 * noise)
+            prices.append(max(10.0, prices[-1] + change))
+            
+    elif scenario == "Montanha Russa":
+        for cycle in range(10):
+            direction = 1.0 if cycle % 2 == 0 else -1.2
+            for _ in range(100):
+                change = np.random.normal(0.6 * direction, 2.2 * noise)
+                prices.append(max(10.0, prices[-1] + change))
+                
+    elif scenario == "Flash Crash":
+        for _ in range(400):
+            change = np.random.normal(0.1, 1.0 * noise)
+            prices.append(max(10.0, prices[-1] + change))
+        for _ in range(50):
+            change = np.random.normal(-15.0, 4.0 * noise)
+            prices.append(max(10.0, prices[-1] + change))
+        for _ in range(549):
+            change = np.random.normal(1.2, 1.8 * noise)
+            prices.append(max(10.0, prices[-1] + change))
+            
+    elif scenario == "Lateralizacao Eterna":
+        mean_p = 1000.0
+        for _ in range(999):
+            gravity = (mean_p - prices[-1]) * 0.05
+            change = np.random.normal(gravity, 3.5 * noise)
+            prices.append(max(10.0, prices[-1] + change))
+            
+    elif scenario == "Tendencia Saudavel (Bull)":
+        for _ in range(999):
+            change = np.random.normal(0.4, 1.5 * noise)
+            prices.append(max(10.0, prices[-1] + change))
+            
+    return prices
+
+def load_global_binance_data_helper():
+    try:
+        from data_collector import DataCollector
+        symbol = st.session_state.get('symbol_val', 'BTC/USDT')
+        timeframe = st.session_state.get('timeframe_val', '1h')
+        limit = st.session_state.get('limit_candles_val', 500)
+        
+        collector = DataCollector(exchange_id='binance', symbol=symbol, timeframe=timeframe)
+        df_real = collector.get_ohlcv(limit=limit)
+        
+        if df_real is not None and not df_real.empty:
+            st.session_state.math_df_real = pd.DataFrame({
+                "close": df_real["close"].tolist(),
+                "timestamp": df_real["timestamp"].tolist()
+            })
+            st.session_state.math_prices = df_real["close"].tolist()
+            st.session_state.math_step = min(50, len(st.session_state.math_prices) - 1)
+        else:
+            st.session_state.math_df_real = pd.DataFrame({"close": [100.0]*100, "timestamp": [f"V{i}" for i in range(100)]})
+            st.session_state.math_prices = [100.0]*100
+    except Exception as e:
+        st.session_state.math_df_real = pd.DataFrame({"close": [100.0]*100, "timestamp": [f"V{i}" for i in range(100)]})
+        st.session_state.math_prices = [100.0]*100
+
+def recalculate_math_df():
+    p2 = st.session_state.get('tg_p2', 5)
+    p3 = st.session_state.get('tg_p3', 13)
+    p4 = st.session_state.get('tg_p4', 21)
+    p5 = st.session_state.get('tg_p5', 55)
+    p6 = st.session_state.get('tg_p6', 144)
+    
+    # Sincronizar chaves ativas locais para compatibilidade de quem le
+    st.session_state.math_active_sma_p2 = p2
+    st.session_state.math_active_sma_p3 = p3
+    st.session_state.math_active_sma_p4 = p4
+    st.session_state.math_active_sma_p5 = p5
+    st.session_state.math_active_sma_p6 = p6
+    
+    # Sincronizar chaves de design movel locais tambem
+    st.session_state.math_sma_p2 = p2
+    st.session_state.math_sma_p3 = p3
+    st.session_state.math_sma_p4 = p4
+    st.session_state.math_sma_p5 = p5
+    st.session_state.math_sma_p6 = p6
+
+    # Determinar a fonte baseado no symbol_val global
+    if st.session_state.get('symbol_val', '') == "🧪 Cenário Didático (Fictício)":
+        st.session_state.math_source = "Sintetico"
+    else:
+        st.session_state.math_source = "Mercado Global (Binance Real)"
+
+    if st.session_state.math_source == "Sintetico":
+        prices = st.session_state.math_prices
+        timestamps = [f"V{idx}" for idx in range(len(prices))]
+    else:
+        if "math_df_real" not in st.session_state or st.session_state.math_df_real is None:
+            load_global_binance_data_helper()
+        df_real = st.session_state.math_df_real
+        prices = df_real["close"].tolist()
+        timestamps = df_real["timestamp"].tolist()
+        
+    df = pd.DataFrame({'price': prices, 'timestamp': timestamps})
+    df[f'sma_{p2}'] = df['price'].rolling(window=p2).mean()
+    df[f'sma_{p3}'] = df['price'].rolling(window=p3).mean()
+    df[f'sma_{p4}'] = df['price'].rolling(window=p4).mean()
+    df[f'sma_{p5}'] = df['price'].rolling(window=p5).mean()
+    df[f'sma_{p6}'] = df['price'].rolling(window=p6).mean()
+    df['velocity'] = df[f'sma_{p2}'].diff(1)
+    df['acceleration'] = df['velocity'].diff(1)
+    df['volatility'] = df['price'].rolling(window=20).std()
+    
+    smas = [f'sma_{p2}', f'sma_{p3}', f'sma_{p4}', f'sma_{p5}', f'sma_{p6}']
+    avg_sma = df[smas].mean(axis=1)
+    df['stretching'] = df[smas].sub(avg_sma, axis=0).abs().mean(axis=1).div(avg_sma).mul(100)
+
+    # 4 novos indicadores dinamicos didaticos e robustos
+    delta = df['price'].diff()
+    gain = delta.clip(lower=0).rolling(window=14).mean()
+    loss = (-delta.clip(upper=0)).rolling(window=14).mean()
+    rs = gain / (loss + 1e-9)
+    df['rsi_14'] = 100 - (100 / (1 + rs))
+
+    bb_std = df['price'].rolling(window=20).std()
+    bb_mid = df['price'].rolling(window=20).mean()
+    df['bb_dist'] = ((df['price'] - (bb_mid - 2 * bb_std)) / (4 * bb_std + 1e-9)) * 100
+
+    macd_line = df['price'].ewm(span=12, adjust=False).mean() - df['price'].ewm(span=26, adjust=False).mean()
+    macd_signal = macd_line.ewm(span=9, adjust=False).mean()
+    df['macd_hist'] = macd_line - macd_signal
+
+    if 'high' in df.columns and 'low' in df.columns:
+        tr = np.maximum(df['high'] - df['low'], np.maximum((df['high'] - df['price'].shift()).abs(), (df['low'] - df['price'].shift()).abs()))
+    else:
+        tr = df['price'].diff().abs()
+    df['atr_14'] = tr.rolling(window=14).mean()
+    
+    # Pre-calculate regimes
+    regimes = []
+    for idx in range(len(df)):
+        regimes.append(classify_regime_row(df.iloc[idx], p2, p3, p4, p5, p6))
+    df['regime'] = regimes
+    
+    st.session_state.math_df = df
+
+
+def classify_regime_row(row, p2, p3, p4, p5, p6):
+    p = row['price']
+    s2 = row[f'sma_{p2}']
+    s3 = row[f'sma_{p3}']
+    s4 = row[f'sma_{p4}']
+    s5 = row[f'sma_{p5}']
+    s6 = row[f'sma_{p6}']
+    v = row['velocity']
+    vol = row['volatility']
+    stretch = row['stretching']
+    
+    if pd.isna(s6) or pd.isna(v) or pd.isna(vol) or pd.isna(stretch):
+        return "LATERAL"
+    
+    is_bull_trend = (s2 > s3) and (s3 > s4) and (s4 > s5) and (v > 0)
+    is_bear_trend = (s2 < s3) and (s3 < s4) and (s4 < s5) and (v < 0)
+    
+    if stretch < 0.6:
+        return "LATERAL"
+    elif is_bull_trend:
+        return "BULL"
+    elif is_bear_trend:
+        return "BEAR"
+    elif vol > p * 0.012:
+        return "CAOTICO"
+    else:
+        return "LATERAL"
+
+def find_structural_points(df):
+    prices = df["price"].tolist()
+    n = len(prices)
+    fundos = []
+    topos = []
+    for i in range(10, n - 30):
+        p_curr = prices[i]
+        is_min = all(p_curr <= prices[j] for j in range(i-10, i+11))
+        if is_min:
+            future_prices = prices[i:i+30]
+            max_future = max(future_prices)
+            future_idx = future_prices.index(max_future) + i
+            gain_pct = (max_future - p_curr) / p_curr * 100
+            if gain_pct >= 0.8:
+                fundos.append({"idx_fundo": i, "price_fundo": p_curr, "idx_topo": future_idx, "price_topo": max_future, "gain_pct": gain_pct})
+        is_max = all(p_curr >= prices[j] for j in range(i-10, i+11))
+        if is_max:
+            future_prices = prices[i:i+30]
+            min_future = min(future_prices)
+            future_idx = future_prices.index(min_future) + i
+            loss_pct = (p_curr - min_future) / p_curr * 100
+            if loss_pct >= 0.8:
+                topos.append({"idx_topo": i, "price_topo": p_curr, "idx_fundo": future_idx, "price_fundo": min_future, "loss_pct": loss_pct})
+    fundos = sorted(fundos, key=lambda x: x["gain_pct"], reverse=True)
+    topos = sorted(topos, key=lambda x: x["loss_pct"], reverse=True)
+    return fundos, topos
+
+def get_pattern_stats(points_list, df, regime_filter=None):
+    if not points_list:
+        return pd.DataFrame()
+        
+    p2 = st.session_state.get('math_active_sma_p2', 5)
+    p3 = st.session_state.get('math_active_sma_p3', 13)
+    p4 = st.session_state.get('math_active_sma_p4', 21)
+    p5 = st.session_state.get('math_active_sma_p5', 55)
+    p6 = st.session_state.get('math_active_sma_p6', 144)
+    
+    # O(1) speedup: Convert columns to native lists for lightning-fast indexing
+    prices = df['price'].tolist()
+    regimes = df['regime'].tolist()
+    velocity_list = df['velocity'].tolist()
+    acceleration_list = df['acceleration'].tolist()
+    stretching_list = df['stretching'].tolist()
+    
+    sma_p2 = df[f'sma_{p2}'].tolist()
+    sma_p3 = df[f'sma_{p3}'].tolist()
+    sma_p4 = df[f'sma_{p4}'].tolist()
+    sma_p5 = df[f'sma_{p5}'].tolist()
+    sma_p6 = df[f'sma_{p6}'].tolist()
+    
+    records = []
+    for pt in points_list:
+        is_fundo = "gain_pct" in pt
+        idx = pt.get("idx_fundo") if is_fundo else pt.get("idx_topo")
+        if idx is None or idx >= len(df):
+            continue
+            
+        regime = regimes[idx]
+        if regime_filter and regime_filter != "Todos" and regime != regime_filter:
+            continue
+            
+        p2_val = sma_p2[idx]
+        p3_val = sma_p3[idx]
+        p4_val = sma_p4[idx]
+        p5_val = sma_p5[idx]
+        p6_val = sma_p6[idx]
+        
+        disp_pct = ((p2_val - p6_val) / p6_val * 100) if not pd.isna(p6_val) and p6_val != 0 else 0.0
+        
+        gain_pct = pt.get("gain_pct", 0.0)
+        loss_pct = pt.get("loss_pct", 0.0)
+        
+        # Novos indicadores da geométrico de médias
+        smas = [p2_val, p3_val, p4_val, p5_val, p6_val]
+        if not any(pd.isna(x) for x in smas):
+            std_val = np.std(smas)
+            mean_val = np.mean(smas)
+            mola_pct = (std_val / mean_val * 100) if mean_val != 0 else 0.0
+            
+            infil_bull = "Sim" if (p2_val > p3_val > p4_val and p5_val < p6_val) else "Não"
+            infil_bear = "Sim" if (p2_val < p3_val < p4_val and p5_val > p6_val) else "Não"
+            infil_val = infil_bull if is_fundo else infil_bear
+            
+            dist_p5 = (abs(prices[idx] - p5_val) / p5_val * 100) if p5_val != 0 else 999.0
+            dist_p6 = (abs(prices[idx] - p6_val) / p6_val * 100) if p6_val != 0 else 999.0
+            reteste_val = "Sim" if (dist_p5 < 0.8 or dist_p6 < 0.8) else "Não"
+            
+            spread_fast = p2_val - p3_val
+            spread_slow = p3_val - p4_val
+            vel_spread = spread_fast - spread_slow
+        else:
+            mola_pct = np.nan
+            infil_val = "Não"
+            reteste_val = "Não"
+            vel_spread = np.nan
+        
+        # Exit variables extraction
+        idx_exit = pt.get("idx_topo") if is_fundo else pt.get("idx_fundo")
+        if idx_exit is not None and idx_exit < len(df):
+            p2_val_exit = sma_p2[idx_exit]
+            p3_val_exit = sma_p3[idx_exit]
+            p4_val_exit = sma_p4[idx_exit]
+            p5_val_exit = sma_p5[idx_exit]
+            p6_val_exit = sma_p6[idx_exit]
+            
+            disp_pct_exit = ((p2_val_exit - p6_val_exit) / p6_val_exit * 100) if not pd.isna(p6_val_exit) and p6_val_exit != 0 else 0.0
+            smas_exit = [p2_val_exit, p3_val_exit, p4_val_exit, p5_val_exit, p6_val_exit]
+            if not any(pd.isna(x) for x in smas_exit):
+                std_val_exit = np.std(smas_exit)
+                mean_val_exit = np.mean(smas_exit)
+                mola_pct_exit = (std_val_exit / mean_val_exit * 100) if mean_val_exit != 0 else 0.0
+                
+                infil_bull_exit = "Sim" if (p2_val_exit > p3_val_exit > p4_val_exit and p5_val_exit < p6_val_exit) else "Não"
+                infil_bear_exit = "Sim" if (p2_val_exit < p3_val_exit < p4_val_exit and p5_val_exit > p6_val_exit) else "Não"
+                infil_val_exit = infil_bull_exit if is_fundo else infil_bear_exit
+                
+                dist_p5_exit = (abs(prices[idx_exit] - p5_val_exit) / p5_val_exit * 100) if p5_val_exit != 0 else 999.0
+                dist_p6_exit = (abs(prices[idx_exit] - p6_val_exit) / p6_val_exit * 100) if p6_val_exit != 0 else 999.0
+                reteste_val_exit = "Sim" if (dist_p5_exit < 0.8 or dist_p6_exit < 0.8) else "Não"
+            else:
+                mola_pct_exit = 0.0
+                infil_val_exit = "Não"
+                reteste_val_exit = "Não"
+            
+            vel_exit = velocity_list[idx_exit] if not pd.isna(velocity_list[idx_exit]) else 0.0
+            acc_exit = acceleration_list[idx_exit] if not pd.isna(acceleration_list[idx_exit]) else 0.0
+            strt_exit = stretching_list[idx_exit] if not pd.isna(stretching_list[idx_exit]) else 0.0
+            vol_exit = df['volatility'].iloc[idx_exit] if 'volatility' in df.columns and not pd.isna(df['volatility'].iloc[idx_exit]) else 0.0
+        else:
+            disp_pct_exit = 0.0
+            mola_pct_exit = 0.0
+            infil_val_exit = "Não"
+            reteste_val_exit = "Não"
+            vel_exit = 0.0
+            acc_exit = 0.0
+            strt_exit = 0.0
+            vol_exit = 0.0
+
+        records.append({
+            "Batimento Inicial": idx,
+            "Preço Inicial": f"{prices[idx]:.2f}",
+            "Batimento Final": pt.get("idx_topo") if is_fundo else pt.get("idx_fundo"),
+            "Preço Final": f"{pt.get('price_topo'):.2f}" if is_fundo else f"{pt.get('price_fundo'):.2f}",
+            "Variação %": f"{gain_pct:+.2f}%" if is_fundo else f"-{loss_pct:.2f}%",
+            "var_raw": gain_pct if is_fundo else -loss_pct,
+            "Velocidade": velocity_list[idx],
+            "Aceleração": acceleration_list[idx],
+            "Stretching": stretching_list[idx],
+            "Regime Inicial": regime,
+            f"Média {p2}": f"{p2_val:.2f}" if not pd.isna(p2_val) else "",
+            f"Média {p3}": f"{p3_val:.2f}" if not pd.isna(p3_val) else "",
+            f"Média {p4}": f"{p4_val:.2f}" if not pd.isna(p4_val) else "",
+            f"Média {p5}": f"{p5_val:.2f}" if not pd.isna(p5_val) else "",
+            f"Média {p6}": f"{p6_val:.2f}" if not pd.isna(p6_val) else "",
+            "Disp. Vetorial %": f"{disp_pct:+.2f}%" if not pd.isna(p2_val) and not pd.isna(p6_val) else "",
+            "Compressão Mola %": f"{mola_pct:.2f}%" if not pd.isna(mola_pct) else "",
+            "Infiltração": infil_val,
+            "Reteste Gravitacional": reteste_val,
+            "Velocidade Spread": f"{vel_spread:+.4f}" if not pd.isna(vel_spread) else "",
+            "rsi": df['rsi_14'].iloc[idx] if 'rsi_14' in df.columns and not pd.isna(df['rsi_14'].iloc[idx]) else 50.0,
+            "bb": df['bb_dist'].iloc[idx] if 'bb_dist' in df.columns and not pd.isna(df['bb_dist'].iloc[idx]) else 50.0,
+            "macd": df['macd_hist'].iloc[idx] if 'macd_hist' in df.columns and not pd.isna(df['macd_hist'].iloc[idx]) else 0.0,
+            "atr": df['atr_14'].iloc[idx] if 'atr_14' in df.columns and not pd.isna(df['atr_14'].iloc[idx]) else 0.0,
+            "Volatilidade": df['volatility'].iloc[idx] if 'volatility' in df.columns and not pd.isna(df['volatility'].iloc[idx]) else 0.0,
+            # Exit values
+            "Velocidade Saída": vel_exit,
+            "Aceleração Saída": acc_exit,
+            "Stretching Saída": strt_exit,
+            "Compressão Mola Saída %": mola_pct_exit,
+            "Disp. Vetorial Saída %": disp_pct_exit,
+            "Volatilidade Saída": vol_exit,
+            "Infiltração Saída": infil_val_exit,
+            "Reteste Gravitacional Saída": reteste_val_exit,
+            "rsi_exit": df['rsi_14'].iloc[idx_exit] if idx_exit is not None and idx_exit < len(df) and 'rsi_14' in df.columns and not pd.isna(df['rsi_14'].iloc[idx_exit]) else 50.0,
+            "bb_exit": df['bb_dist'].iloc[idx_exit] if idx_exit is not None and idx_exit < len(df) and 'bb_dist' in df.columns and not pd.isna(df['bb_dist'].iloc[idx_exit]) else 50.0,
+            "macd_exit": df['macd_hist'].iloc[idx_exit] if idx_exit is not None and idx_exit < len(df) and 'macd_hist' in df.columns and not pd.isna(df['macd_hist'].iloc[idx_exit]) else 0.0,
+            "atr_exit": df['atr_14'].iloc[idx_exit] if idx_exit is not None and idx_exit < len(df) and 'atr_14' in df.columns and not pd.isna(df['atr_14'].iloc[idx_exit]) else 0.0
+        })
+        
+    if not records:
+        return pd.DataFrame()
+        
+    return pd.DataFrame(records)
+
+def style_regime_row(val):
+    if val == "BULL":
+        return "background-color: rgba(46, 204, 113, 0.2); color: #000; font-weight: bold;"
+    elif val == "BEAR":
+        return "background-color: rgba(231, 76, 60, 0.2); color: #000; font-weight: bold;"
+    elif val == "LATERAL":
+        return "background-color: rgba(241, 196, 15, 0.15); color: #000;"
+    elif val == "CAOTICO":
+        return "background-color: rgba(155, 89, 182, 0.2); color: #000; font-weight: bold;"
+    return ""
+
+def apply_styler(styled_df, subset_col):
+    try:
+        if hasattr(styled_df, 'map'):
+            return styled_df.map(style_regime_row, subset=[subset_col])
+        else:
+            return styled_df.applymap(style_regime_row, subset=[subset_col])
+    except Exception:
+        return styled_df
+
+def load_uploaded_csv(uploaded_file):
+    try:
+        df = pd.read_csv(uploaded_file)
+        price_col = None
+        for col in df.columns:
+            if col.lower() in ["close", "price", "ultimo", "last", "val"]:
+                price_col = col
+                break
+        if price_col is None:
+            for col in df.columns:
+                if pd.api.types.is_numeric_dtype(df[col]):
+                    price_col = col
+                    break
+        if price_col is None:
+            st.error("Não foi possível encontrar uma coluna numérica de preço no CSV!")
+            return False
+            
+        prices = df[price_col].astype(float).tolist()
+        
+        time_col = None
+        for col in df.columns:
+            if col.lower() in ["timestamp", "time", "date", "data", "datetime"]:
+                time_col = col
+                break
+        if time_col is not None:
+            timestamps = df[time_col].astype(str).tolist()
+        else:
+            timestamps = [f"V{i}" for i in range(len(prices))]
+            
+        st.session_state.math_df_real = pd.DataFrame({"close": prices, "timestamp": timestamps})
+        st.session_state.math_source = "Binance CSV"
+        st.session_state.math_prices = prices
+        st.session_state.math_step = 50
+        st.session_state.math_running = False
+        recalculate_math_df()
+        st.success("CSV Importado com sucesso! Simulação pronta.")
+        return True
+    except Exception as e:
+        st.error(f"Erro ao processar o CSV: {str(e)}")
+        return False
+
+def render():
+    st.markdown("""<div style='background: linear-gradient(135deg, #1e3a8a 0%, #0d1b2a 100%); padding: 25px; border-radius: 12px; margin-bottom: 20px; color: white;'>
+<h1 style='margin:0; font-size: 2.2rem;'>🧪 Laboratorio Matematico & Regimes Adaptativos</h1>
+<p style='margin: 5px 0 0 0; opacity: 0.8;'>Simulador quantico de regimes de mercado, derivadas e mineracao de padroes estatisticos em tempo real.</p>
+</div>""", unsafe_allow_html=True)
+
+    with st.expander("ℹ️ Como funciona esta aba (Laboratório Matemático & Regimes)?", expanded=False):
+        st.markdown("""
+**Para que serve:** É a parte "científica" do projeto. Analisa a matemática por trás dos movimentos do preço (velocidade, aceleração, dispersão das médias `P2..P6` e regimes de mercado) e extrai regras estatísticas para ensinar o robô.
+
+1. **Cenário Didático vs Mercado Real:** Se no topo estiver ativo o *Cenário Didático*, gera curvas pedagógicas (*Montanha Russa*, *Flash Crash*, etc.); se estiver uma moeda real, usa os dados da Binance.
+2. **Vetor de Médias (`P2` a `P6`):** Acompanha as 5 médias configuradas para medir se as linhas estão a abrir, a comprimir ("mola") ou a cruzar.
+3. **Mineração de Fundos & Topos:** Identifica pontos estruturais (oportunidades de compra e ameaças de saída) e guarda essas lições na Base de Conhecimento (`bot_knowledge_base.json`).
+4. **Motor de Consenso:** Cruza todas as lições guardadas de vários testes para construir o DNA de Consenso do Bot (`bot_consensus_dna.json`).
+""")
+    
+    # 1. Setup Session States
+    if 'math_prices' not in st.session_state:
+        st.session_state.math_prices = generate_math_market("Didatico Classico", 1.0)
+    if 'math_step' not in st.session_state:
+        st.session_state.math_step = 50
+    if 'math_running' not in st.session_state:
+        st.session_state.math_running = False
+    if 'math_instant_mode' not in st.session_state:
+        st.session_state.math_instant_mode = False
+        
+    p2 = st.session_state.get('tg_p2', 5)
+    p3 = st.session_state.get('tg_p3', 13)
+    p4 = st.session_state.get('tg_p4', 21)
+    p5 = st.session_state.get('tg_p5', 55)
+    p6 = st.session_state.get('tg_p6', 144)
+    
+    st.session_state.math_active_sma_p2 = p2
+    st.session_state.math_active_sma_p3 = p3
+    st.session_state.math_active_sma_p4 = p4
+    st.session_state.math_active_sma_p5 = p5
+    st.session_state.math_active_sma_p6 = p6
+
+    # Sincronizar de forma absoluta
+    is_synthetic = (st.session_state.get('symbol_val', '') == "🧪 Cenário Didático (Fictício)")
+    if is_synthetic:
+        st.session_state.math_source = "Sintetico"
+    else:
+        st.session_state.math_source = "Mercado Global (Binance Real)"
+
+    if 'math_df' not in st.session_state:
+        recalculate_math_df()
+
+    # 2. Cockpit Unico de Parametros Activos (Fim absoluto de qualquer duplicacao!)
+    if is_synthetic:
+        scenario = st.session_state.get('math_scenario', 'Didatico Classico')
+        noise = st.session_state.get('math_noise', 1.0)
+        size = st.session_state.get('math_size', 500)
+        
+        st.markdown(f"""<div style="background: rgba(124, 58, 237, 0.05); border: 1px solid rgba(124, 58, 237, 0.15); padding: 20px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 20px rgba(31, 38, 135, 0.03);">
+<h4 style="margin: 0 0 10px 0; color: #5b21b6; display: flex; align-items: center; gap: 8px;">🧪 Simulacao de Cenario Didatico (Ficticio) Ativa</h4>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; font-size: 13.5px; color: #475569;">
+<div>
+📈 <strong>Cenario Didatico Activo:</strong><br>
+<span style="font-weight: bold; color: #7c3aed;">{scenario}</span>
+</div>
+<div>
+📏 <strong>Amostra / Ruido:</strong><br>
+<span style="font-weight: bold; color: #475569;">{size} velas | Ruido: {noise}</span>
+</div>
+<div>
+📐 <strong>Vetor de Medias Ativas:</strong><br>
+<span style="background: #f3e8ff; color: #7e22ce; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 12.5px;">P2:{p2}</span>
+<span style="background: #f3e8ff; color: #7e22ce; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 12.5px;">P3:{p3}</span>
+<span style="background: #f3e8ff; color: #7e22ce; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 12.5px;">P4:{p4}</span>
+<span style="background: #f3e8ff; color: #7e22ce; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 12.5px;">P5:{p5}</span>
+<span style="background: #f3e8ff; color: #7e22ce; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 12.5px;">P6:{p6}</span>
+</div>
+</div>
+<div style="font-size: 12px; color: #6b7280; margin-top: 10px; font-style: italic;">
+Nota: O simulador esta a rodar uma serie artificial pedagogica baseada nas suas configuracoes no Centro de Comando no topo do ecra.
+</div>
+</div>""", unsafe_allow_html=True)
+    else:
+        symbol = st.session_state.get('symbol_val', 'BTC/USDT')
+        timeframe = st.session_state.get('timeframe_val', '1h')
+        limit = st.session_state.get('limit_candles_val', 500)
+        
+        st.markdown(f"""<div style="background: rgba(2, 132, 199, 0.05); border: 1px solid rgba(2, 132, 199, 0.15); padding: 20px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 20px rgba(31, 38, 135, 0.03);">
+<h4 style="margin: 0 0 10px 0; color: #1e3b8b; display: flex; align-items: center; gap: 8px;">🌎 Analise Quantitativa Real Ativa (Binance API)</h4>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; font-size: 13.5px; color: #334155;">
+<div>
+🌎 <strong>Mercado Global Activo:</strong><br>
+<span style="font-weight: bold; color: #0284c7;">{symbol} ({timeframe})</span>
+</div>
+<div>
+📏 <strong>Amostra de Backtest:</strong><br>
+<span style="font-weight: bold; color: #475569;">{limit} candles</span>
+</div>
+<div>
+📐 <strong>Vetor de Medias Ativas:</strong><br>
+<span style="background: #f0fdf4; color: #15803d; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 12.5px;">P2:{p2}</span>
+<span style="background: #f0fdf4; color: #15803d; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 12.5px;">P3:{p3}</span>
+<span style="background: #f0fdf4; color: #15803d; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 12.5px;">P4:{p4}</span>
+<span style="background: #f0fdf4; color: #15803d; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 12.5px;">P5:{p5}</span>
+<span style="background: #f0fdf4; color: #15803d; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 12.5px;">P6:{p6}</span>
+</div>
+</div>
+<div style="display: flex; justify-content: space-between; align-items: center; margin-top: 15px; padding-top: 10px; border-top: 1px dashed rgba(2, 132, 199, 0.15);">
+<span style="font-size: 12px; color: #0f172a; font-weight: bold;">
+💡 Dica: Para alterar as medias, timeframe ou ativo, basta abrir o painel 🎛️ Centro de Comando no topo!
+</span>
+</div>
+</div>""", unsafe_allow_html=True)
+        
+        col_binance_btn, col_void = st.columns([1.2, 2.8])
+        with col_binance_btn:
+            if st.button("🔄 Recarregar Dados da API", use_container_width=True, key="btn_reload_math_binance"):
+                with st.spinner("A carregar dados frescos da Binance..."):
+                    load_global_binance_data_helper()
+                    recalculate_math_df()
+                    st.toast("Dados atualizados da Binance!")
+                    st.rerun()
+
+    st.markdown("---")
+
+    # 4. Linha Horizontal de Controlo de Batimentos Ultra-Premium
+    col_play, col_step, col_reset, col_inst, col_speed, col_export = st.columns([2.2, 2.2, 1.8, 2.5, 2.2, 2.5])
+    
+    # Preparar dados para o botao de exportacao
+    df_full = st.session_state.math_df
+    csv_buffer = io.StringIO()
+    df_full.to_csv(csv_buffer, index=False)
+    csv_data = csv_buffer.getvalue()
+    
+    instant_mode = st.session_state.math_instant_mode
+    
+    with col_inst:
+        chk_instant = st.checkbox("⚡ Modo Instantaneo", value=instant_mode, help="Processa e exibe a serie completa imediatamente.")
+        if chk_instant != instant_mode:
+            st.session_state.math_instant_mode = chk_instant
+            if chk_instant:
+                st.session_state.math_step = len(st.session_state.math_df) - 1
+                st.session_state.math_running = False
+            else:
+                st.session_state.math_step = 50
+            st.rerun()
+
+    if st.session_state.math_instant_mode:
+        st.session_state.math_step = len(st.session_state.math_df) - 1
+        st.session_state.math_running = False
+
+    with col_play:
+        if st.session_state.math_instant_mode:
+            st.button("▶️ Iniciar Simulacao", use_container_width=True, disabled=True, key="btn_play_disabled")
+        else:
+            running_label = "⏸️ Pausar Simulacao" if st.session_state.math_running else "▶️ Iniciar Simulacao"
+            if st.button(running_label, use_container_width=True, key="btn_play_active"):
+                st.session_state.math_running = not st.session_state.math_running
+                st.rerun()
+
+    with col_step:
+        if st.session_state.math_instant_mode:
+            st.button("➡️ Passo", use_container_width=True, disabled=True, key="btn_step_disabled")
+        else:
+            if st.button("➡️ Avançar Passo", use_container_width=True, key="btn_step_active"):
+                st.session_state.math_running = False
+                df_len = len(st.session_state.math_df)
+                if st.session_state.math_step < df_len - 1:
+                    st.session_state.math_step += 1
+                st.rerun()
+
+    with col_reset:
+        if st.button("🔁 Reiniciar", use_container_width=True, key="btn_reset_active"):
+            st.session_state.math_step = 50
+            st.session_state.math_running = False
+            if st.session_state.math_source == "Sintetico":
+                st.session_state.math_prices = generate_math_market(st.session_state.math_scenario, st.session_state.math_noise)
+            recalculate_math_df()
+            st.rerun()
+
+    with col_speed:
+        if st.session_state.math_instant_mode:
+            st.selectbox("Velocidade", ["Instantaneo"], index=0, disabled=True, label_visibility="collapsed", key="select_speed_disabled")
+            step_delay = 0.05
+        else:
+            speed = st.selectbox(
+                "Velocidade",
+                ["Lento (1.0s)", "Medio (0.3s)", "Rapido (0.05s)"],
+                index=1,
+                label_visibility="collapsed",
+                key="select_speed_active"
+            )
+            speed_map = {"Lento (1.0s)": 1.0, "Medio (0.3s)": 0.3, "Rapido (0.05s)": 0.05}
+            step_delay = speed_map[speed]
+
+    with col_export:
+        st.download_button(
+            label="📥 Exportar CSV",
+            data=csv_data,
+            file_name=f"serie_olimpotrade_{int(time.time())}.csv",
+            mime="text/csv",
+            use_container_width=True,
+            key="btn_export_csv"
+        )
+
+    st.markdown("<div style='margin-bottom:15px;'></div>", unsafe_allow_html=True)
+
+    # 3. Dynamic Cockpit Cards
+    step = st.session_state.math_step
+    df = st.session_state.math_df
+    
+    # Boundary check
+    if step >= len(df):
+        step = len(df) - 1
+        st.session_state.math_step = step
+        st.session_state.math_running = False
+        
+    row = df.iloc[step]
+    regime = row['regime']
+    
+    regime_display = {
+        "BULL": ("🟢 BULL MARKET", "rgba(46, 204, 113, 0.2)"),
+        "BEAR": ("🔴 BEAR MARKET", "rgba(231, 76, 60, 0.2)"),
+        "LATERAL": ("🟡 LATERAL / CONSOLIDAÇÃO", "rgba(241, 196, 15, 0.15)"),
+        "CAOTICO": ("🟣 MERCADO CAÓTICO", "rgba(155, 89, 182, 0.2)")
+    }
+    label, bg_color = regime_display.get(regime, ("🟡 LATERAL", "rgba(241, 196, 15, 0.15)"))
+    
+    st.markdown(f"""<div class="glass-card" style="background: {bg_color}; padding: 20px; border-radius: 12px; margin-bottom: 25px; border: 1px solid rgba(255,255,255,0.3); text-align: center;">
+<span style="font-size: 1.1rem; letter-spacing: 1px; color:#1e293b; font-weight:bold;">REGIME DE MERCADO ATUAL</span>
+<h2 style="margin: 5px 0 0 0; font-size: 2.2rem; font-weight: 800; color:#0f172a;">{label}</h2>
+</div>""", unsafe_allow_html=True)
+    
+    col_m1, col_m2, col_m3, col_m4 = st.columns(4)
+    with col_m1:
+        st.metric("Preço Atual", f"{row['price']:.2f}", delta=f"{row['price'] - df.iloc[max(0, step-1)]['price']:+.2f}")
+    with col_m2:
+        st.metric("Velocidade (1ª Derivada)", f"{row['velocity']:.4f}", delta=f"{row['velocity'] - df.iloc[max(0, step-1)]['velocity']:+.4f}")
+    with col_m3:
+        st.metric("Aceleração (2ª Derivada)", f"{row['acceleration']:.4f}", delta=f"{row['acceleration'] - df.iloc[max(0, step-1)]['acceleration']:+.4f}")
+    with col_m4:
+        st.metric("Stretching (Dispersão)", f"{row['stretching']:.2f}%", delta=f"{row['stretching'] - df.iloc[max(0, step-1)]['stretching']:+.2f}%")
+
+    # 4. Interactive High-Precision Charts
+    st.subheader(f"📊 Gráfico Blueprint & Regimes (Batimento {step} / {len(df) - 1})")
+    
+    sub_df = df.iloc[:step+1]
+    
+    p2 = st.session_state.math_active_sma_p2
+    p3 = st.session_state.math_active_sma_p3
+    p4 = st.session_state.math_active_sma_p4
+    p5 = st.session_state.math_active_sma_p5
+    p6 = st.session_state.math_active_sma_p6
+    
+    # Protecao defensiva: se as colunas sma nao existirem (ex: periodo mudou), recalcular
+    _needed = [f"sma_{p2}", f"sma_{p3}", f"sma_{p4}", f"sma_{p5}", f"sma_{p6}"]
+    if not all(c in df.columns for c in _needed):
+        recalculate_math_df()
+        df = st.session_state.math_df
+        sub_df = df.iloc[:step+1]
+    
+    fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.08, row_heights=[0.7, 0.3])
+    
+    # Subplot 1: Price and SMAs
+    fig.add_trace(go.Scatter(x=sub_df.index, y=sub_df['price'], name='Preço', line=dict(color='#475569', width=2)), row=1, col=1)
+    fig.add_trace(go.Scatter(x=sub_df.index, y=sub_df[f'sma_{p2}'], name=f'SMA {p2}', line=dict(color='#2ecc71', width=1.5)), row=1, col=1)
+    fig.add_trace(go.Scatter(x=sub_df.index, y=sub_df[f'sma_{p3}'], name=f'SMA {p3}', line=dict(color='#3498db', width=1.5)), row=1, col=1)
+    fig.add_trace(go.Scatter(x=sub_df.index, y=sub_df[f'sma_{p4}'], name=f'SMA {p4}', line=dict(color='#e67e22', width=1.5)), row=1, col=1)
+    fig.add_trace(go.Scatter(x=sub_df.index, y=sub_df[f'sma_{p5}'], name=f'SMA {p5}', line=dict(color='#9b59b6', width=1.5)), row=1, col=1)
+    fig.add_trace(go.Scatter(x=sub_df.index, y=sub_df[f'sma_{p6}'], name=f'SMA {p6}', line=dict(color='#e74c3c', width=1.5)), row=1, col=1)
+    
+    # Subplot 2: Speed and Acceleration
+    fig.add_trace(go.Scatter(x=sub_df.index, y=sub_df['velocity'], name='Velocidade', line=dict(color='#1abc9c', width=1.5)), row=2, col=1)
+    fig.add_trace(go.Scatter(x=sub_df.index, y=sub_df['acceleration'], name='Aceleração', line=dict(color='#e67e22', width=1.5, dash='dot')), row=2, col=1)
+    
+    # Highlight continuous regime background zones on Subplot 1
+    zones = []
+    current_reg = None
+    start_idx = None
+    
+    for idx, r in sub_df.iterrows():
+        reg = r['regime']
+        if reg != current_reg:
+            if current_reg is not None:
+                zones.append((start_idx, idx - 1, current_reg))
+            current_reg = reg
+            start_idx = idx
+    if current_reg is not None:
+        zones.append((start_idx, len(sub_df) - 1, current_reg))
+        
+    colors_map = {
+        "BULL": "rgba(46, 204, 113, 0.12)",
+        "BEAR": "rgba(231, 76, 60, 0.12)",
+        "LATERAL": "rgba(241, 196, 15, 0.08)",
+        "CAOTICO": "rgba(155, 89, 182, 0.12)"
+    }
+    
+    for start, end, reg in zones:
+        fig.add_vrect(
+            x0=start, x1=end,
+            fillcolor=colors_map.get(reg, "rgba(0,0,0,0)"),
+            opacity=1.0,
+            layer="below",
+            line_width=0,
+            row=1, col=1
+        )
+        
+    fig.update_layout(
+        height=600,
+        margin=dict(l=10, r=10, t=20, b=20),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        plot_bgcolor='rgba(255,255,255,0.95)',
+        paper_bgcolor='rgba(0,0,0,0)',
+        xaxis=dict(showgrid=True, gridcolor='#e2e8f0', title="Número de Batimentos (t)"),
+        yaxis=dict(showgrid=True, gridcolor='#e2e8f0', title="Preço"),
+        xaxis2=dict(showgrid=True, gridcolor='#e2e8f0', title="Batimentos (t)"),
+        yaxis2=dict(showgrid=True, gridcolor='#e2e8f0', title="Derivadas")
+    )
+    
+    st.plotly_chart(fig, width='stretch')
+    
+    # 5. Live Bloomberg Reversed Table (Reversed view: latest at top)
+    st.subheader("📜 Registo Detalhado de Variáveis (Real-time)")
+    
+    rev_sub_df = sub_df.iloc[::-1].copy()
+    rev_sub_df['Preço'] = rev_sub_df['price'].map(lambda x: f"{x:.2f}")
+    rev_sub_df['Velocidade'] = rev_sub_df['velocity'].map(lambda x: f"{x:+.4f}" if not pd.isna(x) else "")
+    rev_sub_df['Aceleração'] = rev_sub_df['acceleration'].map(lambda x: f"{x:+.4f}" if not pd.isna(x) else "")
+    rev_sub_df['Volatilidade'] = rev_sub_df['volatility'].map(lambda x: f"{x:.4f}" if not pd.isna(x) else "")
+    rev_sub_df['Stretching'] = rev_sub_df['stretching'].map(lambda x: f"{x:.2f}%" if not pd.isna(x) else "")
+    rev_sub_df['Regime'] = rev_sub_df['regime']
+    rev_sub_df['Batimento'] = rev_sub_df.index
+    
+    display_cols = ['Batimento', 'Preço', 'Velocidade', 'Aceleração', 'Volatilidade', 'Stretching', 'Regime']
+    
+    styled_view = rev_sub_df[display_cols].style
+    styled_view = apply_styler(styled_view, 'Regime')
+    
+    st.dataframe(styled_view, width='stretch', height=250)
+
+    # 6. Auto-Miner: Retrospective Structural Analysis
+    st.markdown("---")
+    st.markdown("## 🔍 Auto-Miner Quântico de Padrões & Regras de Ouro")
+    st.markdown("O Minerador de Padrões vasculha **toda a série temporal activa** (não apenas a simulação em tempo real) para extrair reversões de tendência estruturais e mapear as condições iniciais de lucro.")
+    
+    fundos_list, topos_list = find_structural_points(df)
+    
+    # Sub-abas para os 5 relatórios simultâneos
+    tab_all, tab_bull, tab_bear, tab_lateral, tab_caotico = st.tabs([
+        "🌐 Geral (Todos)", 
+        "📈 Regime BULL", 
+        "📉 Regime BEAR", 
+        "↔️ Regime LATERAL", 
+        "🌀 Regime CAÓTICO"
+    ])
+    
+    regimes_mapping = [
+        (tab_all, "Todos"),
+        (tab_bull, "BULL"),
+        (tab_bear, "BEAR"),
+        (tab_lateral, "LATERAL"),
+        (tab_caotico, "CAOTICO")
+    ]
+    
+    for tab_obj, reg_val in regimes_mapping:
+        with tab_obj:
+            opp_df = get_pattern_stats(fundos_list, df, reg_val)
+            thr_df = get_pattern_stats(topos_list, df, reg_val)
+            
+            show_golden_rules(opp_df, thr_df, reg_val)
+            
+            col_tab1, col_tab2 = st.columns(2)
+            
+            with col_tab1:
+                st.markdown(f"##### 💚 Oportunidades de Compra (Fundos de Ouro - {len(opp_df)} Encontradas)")
+                if not opp_df.empty:
+                    opp_df_disp = opp_df.drop(columns=["var_raw"])
+                    styled_opp = opp_df_disp.style
+                    styled_opp = apply_styler(styled_opp, 'Regime Inicial')
+                    st.dataframe(styled_opp, width='stretch', height=350)
+                else:
+                    st.info(f"Sem fundos estruturais para o regime {reg_val}.")
+                    
+            with col_tab2:
+                st.markdown(f"##### 💔 Ameaças de Venda (Topos de Alerta - {len(thr_df)} Encontradas)")
+                if not thr_df.empty:
+                    thr_df_disp = thr_df.drop(columns=["var_raw"])
+                    styled_thr = thr_df_disp.style
+                    styled_thr = apply_styler(styled_thr, 'Regime Inicial')
+                    st.dataframe(styled_thr, width='stretch', height=350)
+                else:
+                    st.info(f"Sem topos estruturais para o regime {reg_val}.")
+# 7. Módulo de Persistência de Testes
+    st.markdown("---")
+    col_save, col_info = st.columns([1, 2])
+    with col_save:
+        if st.button("💾 Guardar Lições de Treino", width='stretch', key="math_save_test_btn"):
+            auto_name = f"{st.session_state.math_scenario} ({pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')})"
+            save_current_test_rules(auto_name, df, fundos_list, topos_list)
+            st.toast("🧠 Lições de treino guardadas e cérebro unificado automaticamente!")
+            st.rerun()
+    with col_info:
+        st.markdown("<p style='font-size:12px; color:#64748b; margin-top:8px;'><b>Aprendizagem Cumulativa:</b> Os padrões deste teste são fundidos automaticamente no cérebro consolidado do Bot, refinando regimes sem perder lições passadas.</p>", unsafe_allow_html=True)
+
+    # 9. Loop de Simulaçãoção
+    if st.session_state.math_running:
+        time.sleep(step_delay)
+        if st.session_state.math_step < len(df) - 1:
+            st.session_state.math_step += 1
+            st.rerun()
+        else:
+            st.session_state.math_running = False
+            st.success("Simulação terminada! Toda a série foi processada.")
+            st.rerun()
+
+def show_golden_rules(filtered_opp, filtered_thr, selected_regime):
+    st.markdown("### 🧬 Conclusões de Ouro & Cockpit Analítico")
+    
+    p2 = st.session_state.get('math_active_sma_p2', 5)
+    p3 = st.session_state.get('math_active_sma_p3', 13)
+    p4 = st.session_state.get('math_active_sma_p4', 21)
+    p5 = st.session_state.get('math_active_sma_p5', 55)
+    p6 = st.session_state.get('math_active_sma_p6', 144)
+    
+    col_p2 = f"Média {p2}"
+    col_p3 = f"Média {p3}"
+    col_p4 = f"Média {p4}"
+    col_p5 = f"Média {p5}"
+    col_p6 = f"Média {p6}"
+    
+    col_left, col_right = st.columns(2)
+    
+    # --- PROCESSAR COMPRAS (LONG / FUNDOS) ---
+    with col_left:
+        st.markdown(f'''<div style="background: rgba(34, 197, 94, 0.05); border-left: 5px solid #2ecc71; border-radius: 12px; padding: 16px; border: 1px solid rgba(34,197,94,0.15); margin-bottom: 20px;">
+<h4 style="color:#2ecc71; margin-top:0; margin-bottom:10px;">🟢 Diagnóstico de LONG (Compra - Fundos)</h4>
+</div>''', unsafe_allow_html=True)
+        
+        if filtered_opp.empty:
+            st.info(f"Sem fundos suficientes para o regime {selected_regime}.")
+        else:
+            acc_vals = filtered_opp["Aceleração"].astype(float)
+            strt_vals = filtered_opp["Stretching"].astype(float)
+            
+            acc_mean = acc_vals.mean()
+            acc_std = acc_vals.std()
+            strt_mean = strt_vals.mean()
+            strt_std = strt_vals.std()
+            
+            mola_vals = filtered_opp["Compressão Mola %"].str.rstrip("%").replace('', '0').astype(float)
+            mola_mean = mola_vals.mean()
+            
+            disp_vals = filtered_opp["Disp. Vetorial %"].str.rstrip("%").replace('', '0').astype(float)
+            disp_mean = disp_vals.mean()
+            
+            infil_rate = (filtered_opp["Infiltração"] == "Sim").mean() * 100
+            reteste_rate = (filtered_opp["Reteste Gravitacional"] == "Sim").mean() * 100
+            
+            # 1. Tabela Estatística de Curvatura
+            st.markdown("##### 📐 Estatísticas da Curvatura e Estabilidade")
+            df_stats = pd.DataFrame({
+                "Métrica": ["Aceleração Reversão", "Stretching (Elástico)"],
+                "Média": [f"{acc_mean:+.4f}", f"{strt_mean:.2f}%"],
+                "Desvio Padrão": [f"{acc_std:.4f}", f"{strt_std:.2f}%"],
+                "Estabilidade": ["Alta" if acc_std < 0.005 else "Média", "Excelente" if strt_std < 1.0 else "Instável"]
+            })
+            st.dataframe(df_stats, width='stretch', hide_index=True)
+            
+            # 2. Indicadores Fractais (Micro-Barras HD)
+            st.markdown("##### 🔮 Fidelidade Fractal & Médias")
+            
+            # Barra Infiltração
+            st.markdown(f"**Infiltração Fractal Rápida:** {infil_rate:.1f}%")
+            st.progress(int(infil_rate)/100.0)
+            infil_badge = "✅ Excelente Confirmação" if infil_rate >= 70.0 else "⚠️ Sinal Fraco / Ruído"
+            st.markdown(f"<span style='color:#64748b; font-size:11px;'>Robustez: <b>{infil_badge}</b></span>", unsafe_allow_html=True)
+            
+            # Barra Reteste
+            st.markdown(f"**Reteste Gravitacional (Suporte Lento):** {reteste_rate:.1f}%")
+            st.progress(int(reteste_rate)/100.0)
+            reteste_badge = "💎 Trampolim Altamente Fiável" if reteste_rate >= 50.0 else "⚠️ Suporte Vulnerável"
+            st.markdown(f"<span style='color:#64748b; font-size:11px;'>Robustez: <b>{reteste_badge}</b></span>", unsafe_allow_html=True)
+            
+            # 3. O Veredicto do Consenso
+            st.markdown("##### 🧠 O Veredicto Quantitativo")
+            verdict = ""
+            if selected_regime == "BULL":
+                verdict = "🐂 **Regime Bull Estável:** Entrada de alta probabilidade estatística. A compressão de mola seguida de aceleração positiva rápida confirma a continuação da tendência. Recomenda-se operar com Stop Loss estreito logo abaixo da SMA55."
+            elif selected_regime == "BEAR":
+                verdict = "🐻 **Recuperação em Bear Market:** Entradas perigosas contra a maré principal. Procure apenas retestes gravíticos perfeitos na SMA144 e execute saídas rápidas (Take Profit curto)."
+            elif selected_regime == "LATERAL":
+                verdict = "🦀 **Mercado Lateralizado:** Perigo extremo de falsos breakouts. A mola comprimida é forte, mas o esticamento é limitado. Opere apenas ressaltos nas paredes de suporte e evite posições longas de holding."
+            else:
+                verdict = "⚡ **Regime Caótico / Ruído:** Volatilidade extrema sem direção. Os indicadores fractais falham com frequência. Recomenda-se **inação completa (HOLD)** ou redução do risco em 70%."
+                
+            st.markdown(f'''<div style="background: rgba(2, 132, 199, 0.05); border: 1px dashed rgba(2, 132, 199, 0.3); border-radius: 8px; padding: 12px; font-size: 13px; color:#1e293b; line-height:1.5;">
+{verdict}
+</div>''', unsafe_allow_html=True)
+
+    # --- PROCESSAR VENDAS (SHORT / TOPOS) ---
+    with col_right:
+        st.markdown(f'''<div style="background: rgba(239, 68, 68, 0.05); border-left: 5px solid #e74c3c; border-radius: 12px; padding: 16px; border: 1px solid rgba(239,68,68,0.15); margin-bottom: 20px;">
+<h4 style="color:#e74c3c; margin-top:0; margin-bottom:10px;">🔴 Diagnóstico de SHORT (Venda - Topos)</h4>
+</div>''', unsafe_allow_html=True)
+        
+        if filtered_thr.empty:
+            st.info(f"Sem topos de alerta para o regime {selected_regime}.")
+        else:
+            acc_vals_t = filtered_thr["Aceleração"].astype(float)
+            strt_vals_t = filtered_thr["Stretching"].astype(float)
+            
+            acc_mean_t = acc_vals_t.mean()
+            acc_std_t = acc_vals_t.std()
+            strt_mean_t = strt_vals_t.mean()
+            strt_std_t = strt_vals_t.std()
+            
+            mola_vals_t = filtered_thr["Compressão Mola %"].str.rstrip("%").replace('', '0').astype(float)
+            mola_mean_t = mola_vals_t.mean()
+            
+            disp_vals_t = filtered_thr["Disp. Vetorial %"].str.rstrip("%").replace('', '0').astype(float)
+            disp_mean_t = disp_vals_t.mean()
+            
+            infil_rate_t = (filtered_thr["Infiltração"] == "Sim").mean() * 100
+            reteste_rate_t = (filtered_thr["Reteste Gravitacional"] == "Sim").mean() * 100
+            
+            # 1. Tabela Estatística de Curvatura
+            st.markdown("##### 📐 Estatísticas da Curvatura e Estabilidade")
+            df_stats_t = pd.DataFrame({
+                "Métrica": ["Aceleração Reversão", "Stretching (Elástico)"],
+                "Média": [f"{acc_mean_t:+.4f}", f"{strt_mean_t:.2f}%"],
+                "Desvio Padrão": [f"{acc_std_t:.4f}", f"{strt_std_t:.2f}%"],
+                "Estabilidade": ["Alta" if acc_std_t < 0.005 else "Média", "Excelente" if strt_std_t < 1.0 else "Instável"]
+            })
+            st.dataframe(df_stats_t, width='stretch', hide_index=True)
+            
+            # 2. Indicadores Fractais (Micro-Barras HD)
+            st.markdown("##### 🔮 Fidelidade Fractal & Médias")
+            
+            # Barra Infiltração
+            st.markdown(f"**Infiltração Fractal Rápida:** {infil_rate_t:.1f}%")
+            st.progress(int(infil_rate_t)/100.0)
+            infil_badge_t = "✅ Excelente Confirmação" if infil_rate_t >= 70.0 else "⚠️ Sinal Fraco / Ruído"
+            st.markdown(f"<span style='color:#64748b; font-size:11px;'>Robustez: <b>{infil_badge_t}</b></span>", unsafe_allow_html=True)
+            
+            # Barra Reteste
+            st.markdown(f"**Reteste Gravitacional (Suporte Lento):** {reteste_rate_t:.1f}%")
+            st.progress(int(reteste_rate_t)/100.0)
+            reteste_badge_t = "💎 Parede de Reversão Estável" if reteste_rate_t >= 50.0 else "⚠️ Parede Vulnerável"
+            st.markdown(f"<span style='color:#64748b; font-size:11px;'>Robustez: <b>{reteste_badge_t}</b></span>", unsafe_allow_html=True)
+            
+            # 3. O Veredicto do Consenso
+            st.markdown("##### 🧠 O Veredicto Quantitativo")
+            verdict_t = ""
+            if selected_regime == "BULL":
+                verdict_t = "🐂 **Exaustão de Topo em Bull:** Sinais de reversão de curta duração. Desaceleração de topo severa com o elástico esticado. O Bot usará estes limites para disparar saídas de segurança e proteger o capital acumulado."
+            elif selected_regime == "BEAR":
+                verdict_t = "🐻 **Regime Bear Forte:** Cenário ideal para ordens de SHORT agressivas. A quebra gravitacional com aceleração negativa confirma o momentum de queda livre colina abaixo. Alvos de lucro alargados são viáveis."
+            elif selected_regime == "LATERAL":
+                verdict_t = "🦀 **Distribuição em Range:** O preço atinge a resistência do canal lateralizado. Entrada ideal para SHORT com objetivo de queda até ao centro da mola comprimida. Stop Loss curto colocado imediatamente acima do pico anterior."
+            else:
+                verdict_t = "⚡ **Volatilidade Caótica:** Ruído extremo e dispersão descontrolada. Picos falsos de venda frequentes. Recomenda-se **fechar posições abertas manualmente** e aguardar a coesão das médias."
+                
+            st.markdown(f'''<div style="background: rgba(239, 68, 68, 0.05); border: 1px dashed rgba(239, 68, 68, 0.3); border-radius: 8px; padding: 12px; font-size: 13px; color:#1e293b; line-height:1.5;">
+{verdict_t}
+</div>''', unsafe_allow_html=True)
+
+def save_current_test_rules(test_name, df, fundos_list, topos_list):
+    filepath = "bot_knowledge_base.json"
+    
+    # Carregar historial existente
+    knowledge = {}
+    if os.path.exists(filepath):
+        try:
+            with open(filepath, "r", encoding="utf-8") as f:
+                knowledge = json.load(f)
+        except Exception:
+            knowledge = {}
+            
+    p2 = st.session_state.get('math_active_sma_p2', 5)
+    p3 = st.session_state.get('math_active_sma_p3', 13)
+    p4 = st.session_state.get('math_active_sma_p4', 21)
+    p5 = st.session_state.get('math_active_sma_p5', 55)
+    p6 = st.session_state.get('math_active_sma_p6', 144)
+    
+    regimes = ["Todos", "BULL", "BEAR", "LATERAL", "CAOTICO"]
+    test_data = {
+        "test_name": test_name,
+        "timestamp": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M"),
+        "smas": [p2, p3, p4, p5, p6],
+        "regimes": {}
+    }
+    
+    for reg in regimes:
+        opp_df = get_pattern_stats(fundos_list, df, reg)
+        thr_df = get_pattern_stats(topos_list, df, reg)
+        
+        reg_data = {
+            "opp_count": len(opp_df),
+            "thr_count": len(thr_df),
+            "opp_stats": {},
+            "thr_stats": {}
+        }
+        
+                # BUY Stats
+        if not opp_df.empty:
+            mola_mean = 0.0
+            mola_col = [c for c in opp_df.columns if "Compress" in c and "Mola" in c]
+            if mola_col:
+                mola_vals = opp_df[mola_col[0]].astype(str).str.rstrip("%").replace('', '0').astype(float)
+                mola_mean = float(mola_vals.mean())
+                
+            disp_col = [c for c in opp_df.columns if "Disp" in c and "Vetorial" in c]
+            disp_mean = 0.0
+            if disp_col:
+                disp_vals = opp_df[disp_col[0]].astype(str).str.rstrip("%").replace('', '0').astype(float)
+                disp_mean = float(disp_vals.mean())
+                
+            infil_col = [c for c in opp_df.columns if "Infiltra" in c]
+            infil_rate = 0.0
+            if infil_col:
+                infil_rate = float((opp_df[infil_col[0]] == "Sim").mean() * 100)
+                
+            reteste_col = [c for c in opp_df.columns if "Reteste" in c]
+            reteste_rate = 0.0
+            if reteste_col:
+                reteste_rate = float((opp_df[reteste_col[0]] == "Sim").mean() * 100)
+                
+            # Exits stats
+            mola_exit_mean = 0.0
+            if "Compressão Mola Saída %" in opp_df.columns:
+                mola_exit_mean = float(opp_df["Compressão Mola Saída %"].astype(float).mean())
+            disp_exit_mean = 0.0
+            if "Disp. Vetorial Saída %" in opp_df.columns:
+                disp_exit_mean = float(opp_df["Disp. Vetorial Saída %"].astype(float).mean())
+            infil_exit_rate = 0.0
+            if "Infiltração Saída" in opp_df.columns:
+                infil_exit_rate = float((opp_df["Infiltração Saída"] == "Sim").mean() * 100)
+            reteste_exit_rate = 0.0
+            if "Reteste Gravitacional Saída" in opp_df.columns:
+                reteste_exit_rate = float((opp_df["Reteste Gravitacional Saída"] == "Sim").mean() * 100)
+                
+            acc_col = [c for c in opp_df.columns if "Acelera" in c and "Sa" not in c][0]
+            strt_col = [c for c in opp_df.columns if "Stretching" in c and "Sa" not in c][0]
+            
+            reg_data["opp_stats"] = {
+                "acc_mean": float(opp_df[acc_col].astype(float).mean()),
+                "acc_std": float(opp_df[acc_col].astype(float).std()) if len(opp_df) > 1 else 0.0,
+                "strt_mean": float(opp_df[strt_col].astype(float).mean()),
+                "strt_std": float(opp_df[strt_col].astype(float).std()) if len(opp_df) > 1 else 0.0,
+                "mola_mean": mola_mean,
+                "disp_mean": disp_mean,
+                "vel_mean": float(opp_df["Velocidade"].astype(float).mean()) if "Velocidade" in opp_df.columns else 0.0,
+                "vol_mean": float(opp_df["Volatilidade"].astype(float).mean()) if "Volatilidade" in opp_df.columns else 0.0,
+                "infil_rate": infil_rate,
+                "reteste_rate": reteste_rate,
+                "rsi_mean": float(opp_df["rsi"].astype(float).mean()) if "rsi" in opp_df.columns else 50.0,
+                "bb_dist_mean": float(opp_df["bb"].astype(float).mean()) if "bb" in opp_df.columns else 50.0,
+                "macd_mean": float(opp_df["macd"].astype(float).mean()) if "macd" in opp_df.columns else 0.0,
+                "atr_mean": float(opp_df["atr"].astype(float).mean()) if "atr" in opp_df.columns else 0.0,
+                # Exit values
+                "acc_exit_mean": float(opp_df["Aceleração Saída"].astype(float).mean()) if "Aceleração Saída" in opp_df.columns else 0.0,
+                "strt_exit_mean": float(opp_df["Stretching Saída"].astype(float).mean()) if "Stretching Saída" in opp_df.columns else 0.0,
+                "mola_exit_mean": mola_exit_mean,
+                "disp_exit_mean": disp_exit_mean,
+                "vel_exit_mean": float(opp_df["Velocidade Saída"].astype(float).mean()) if "Velocidade Saída" in opp_df.columns else 0.0,
+                "vol_exit_mean": float(opp_df["Volatilidade Saída"].astype(float).mean()) if "Volatilidade Saída" in opp_df.columns else 0.0,
+                "infil_exit_rate": infil_exit_rate,
+                "reteste_exit_rate": reteste_exit_rate,
+                "rsi_exit_mean": float(opp_df["rsi_exit"].astype(float).mean()) if "rsi_exit" in opp_df.columns else 50.0,
+                "bb_dist_exit_mean": float(opp_df["bb_exit"].astype(float).mean()) if "bb_exit" in opp_df.columns else 50.0,
+                "macd_exit_mean": float(opp_df["macd_exit"].astype(float).mean()) if "macd_exit" in opp_df.columns else 0.0,
+                "atr_exit_mean": float(opp_df["atr_exit"].astype(float).mean()) if "atr_exit" in opp_df.columns else 0.0
+            }
+            
+        # SELL Stats
+        if not thr_df.empty:
+            mola_mean = 0.0
+            mola_col = [c for c in thr_df.columns if "Compress" in c and "Mola" in c]
+            if mola_col:
+                mola_vals = thr_df[mola_col[0]].astype(str).str.rstrip("%").replace('', '0').astype(float)
+                mola_mean = float(mola_vals.mean())
+                
+            disp_col = [c for c in thr_df.columns if "Disp" in c and "Vetorial" in c]
+            disp_mean = 0.0
+            if disp_col:
+                disp_vals = thr_df[disp_col[0]].astype(str).str.rstrip("%").replace('', '0').astype(float)
+                disp_mean = float(disp_vals.mean())
+                
+            infil_col = [c for c in thr_df.columns if "Infiltra" in c]
+            infil_rate = 0.0
+            if infil_col:
+                infil_rate = float((thr_df[infil_col[0]] == "Sim").mean() * 100)
+                
+            reteste_col = [c for c in thr_df.columns if "Reteste" in c]
+            reteste_rate = 0.0
+            if reteste_col:
+                reteste_rate = float((thr_df[reteste_col[0]] == "Sim").mean() * 100)
+                
+            # Exits stats
+            mola_exit_mean = 0.0
+            if "Compressão Mola Saída %" in thr_df.columns:
+                mola_exit_mean = float(thr_df["Compressão Mola Saída %"].astype(float).mean())
+            disp_exit_mean = 0.0
+            if "Disp. Vetorial Saída %" in thr_df.columns:
+                disp_exit_mean = float(thr_df["Disp. Vetorial Saída %"].astype(float).mean())
+            infil_exit_rate = 0.0
+            if "Infiltração Saída" in thr_df.columns:
+                infil_exit_rate = float((thr_df["Infiltração Saída"] == "Sim").mean() * 100)
+            reteste_exit_rate = 0.0
+            if "Reteste Gravitacional Saída" in thr_df.columns:
+                reteste_exit_rate = float((thr_df["Reteste Gravitacional Saída"] == "Sim").mean() * 100)
+                
+            acc_col = [c for c in thr_df.columns if "Acelera" in c and "Sa" not in c][0]
+            strt_col = [c for c in thr_df.columns if "Stretching" in c and "Sa" not in c][0]
+            
+            reg_data["thr_stats"] = {
+                "acc_mean": float(thr_df[acc_col].astype(float).mean()),
+                "acc_std": float(thr_df[acc_col].astype(float).std()) if len(thr_df) > 1 else 0.0,
+                "strt_mean": float(thr_df[strt_col].astype(float).mean()),
+                "strt_std": float(thr_df[strt_col].astype(float).std()) if len(thr_df) > 1 else 0.0,
+                "mola_mean": mola_mean,
+                "disp_mean": disp_mean,
+                "vel_mean": float(thr_df["Velocidade"].astype(float).mean()) if "Velocidade" in thr_df.columns else 0.0,
+                "vol_mean": float(thr_df["Volatilidade"].astype(float).mean()) if "Volatilidade" in thr_df.columns else 0.0,
+                "infil_rate": infil_rate,
+                "reteste_rate": reteste_rate,
+                "rsi_mean": float(thr_df["rsi"].astype(float).mean()) if "rsi" in thr_df.columns else 50.0,
+                "bb_dist_mean": float(thr_df["bb"].astype(float).mean()) if "bb" in thr_df.columns else 50.0,
+                "macd_mean": float(thr_df["macd"].astype(float).mean()) if "macd" in thr_df.columns else 0.0,
+                "atr_mean": float(thr_df["atr"].astype(float).mean()) if "atr" in thr_df.columns else 0.0,
+                # Exit values
+                "acc_exit_mean": float(thr_df["Aceleração Saída"].astype(float).mean()) if "Aceleração Saída" in thr_df.columns else 0.0,
+                "strt_exit_mean": float(thr_df["Stretching Saída"].astype(float).mean()) if "Stretching Saída" in thr_df.columns else 0.0,
+                "mola_exit_mean": mola_exit_mean,
+                "disp_exit_mean": disp_exit_mean,
+                "vel_exit_mean": float(thr_df["Velocidade Saída"].astype(float).mean()) if "Velocidade Saída" in thr_df.columns else 0.0,
+                "vol_exit_mean": float(thr_df["Volatilidade Saída"].astype(float).mean()) if "Volatilidade Saída" in thr_df.columns else 0.0,
+                "infil_exit_rate": infil_exit_rate,
+                "reteste_exit_rate": reteste_exit_rate,
+                "rsi_exit_mean": float(thr_df["rsi_exit"].astype(float).mean()) if "rsi_exit" in thr_df.columns else 50.0,
+                "bb_dist_exit_mean": float(thr_df["bb_exit"].astype(float).mean()) if "bb_exit" in thr_df.columns else 50.0,
+                "macd_exit_mean": float(thr_df["macd_exit"].astype(float).mean()) if "macd_exit" in thr_df.columns else 0.0,
+                "atr_exit_mean": float(thr_df["atr_exit"].astype(float).mean()) if "atr_exit" in thr_df.columns else 0.0
+            }
+            
+        test_data["regimes"][reg] = reg_data
+        
+    knowledge[test_name] = test_data
+    
+    with open(filepath, "w", encoding="utf-8") as f:
+        json.dump(knowledge, f, indent=2, ensure_ascii=False)
+        
+    import variables_registry
+    variables_registry.rebuild_consensus_dna()
+
+
+def render_consensus_engine():
+    filepath = "bot_knowledge_base.json"
+    dna_path = "bot_consensus_dna.json"
+    
+    if not os.path.exists(filepath):
+        st.info("Nenhum teste guardado no historial. Execute uma simulação e clique em 'Guardar Conclusões' acima para começar a acumular conhecimento.")
+        return
+        
+    try:
+        with open(filepath, "r", encoding="utf-8") as f:
+            knowledge = json.load(f)
+    except Exception as e:
+        import traceback
+        st.error(f"Erro ao ler a base de dados de testes: {e}")
+        st.code(traceback.format_exc())
+        return
+        
+    if not knowledge:
+        st.info("O historial de testes está vazio.")
+        return
+        
+    # 📚 Tabela de Historial de Lições / Regras
+    st.subheader("📚 Historial de Lições Guardadas (Base de Conhecimento)")
+    st.markdown("Esta tabela lista todos os exames estatísticos efetuados e guardados em disco, permitindo ao Bot acumular inteligência de múltiplos mercados.")
+    
+    records = []
+    for t_name, t_data in knowledge.items():
+        smas_str = ", ".join(map(str, t_data.get("smas", [])))
+        # Contagem de fundos e topos totais somados por todos os regimes
+        opp_total = sum(reg_data.get("opp_count", 0) for reg_data in t_data.get("regimes", {}).values() if isinstance(reg_data, dict))
+        thr_total = sum(reg_data.get("thr_count", 0) for reg_data in t_data.get("regimes", {}).values() if isinstance(reg_data, dict))
+        
+        records.append({
+            "Nome do Teste / Ativo": t_name,
+            "Data/Hora": t_data.get("timestamp", ""),
+            "Médias Móveis (SMAs)": smas_str,
+            "Total Fundos": opp_total,
+            "Total Topos": thr_total
+        })
+        
+    df_lessons = pd.DataFrame(records)
+    st.dataframe(df_lessons, width='stretch', hide_index=True)
+    
+    col_hist1, col_hist2 = st.columns([1, 3])
+    with col_hist1:
+        if st.button("🗑️ Limpar Historial", width='stretch', key="math_clear_history_btn"):
+            if os.path.exists(filepath):
+                try:
+                    os.remove(filepath)
+                except Exception:
+                    pass
+            st.success("Historial de lições limpo!")
+            st.rerun()
+            
+    st.markdown("---")
+    st.subheader("🧬 Cérebro de Consenso & DNA Unificado")
+    st.markdown("Selecione quais as lições do historial que deseja unificar no Cérebro de Consenso do Bot:")
+    
+    # Multi-select of tests
+    test_options = list(knowledge.keys())
+    selected_tests = st.multiselect("Selecione os testes para integrar no Cérebro do Bot:", options=test_options, default=test_options[-1:])
+    
+    if not selected_tests:
+        st.warning("Selecione pelo menos um teste para iniciar a consolidação de consenso.")
+        return
+        
+    # 🔍 Botão para Analisar Contradições nas Regras
+    st.markdown("---")
+    st.markdown("### ⚖️ Analisador de Contradições Cruzadas")
+    st.markdown("Compara as regras extraídas de diferentes sessões de treino para detetar conflitos de sinal ou desvios de volatilidade incompatíveis.")
+    
+    col_an1, col_an2 = st.columns([1, 2])
+    with col_an1:
+        run_analysis = st.button("🔍 Analisar Contradições nas Regras", width='stretch', key="math_run_contradictions_analysis")
+        
+    if run_analysis:
+        if len(selected_tests) < 2:
+            st.info("💡 **Dica:** Selecione pelo menos 2 testes no multi-select acima para realizar uma análise comparativa de contradições!")
+        else:
+            st.markdown("#### 📋 Relatório de Consistência das Regras")
+            
+            # Agrupar testes que pertencem ao mesmo mercado
+            market_groups = {}
+            for t_name in selected_tests:
+                # Detect base name
+                base_market = "Outros Mercados"
+                for keyword in ["Didatico Classico", "Didático Clássico", "Montanha Russa", "Flash Crash", "Lateralização", "Lateralizacao"]:
+                    if keyword.lower() in t_name.lower():
+                        base_market = keyword
+                        break
+                if base_market not in market_groups:
+                    market_groups[base_market] = []
+                market_groups[base_market].append(t_name)
+            
+            # Analisar contradições de sinal
+            has_any_conflict = False
+            regimes = ["BULL", "BEAR", "LATERAL", "CAOTICO"]
+            
+            for m_type, t_names in market_groups.items():
+                if len(t_names) < 2:
+                    continue
+                
+                st.markdown(f"##### 🎯 Comparação de Regras no Mercado: **{m_type}** ({len(t_names)} treinos)")
+                
+                # Para cada regime, comparar os valores de Compra e Venda
+                for reg in regimes:
+                    reg_conflicts = []
+                    reg_stable = []
+                    
+                    # Variáveis a verificar
+                    metrics = [
+                        ("acc_mean", "Aceleração Média"),
+                        ("strt_mean", "Stretching Médio"),
+                        ("mola_mean", "Coesão da Mola"),
+                        ("disp_mean", "Dispersão Vetorial")
+                    ]
+                    
+                    # BUY stats
+                    for metric_key, metric_name in metrics:
+                        vals = []
+                        tests_with_val = []
+                        for t_name in t_names:
+                            reg_data = knowledge[t_name]["regimes"].get(reg, {})
+                            opp_c = reg_data.get("opp_count", 0)
+                            opp_s = reg_data.get("opp_stats", {})
+                            if opp_c > 0 and metric_key in opp_s:
+                                vals.append(opp_s[metric_key])
+                                tests_with_val.append((t_name, opp_s[metric_key]))
+                        
+                        if len(vals) >= 2:
+                            # Verificar se há inversão de sinal
+                            has_pos = any(x > 0.0001 for x in vals)
+                            has_neg = any(x < -0.0001 for x in vals)
+                            if has_pos and has_neg:
+                                conflict_desc = " vs ".join([f"'{t}': {v:+.4f}" for t, v in tests_with_val])
+                                reg_conflicts.append(f"⚠️ **{metric_name} (Compra):** Sinais contraditórios! {conflict_desc}")
+                            else:
+                                reg_stable.append(metric_name)
+                                
+                    # SELL stats
+                    for metric_key, metric_name in metrics:
+                        vals = []
+                        tests_with_val = []
+                        for t_name in t_names:
+                            reg_data = knowledge[t_name]["regimes"].get(reg, {})
+                            thr_c = reg_data.get("thr_count", 0)
+                            thr_s = reg_data.get("thr_stats", {})
+                            if thr_c > 0 and metric_key in thr_s:
+                                vals.append(thr_s[metric_key])
+                                tests_with_val.append((t_name, thr_s[metric_key]))
+                        
+                        if len(vals) >= 2:
+                            has_pos = any(x > 0.0001 for x in vals)
+                            has_neg = any(x < -0.0001 for x in vals)
+                            if has_pos and has_neg:
+                                conflict_desc = " vs ".join([f"'{t}': {v:+.4f}" for t, v in tests_with_val])
+                                reg_conflicts.append(f"⚠️ **{metric_name} (Venda):** Sinais contraditórios! {conflict_desc}")
+                            else:
+                                reg_stable.append(metric_name)
+                    
+                    if reg_conflicts:
+                        has_any_conflict = True
+                        st.markdown(f"###### ⚠️ Conflitos Detetados no Regime {reg}:")
+                        for conf in reg_conflicts:
+                            st.error(conf)
+                    elif reg_stable:
+                        st.success(f"✅ **Regime {reg} Estável:** As regras de {', '.join(reg_stable)} são perfeitamente consistentes entre todos os treinos deste mercado.")
+            
+            if not has_any_conflict:
+                st.success("🎉 **Historial de Consenso Impecável!** Executámos uma análise cruzada de todos os mercados selecionados e **não encontrámos qualquer contradição lógica de sinais** nas assinaturas geométricas. O Bot pode operar de forma perfeitamente harmonizada.")
+
+    st.markdown("---")
+    st.markdown("### 🧬 Análise de Consenso e Estabilidade das Variáveis")
+    
+    # Agrupar dados por regime
+    regimes = ["BULL", "BEAR", "LATERAL", "CAOTICO"]
+    consensus_dna = {}
+    
+    # Vamos criar abas para ver o consenso em cada regime
+    tabs_reg = st.tabs([f"🎯 Regime {r}" for r in regimes])
+    
+    for tab_obj, reg in zip(tabs_reg, regimes):
+        with tab_obj:
+            opp_samples = 0
+            thr_samples = 0
+            
+            # Listas para coletar valores de cada teste para verificação de estabilidade
+            opp_acc_list, opp_strt_list, opp_mola_list, opp_disp_list = [], [], [], []
+            thr_acc_list, thr_strt_list, thr_mola_list, thr_disp_list = [], [], [], []
+            
+            opp_weighted_acc, opp_weighted_strt, opp_weighted_mola, opp_weighted_disp = 0.0, 0.0, 0.0, 0.0
+            thr_weighted_acc, thr_weighted_strt, thr_weighted_mola, thr_weighted_disp = 0.0, 0.0, 0.0, 0.0
+            
+            opp_infil_weighted, opp_reteste_weighted = 0.0, 0.0
+            thr_infil_weighted, thr_reteste_weighted = 0.0, 0.0
+            
+            for t_name in selected_tests:
+                t_data = knowledge[t_name]
+                reg_data = t_data["regimes"].get(reg, {})
+                if not reg_data:
+                    continue
+                    
+                opp_c = reg_data.get("opp_count", 0)
+                thr_c = reg_data.get("thr_count", 0)
+                
+                # BUY stats
+                opp_s = reg_data.get("opp_stats", {})
+                if opp_c > 0 and opp_s:
+                    opp_samples += opp_c
+                    opp_acc_list.append(opp_s["acc_mean"])
+                    opp_strt_list.append(opp_s["strt_mean"])
+                    opp_mola_list.append(opp_s.get("mola_mean", 0.0))
+                    opp_disp_list.append(opp_s.get("disp_mean", 0.0))
+                    
+                    opp_weighted_acc += opp_s["acc_mean"] * opp_c
+                    opp_weighted_strt += opp_s["strt_mean"] * opp_c
+                    opp_weighted_mola += opp_s.get("mola_mean", 0.0) * opp_c
+                    opp_weighted_disp += opp_s.get("disp_mean", 0.0) * opp_c
+                    opp_infil_weighted += opp_s.get("infil_rate", 0.0) * opp_c
+                    opp_reteste_weighted += opp_s.get("reteste_rate", 0.0) * opp_c
+                    
+                # SELL stats
+                thr_s = reg_data.get("thr_stats", {})
+                if thr_c > 0 and thr_s:
+                    thr_samples += thr_c
+                    thr_acc_list.append(thr_s["acc_mean"])
+                    thr_strt_list.append(thr_s["strt_mean"])
+                    thr_mola_list.append(thr_s.get("mola_mean", 0.0))
+                    thr_disp_list.append(thr_s.get("disp_mean", 0.0))
+                    
+                    thr_weighted_acc += thr_s["acc_mean"] * thr_c
+                    thr_weighted_strt += thr_s["strt_mean"] * thr_c
+                    thr_weighted_mola += thr_s.get("mola_mean", 0.0) * thr_c
+                    thr_weighted_disp += thr_s.get("disp_mean", 0.0) * thr_c
+                    thr_infil_weighted += thr_s.get("infil_rate", 0.0) * thr_c
+                    thr_reteste_weighted += thr_s.get("reteste_rate", 0.0) * thr_c
+            
+            # Calcular médias ponderadas finais
+            opp_final_acc = opp_weighted_acc / opp_samples if opp_samples > 0 else 0.0
+            opp_final_strt = opp_weighted_strt / opp_samples if opp_samples > 0 else 0.0
+            opp_final_mola = opp_weighted_mola / opp_samples if opp_samples > 0 else 0.0
+            opp_final_disp = opp_weighted_disp / opp_samples if opp_samples > 0 else 0.0
+            opp_final_infil = opp_infil_weighted / opp_samples if opp_samples > 0 else 0.0
+            opp_final_reteste = opp_reteste_weighted / opp_samples if opp_samples > 0 else 0.0
+            
+            thr_final_acc = thr_weighted_acc / thr_samples if thr_samples > 0 else 0.0
+            thr_final_strt = thr_weighted_strt / thr_samples if thr_samples > 0 else 0.0
+            thr_final_mola = thr_weighted_mola / thr_samples if thr_samples > 0 else 0.0
+            thr_final_disp = thr_weighted_disp / thr_samples if thr_samples > 0 else 0.0
+            thr_final_infil = thr_infil_weighted / thr_samples if thr_samples > 0 else 0.0
+            thr_final_reteste = thr_reteste_weighted / thr_samples if thr_samples > 0 else 0.0
+
+            # --- FILTRO DE CONTRADIÇÃO AUTOMÁTICO ---
+            def check_stability(lst):
+                if not lst:
+                    return True
+                has_pos = any(x > 0.0001 for x in lst)
+                has_neg = any(x < -0.0001 for x in lst)
+                return not (has_pos and has_neg)
+                
+            opp_acc_stable = check_stability(opp_acc_list)
+            opp_strt_stable = check_stability(opp_strt_list)
+            opp_mola_stable = check_stability(opp_mola_list)
+            opp_disp_stable = check_stability(opp_disp_list)
+            
+            thr_acc_stable = check_stability(thr_acc_list)
+            thr_strt_stable = check_stability(thr_strt_list)
+            thr_mola_stable = check_stability(thr_mola_list)
+            thr_disp_stable = check_stability(thr_disp_list)
+            
+            # Exibir Métricas de Compra (BUY)
+            st.markdown(f"#### 💚 Gatilhos de Entrada (BUY) - Consenso Baseado em {opp_samples} Fundos")
+            if opp_samples == 0:
+                st.warning("Sem dados de compra suficientes nos testes selecionados.")
+            else:
+                col_b1, col_b2, col_b3, col_b4 = st.columns(4)
+                
+                with col_b1:
+                    if opp_strt_stable:
+                        st.metric("Stretching Médio", f"{opp_final_strt:+.2f}%", help="Estabilidade: Excelente")
+                    else:
+                        st.metric("Stretching Médio", "Rejeitado", delta="Contradição!", delta_color="inverse", help="Instável: Sinais contraditórios entre testes.")
+                        
+                with col_b2:
+                    if opp_mola_stable:
+                        st.metric("Coesão da Mola", f"{opp_final_mola:.2f}%", help="Estabilidade: Excelente")
+                    else:
+                        st.metric("Coesão da Mola", "Rejeitado", delta="Contradição!", delta_color="inverse")
+                        
+                with col_b3:
+                    if opp_disp_stable:
+                        st.metric("Disp. Vetorial", f"{opp_final_disp:+.2f}%")
+                    else:
+                        st.metric("Disp. Vetorial", "Rejeitado", delta="Contradição!", delta_color="inverse")
+                        
+                with col_b4:
+                    if opp_acc_stable:
+                        st.metric("Aceleração Média", f"{opp_final_acc:+.4f}")
+                    else:
+                        st.metric("Aceleração Média", "Rejeitado", delta="Contradição!", delta_color="inverse")
+                        
+                st.markdown(f"* **Infiltração Bull Média:** {opp_final_infil:.1f}% das vezes. | **Reteste Gravitacional Médio:** {opp_final_reteste:.1f}% das vezes.")
+                
+            # Exibir Métricas de Venda (SELL)
+            st.markdown(f"#### 💔 Gatilhos de Saída/Alerta (SELL) - Consenso Baseado em {thr_samples} Topos")
+            if thr_samples == 0:
+                st.warning("Sem dados de venda suficientes nos testes selecionados.")
+            else:
+                col_s1, col_s2, col_s3, col_s4 = st.columns(4)
+                
+                with col_s1:
+                    if thr_strt_stable:
+                        st.metric("Stretching Médio", f"{thr_final_strt:+.2f}%")
+                    else:
+                        st.metric("Stretching Médio", "Rejeitado", delta="Contradição!", delta_color="inverse")
+                        
+                with col_s2:
+                    if thr_mola_stable:
+                        st.metric("Coesão da Mola", f"{thr_final_mola:.2f}%")
+                    else:
+                        st.metric("Coesão da Mola", "Rejeitado", delta="Contradição!", delta_color="inverse")
+                        
+                with col_s3:
+                    if thr_disp_stable:
+                        st.metric("Disp. Vetorial", f"{thr_final_disp:+.2f}%")
+                    else:
+                        st.metric("Disp. Vetorial", "Rejeitado", delta="Contradição!", delta_color="inverse")
+                        
+                with col_s4:
+                    if thr_acc_stable:
+                        st.metric("Aceleração Média", f"{thr_final_acc:+.4f}")
+                    else:
+                        st.metric("Aceleração Média", "Rejeitado", delta="Contradição!", delta_color="inverse")
+                        
+                st.markdown(f"* **Infiltração Bear Média:** {thr_final_infil:.1f}% das vezes. | **Reteste Gravitacional Médio:** {thr_final_reteste:.1f}% das vezes.")
+            
+            # Construir Ficha de DNA para Gravação
+            consensus_dna[reg] = {
+                "active": True,
+                "opp_samples": opp_samples,
+                "thr_samples": thr_samples,
+                "buy_rules": {
+                    "stretching": {
+                        "stable": bool(opp_strt_stable),
+                        "mean": float(opp_final_strt),
+                        "min_limit": float(opp_final_strt - 1.5) if opp_strt_stable else None,
+                        "max_limit": float(opp_final_strt + 1.5) if opp_strt_stable else None
+                    },
+                    "mola": {
+                        "stable": bool(opp_mola_stable),
+                        "mean": float(opp_final_mola),
+                        "max_limit": float(opp_final_mola * 1.3) if opp_mola_stable else None
+                    },
+                    "disp": {
+                        "stable": bool(opp_disp_stable),
+                        "mean": float(opp_final_disp),
+                        "max_limit": float(opp_final_disp * 1.1) if opp_disp_stable else None
+                    },
+                    "acceleration": {
+                        "stable": bool(opp_acc_stable),
+                        "mean": float(opp_final_acc)
+                    },
+                    "infil": {
+                        "rate": float(opp_final_infil),
+                        "active": bool(opp_final_infil > 50.0)
+                    },
+                    "reteste": {
+                        "rate": float(opp_final_reteste),
+                        "active": bool(opp_final_reteste > 40.0)
+                    }
+                },
+                "sell_rules": {
+                    "stretching": {
+                        "stable": bool(thr_strt_stable),
+                        "mean": float(thr_final_strt),
+                        "min_limit": float(thr_final_strt - 1.5) if thr_strt_stable else None,
+                        "max_limit": float(thr_final_strt + 1.5) if thr_strt_stable else None
+                    },
+                    "mola": {
+                        "stable": bool(thr_mola_stable),
+                        "mean": float(thr_final_mola)
+                    },
+                    "disp": {
+                        "stable": bool(thr_disp_stable),
+                        "mean": float(thr_final_disp),
+                        "limit": float(thr_final_disp * 0.9) if thr_disp_stable else None
+                    },
+                    "acceleration": {
+                        "stable": bool(thr_acc_stable),
+                        "mean": float(thr_final_acc)
+                    }
+                }
+            }
+
+    # Gravar o DNA
+    st.markdown("---")
+    if st.button("💾 Gravar Consenso DNA Activo no Bot", type="primary", width='stretch', key="math_save_dna_btn"):
+        try:
+            p2 = st.session_state.get('math_active_sma_p2', 5)
+            p3 = st.session_state.get('math_active_sma_p3', 13)
+            p4 = st.session_state.get('math_active_sma_p4', 21)
+            p5 = st.session_state.get('math_active_sma_p5', 55)
+            p6 = st.session_state.get('math_active_sma_p6', 144)
+            
+            full_dna = {
+                "smas": [p2, p3, p4, p5, p6],
+                "regimes": consensus_dna,
+                "last_updated": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M"),
+                "selected_tests": selected_tests
+            }
+            
+            with open(dna_path, "w", encoding="utf-8") as f:
+                json.dump(full_dna, f, indent=2, ensure_ascii=False)
+                
+            st.toast("🧠 Cérebro de Consenso DNA gravado com sucesso!")
+        except Exception as e:
+            st.error(f"Erro ao gravar o DNA Consolidado: {e}")

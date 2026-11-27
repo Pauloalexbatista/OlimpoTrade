@@ -1,0 +1,4787 @@
+# my_trading_bot/app_ui.py
+import json
+import datetime
+import streamlit as st
+
+def _log_arena_trade_global(t_dict):
+    import streamlit as st
+    try:
+        current_step = t_dict.get("exit_step", -1)
+        df = st.session_state.get("tg_data", None)
+        extra_data = {
+            "config_sl_pct": st.session_state.get("tg_sl_pct", 0),
+            "config_tp_pct": st.session_state.get("tg_tp_pct", 0),
+            "config_ts_pct": st.session_state.get("tg_ts_pct", 0),
+            "config_ts_active": st.session_state.get("tg_ts_active", False),
+            "garrafao_ts_atr_start": st.session_state.get("tg_ts_atr_start", 1.5),
+            "garrafao_ts_atr_end": st.session_state.get("tg_ts_atr_end", 0.2),
+            "garrafao_weakness_bars": st.session_state.get("tg_ts_weakness_bars", 2),
+            "state_macd_weakness": st.session_state.get("tg_macd_weakness_count", 0),
+            "state_entry_atr": st.session_state.get("tg_entry_atr", 0),
+            "state_highest_price": st.session_state.get("tg_highest_price", 0),
+            "state_lowest_price": st.session_state.get("tg_lowest_price", 0),
+            "config_p2": st.session_state.get("tg_p2", 0),
+            "config_p3": st.session_state.get("tg_p3", 0),
+            "config_p4": st.session_state.get("tg_p4", 0),
+            "config_p5": st.session_state.get("tg_p5", 0),
+            "config_p6": st.session_state.get("tg_p6", 0),
+            "config_disp_filter": st.session_state.get("tg_lagarta_min_disp", 0),
+        }
+        if df is not None and not df.empty and current_step >= 0 and current_step < len(df):
+            try:
+                row = df.iloc[current_step].to_dict()
+                for k, v in row.items():
+                    extra_data[f"candle_{k}"] = v
+            except Exception:
+                pass
+        t_dict.update(extra_data)
+    except Exception as e:
+        print("Erro a injetar contexto da arena:", e)
+    st.session_state.tg_trades.append(t_dict)
+import pandas as pd
+import numpy as np
+import plotly.graph_objects as go
+import asyncio
+import ta
+import logging
+from data_collector import DataCollector
+from backtester import Backtester
+from config import load_config
+from logger import setup_logging
+import os
+import sys
+import importlib
+
+def _hot_reload_submodules():
+    mtimes = st.session_state.setdefault("_submodule_mtimes", {})
+    base = os.path.dirname(os.path.abspath(__file__))
+    for mod_name in (
+        "strategy",
+        "backtester",
+        "variables_registry",
+        "strategy_trainer_api",
+        "strategy_report_generator",
+        "tab_auto_trainer",
+        "tab_stage2_paper",
+        "tab_stage3_live",
+        "tab_math_lab",
+        "tab_alpaca",
+        "tab_binance",
+    ):
+        fpath = os.path.join(base, f"{mod_name}.py")
+        if os.path.exists(fpath) and mod_name in sys.modules:
+            mtime = os.path.getmtime(fpath)
+            if mtimes.get(mod_name) != mtime:
+                importlib.reload(sys.modules[mod_name])
+                mtimes[mod_name] = mtime
+
+_hot_reload_submodules()
+from backtester import Backtester
+def load_recipes_db():
+    csv_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "registro_otimizacao_moedas.csv")
+    columns = [
+        "Criptomoeda", "SMA Rápida", "SMA Lenta", "Stop Loss (%)",
+        "Take Profit", "Stop Móvel (Trailing)", "Take Profit Ativo",
+        "Retorno Treino (%)", "Retorno Teste (%)", "Trades Treino",
+        "Trades Teste", "Win Rate Treino (%)", "Max Drawdown (%)", "Notas"
+    ]
+    if not os.path.exists(csv_path):
+        initial_data = [
+            {
+                "Criptomoeda": "ETH/USDT",
+                "SMA Rápida": 15,
+                "SMA Lenta": 21,
+                "Stop Loss (%)": 1.0,
+                "Take Profit": "10.0%",
+                "Stop Móvel (Trailing)": "Não",
+                "Take Profit Ativo": "Sim",
+                "Retorno Treino (%)": 24.08,
+                "Retorno Teste (%)": 0.0,
+                "Trades Treino": 10,
+                "Trades Teste": 0,
+                "Win Rate Treino (%)": 30.0,
+                "Max Drawdown (%)": 0.0,
+                "Notas": "Seguidor de Tendência / Breakout: Lucros brutais nas grandes ondas (+10%) com perdas muito pequenas e controladas (-1%). Ideal para mercados com tendências fortes e rápidas."
+            },
+            {
+                "Criptomoeda": "SOL/USDT",
+                "SMA Rápida": 15,
+                "SMA Lenta": 21,
+                "Stop Loss (%)": 2.0,
+                "Take Profit": "5.0%",
+                "Stop Móvel (Trailing)": "Não",
+                "Take Profit Ativo": "Sim",
+                "Retorno Treino (%)": 4.53,
+                "Retorno Teste (%)": 0.0,
+                "Trades Treino": 35,
+                "Trades Teste": 0,
+                "Win Rate Treino (%)": 51.4,
+                "Max Drawdown (%)": -4.10,
+                "Notas": "Equilibrado e Consistente: Curva de capital extremamente estável e segura (Drawdown baixíssimo de 4%). A amplitude curta das médias corta perdas muito antes de atingir o Stop Loss."
+            },
+            {
+                "Criptomoeda": "BTC/USDT",
+                "SMA Rápida": 9,
+                "SMA Lenta": 21,
+                "Stop Loss (%)": 1.0,
+                "Take Profit": "3.0%",
+                "Stop Móvel (Trailing)": "Não",
+                "Take Profit Ativo": "Sim",
+                "Retorno Treino (%)": 8.14,
+                "Retorno Teste (%)": -0.26,
+                "Trades Treino": 15,
+                "Trades Teste": 0,
+                "Win Rate Treino (%)": 60.0,
+                "Max Drawdown (%)": 0.0,
+                "Notas": "Filtro de Tendência Estável: Configuração moderada e muito estável. Quase break-even no teste futuro (-0.26%), provando excelente resiliência contra ruído e volatilidade rápida."
+            }
+        ]
+        df = pd.DataFrame(initial_data, columns=columns)
+        df.to_csv(csv_path, index=False, encoding="utf-8")
+        return df
+    else:
+        try:
+            return pd.read_csv(csv_path, encoding="utf-8")
+        except Exception:
+            return pd.read_csv(csv_path, encoding="latin-1")
+def save_recipe(recipe):
+    csv_path = r"c:\Users\paulo\.gemini\antigravity\playground\core-omega\PRJT_OlimpoTrade\registro_otimizacao_moedas.csv"
+    df = load_recipes_db()
+    # Check if duplicate exists to avoid cluttering
+    duplicate_mask = (
+        (df["Criptomoeda"] == recipe["Criptomoeda"]) &
+        (df["SMA Rápida"] == recipe["SMA Rápida"]) &
+        (df["SMA Lenta"] == recipe["SMA Lenta"]) &
+        (df["Stop Loss (%)"] == recipe["Stop Loss (%)"]) &
+        (df["Take Profit"] == recipe["Take Profit"]) &
+        (df["Stop Móvel (Trailing)"] == recipe["Stop Móvel (Trailing)"]) &
+        (df["Take Profit Ativo"] == recipe["Take Profit Ativo"])
+    )
+    if duplicate_mask.any():
+        idx = df[duplicate_mask].index[0]
+        df.at[idx, "Retorno Treino (%)"] = recipe["Retorno Treino (%)"]
+        df.at[idx, "Retorno Teste (%)"] = recipe["Retorno Teste (%)"]
+        df.at[idx, "Trades Treino"] = recipe["Trades Treino"]
+        df.at[idx, "Trades Teste"] = recipe["Trades Teste"]
+        df.at[idx, "Win Rate Treino (%)"] = recipe["Win Rate Treino (%)"]
+        df.at[idx, "Max Drawdown (%)"] = recipe["Max Drawdown (%)"]
+        df.at[idx, "Notas"] = recipe["Notas"]
+    else:
+        new_row = pd.DataFrame([recipe])
+        df = pd.concat([df, new_row], ignore_index=True)
+    df.to_csv(csv_path, index=False, encoding="utf-8")
+# 1. Configuração da Página do Streamlit
+st.set_page_config(
+    page_title="OlimpoTrade - Algorithmic Trading Lab",
+    page_icon="⚡",
+    layout="wide",
+    initial_sidebar_state="collapsed",
+)
+
+# ── CSS global: APENAS esconder sidebar (antes do login, sem afectar o tema) ─
+st.markdown("""<style>
+[data-testid="stSidebar"],
+[data-testid="collapsedControl"],
+section[data-testid="stSidebarNav"],
+div[data-testid="stSidebarNavItems"],
+button[data-testid="baseButton-headerNoPadding"],
+[data-testid="stSidebarNavSeparator"] { display: none !important; }
+</style>""", unsafe_allow_html=True)
+
+# ── VERIFICAÇÃO DE PALAVRA-PASSE ─────────────────────────────────────────────
+def check_password():
+    """Retorna True se autenticado. Mostra página de login se não."""
+    password_env = os.getenv("OLIMPO_PASSWORD", "").strip()
+    if not password_env:
+        return True  # sem password configurada → acesso livre (dev local)
+
+    if st.session_state.get("authenticated", False):
+        return True
+
+    # ── Página de Login — CSS só activo nesta página ─────────────────────────
+    # Nota: usa IDs únicos para não "contaminar" o tema do app após login
+    st.markdown("""<style>
+header[data-testid="stHeader"] { display: none !important; }
+/* Fundo escuro na página de login (sem !important para o app principal poder sobrepor) */
+html, body, [data-testid="stAppViewContainer"], .stApp {
+    background: linear-gradient(135deg, #07080f 0%, #0d1224 50%, #07080f 100%);
+}
+/* Input da password — texto branco sobre fundo escuro */
+div[data-testid="stTextInput"] input {
+    background: rgba(255,255,255,0.07) !important;
+    border: 1px solid rgba(99,179,237,0.25) !important;
+    border-radius: 10px !important;
+    color: #f1f5f9 !important;
+    font-size: 1.1rem !important;
+    letter-spacing: 4px !important;
+    text-align: center !important;
+}
+div[data-testid="stTextInput"] input::placeholder { color: #475569 !important; letter-spacing: 2px; }
+div[data-testid="stTextInput"] input:focus {
+    border-color: rgba(99,179,237,0.6) !important;
+    box-shadow: 0 0 0 3px rgba(99,179,237,0.15) !important;
+}
+/* Label do input — esconder (usamos placeholder) */
+div[data-testid="stTextInput"] label { display: none !important; }
+/* Botão de login */
+div[data-testid="stButton"] button {
+    background: linear-gradient(135deg, #2563eb, #7c3aed) !important;
+    color: white !important; border: none !important;
+    border-radius: 10px !important; font-size: 1rem !important;
+    font-weight: 600 !important; padding: 12px !important;
+    letter-spacing: 0.5px !important;
+}
+/* Mensagem de erro */
+div[data-testid="stAlert"] { background: rgba(239,68,68,0.12) !important; border-radius: 8px !important; }
+div[data-testid="stAlert"] p { color: #fca5a5 !important; }
+</style>""", unsafe_allow_html=True)
+
+    # Centrar com colunas
+    st.markdown("<div style='height:80px'></div>", unsafe_allow_html=True)
+    _, col_center, _ = st.columns([1, 1.4, 1])
+
+    with col_center:
+        # Cartão de login
+        st.markdown("""
+<div style="
+    background: rgba(15,23,42,0.85);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(99,179,237,0.18);
+    border-radius: 20px;
+    padding: 44px 40px 36px;
+    text-align: center;
+    box-shadow: 0 25px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.04);
+">
+    <div style="font-size:2.6rem; margin-bottom:12px;">⚡</div>
+    <div style="
+        font-size:1.9rem; font-weight:800; letter-spacing:-0.5px;
+        background: linear-gradient(135deg,#63b3ed,#a78bfa);
+        -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+        margin-bottom:6px;
+    ">OlimpoTrade</div>
+    <div style="
+        font-size:0.8rem; color:#64748b; letter-spacing:3px;
+        text-transform:uppercase; margin-bottom:32px;
+    ">Algorithmic Trading Lab</div>
+    <div style="font-size:0.85rem; color:#94a3b8; margin-bottom:16px;">
+        Introduz a palavra-passe para aceder
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+        # Inputs dentro da coluna (ficam naturalmente centrados)
+        pw = st.text_input(
+            "Palavra-passe",
+            type="password",
+            placeholder="••••••••",
+            key="login_pw",
+            label_visibility="collapsed",
+        )
+        st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+
+        if st.button("🔓  Entrar no Laboratório", type="primary",
+                     use_container_width=True, key="login_btn"):
+            if pw == password_env:
+                st.session_state.authenticated = True
+                st.rerun()
+            else:
+                st.error("Palavra-passe incorreta. Tenta novamente.")
+
+        st.markdown("""
+<div style="text-align:center; margin-top:20px;
+            font-size:0.75rem; color:#334155;">
+    © OlimpoTrade · Acesso Restrito
+</div>
+""", unsafe_allow_html=True)
+
+    return False
+
+if not check_password():
+    st.stop()
+# -------------------------------------------------------
+
+if "symbol_val" not in st.session_state:
+    st.session_state.symbol_val = "🧪 Cenário Didático (Fictício)"
+if "math_scenario" not in st.session_state:
+    st.session_state.math_scenario = "Didatico Classico"
+if "math_noise" not in st.session_state:
+    st.session_state.math_noise = 1.0
+if "math_size" not in st.session_state:
+    st.session_state.math_size = 500
+# 2. Inicialização de Session State para persistência e ligação dinâmica de inputs
+if "strategy_type_val" not in st.session_state:
+    st.session_state.strategy_type_val = "PAULO_GOLD"
+if "p2_window_val" not in st.session_state:
+    st.session_state.p2_window_val = 9
+if "p3_window_val" not in st.session_state:
+    st.session_state.p3_window_val = 21
+if "p4_window_val" not in st.session_state:
+    st.session_state.p4_window_val = 50
+if "p5_window_val" not in st.session_state:
+    st.session_state.p5_window_val = 200
+if "multipoint_mode_val" not in st.session_state:
+    st.session_state.multipoint_mode_val = "AGILE"
+if "exhaustion_filter_val" not in st.session_state:
+    st.session_state.exhaustion_filter_val = True
+if "exhaustion_threshold_val" not in st.session_state:
+    st.session_state.exhaustion_threshold_val = 2.5
+if "p5_filter_active_val" not in st.session_state:
+    st.session_state.p5_filter_active_val = True
+if "entry_mode_val" not in st.session_state:
+    st.session_state.entry_mode_val = "4PONTOS"
+if "exit_mode_val" not in st.session_state:
+    st.session_state.exit_mode_val = "P3" 
+if "operation_mode_val" not in st.session_state:
+    st.session_state.operation_mode_val = "TREND_FOLLOWING" 
+if "short_window_val" not in st.session_state:
+    st.session_state.short_window_val = 9
+if "long_window_val" not in st.session_state:
+    st.session_state.long_window_val = 21
+if "stop_loss_pct_val" not in st.session_state:
+    st.session_state.stop_loss_pct_val = 2.0
+if "sl_active_val" not in st.session_state:
+    st.session_state.sl_active_val = True
+if "take_profit_pct_val" not in st.session_state:
+    st.session_state.take_profit_pct_val = 7.0
+if "tp_active_val" not in st.session_state:
+    st.session_state.tp_active_val = False
+if "trailing_stop_active_val" not in st.session_state:
+    st.session_state.trailing_stop_active_val = False
+if "emergency_exit_price_cross_val" not in st.session_state:
+    st.session_state.emergency_exit_price_cross_val = "ANY"
+if "allow_reentry_val" not in st.session_state:
+    st.session_state.allow_reentry_val = True
+# ─── CARREGAMENTO AUTOMATICO DE LAGARTAS ESPECIALISTAS DO DISCO ───────────────
+_CATERPILLARS_FILE = os.path.join(os.path.dirname(__file__), "caterpillars.json")
+if "game_trained_caterpillars" not in st.session_state:
+    if os.path.exists(_CATERPILLARS_FILE):
+        try:
+            with open(_CATERPILLARS_FILE, "r", encoding="utf-8") as _f:
+                st.session_state.game_trained_caterpillars = json.load(_f)
+        except Exception:
+            st.session_state.game_trained_caterpillars = {}
+    else:
+        st.session_state.game_trained_caterpillars = {}
+# ─────────────────────────────────────────────────────────────────────────────
+if "paulo_gold_trend_filter_val" not in st.session_state:
+    st.session_state.paulo_gold_trend_filter_val = False
+if "paulo_gold_min_dist_pct_val" not in st.session_state:
+    st.session_state.paulo_gold_min_dist_pct_val = 0.0
+if "fee_pct_val" not in st.session_state:
+    st.session_state.fee_pct_val = 0.1
+if "tax_pct_val" not in st.session_state:
+    st.session_state.tax_pct_val = 28.0
+if "slippage_pct_val" not in st.session_state:
+    st.session_state.slippage_pct_val = 0.05
+if "backtest_results" not in st.session_state:
+    st.session_state.backtest_results = None
+if "optimizer_results" not in st.session_state:
+    st.session_state.optimizer_results = None
+# 3. Injeção de CSS Customizado para Estética Premium Glassmorphic (Tema Claro / Light Mode)
+st.markdown("""<style>
+/* Configuração de Fontes e Fundo Principal (sidebar já escondida no bloco global acima) */
+html, body, [class*="css"], .stApp {
+font-family: 'Outfit', sans-serif;
+background-color: #f1f5f9;
+color: #0f172a;
+}
+/* Efeito de Fundo Gradiente Suave Claro */
+.stApp {
+background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+}
+/* Estilo do Menu Lateral (Sidebar) com alto contraste */
+section[data-testid="stSidebar"] {
+background-color: #ffffff;
+border-right: 1px solid rgba(0, 0, 0, 0.08);
+box-shadow: 4px 0 16px rgba(0, 0, 0, 0.02);
+}
+/* Cabeçalho Principal */
+.main-title {
+font-size: 3rem;
+font-weight: 800;
+background: linear-gradient(135deg, #0284c7 0%, #7c3aed 100%);
+-webkit-background-clip: text;
+-webkit-text-fill-color: transparent;
+text-align: center;
+margin-bottom: 0.2rem;
+letter-spacing: -1px;
+}
+.sub-title {
+font-size: 1.1rem;
+font-weight: 400;
+color: #475569;
+text-align: center;
+margin-bottom: 2rem;
+}
+/* Cards Glassmorphic Light Premium */
+.glass-card {
+background: rgba(255, 255, 255, 0.75);
+backdrop-filter: blur(12px);
+-webkit-backdrop-filter: blur(12px);
+border-radius: 16px;
+border: 1px solid rgba(255, 255, 255, 0.6);
+padding: 24px;
+margin-bottom: 20px;
+box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.04);
+transition: transform 0.3s ease, border 0.3s ease;
+color: #0f172a;
+}
+.glass-card:hover {
+border: 1px solid rgba(2, 132, 199, 0.2);
+transform: translateY(-2px);
+}
+/* Cards de Métricas Rápidas */
+.metric-container {
+display: grid;
+grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+gap: 15px;
+margin-bottom: 25px;
+}
+.metric-card {
+background: rgba(255, 255, 255, 0.9);
+border-radius: 12px;
+border: 1px solid rgba(0, 0, 0, 0.05);
+padding: 18px;
+text-align: center;
+box-shadow: 0 4px 12px rgba(0, 0, 0, 0.01);
+transition: all 0.2s ease;
+}
+.metric-card:hover {
+border-color: rgba(124, 58, 237, 0.2);
+box-shadow: 0 4px 15px rgba(124, 58, 237, 0.06);
+}
+.metric-value {
+font-size: 1.6rem;
+font-weight: 700;
+margin-top: 5px;
+}
+.metric-label {
+font-size: 0.85rem;
+font-weight: 600;
+color: #64748b;
+text-transform: uppercase;
+letter-spacing: 1px;
+}
+/* Cores de Alto Contraste */
+.text-green { color: #059669; font-weight: bold; }
+.text-red { color: #e11d48; font-weight: bold; }
+.text-cyan { color: #0369a1; font-weight: bold; }
+.text-purple { color: #6d28d9; font-weight: bold; }
+.text-orange { color: #c2410c; font-weight: bold; }
+/* Indicador de Conexão */
+.status-badge {
+display: inline-block;
+padding: 4px 12px;
+border-radius: 9999px;
+font-size: 0.8rem;
+font-weight: 600;
+text-transform: uppercase;
+letter-spacing: 0.5px;
+margin-bottom: 20px;
+}
+.status-active {
+background-color: rgba(5, 150, 105, 0.1);
+color: #059669;
+border: 1px solid rgba(5, 150, 105, 0.25);
+}
+/* Estilizar inputs e botões do Streamlit */
+div.stButton > button {
+background: linear-gradient(135deg, #0284c7 0%, #7c3aed 100%) !important;
+color: white !important;
+font-weight: 600 !important;
+border: none !important;
+padding: 10px 24px !important;
+border-radius: 8px !important;
+box-shadow: 0 4px 15px rgba(124, 58, 237, 0.25) !important;
+transition: all 0.3s ease !important;
+width: 100% !important;
+}
+div.stButton > button:hover {
+transform: translateY(-2px) !important;
+box-shadow: 0 6px 20px rgba(124, 58, 237, 0.4) !important;
+}
+</style>
+""", unsafe_allow_html=True)
+# 4. Cabeçalho da Aplicação - Compacto & Premium
+st.markdown("""<style>
+/* Reduzir paddings e margens padrão do Streamlit para maximizar espaço vertical */
+.block-container {
+padding-top: 1rem !important;
+padding-bottom: 1rem !important;
+padding-left: 2rem !important;
+padding-right: 2rem !important;
+}
+/* Espaçador entre elementos do Streamlit */
+div[data-testid="stVerticalBlock"] > div {
+padding-bottom: 0.35rem !important;
+padding-top: 0.35rem !important;
+}
+/* Reduzir margens dos selectboxes e sliders */
+.stSelectbox, .stSlider, .stButton {
+margin-bottom: 0px !important;
+}
+/* Tornar cabeçalhos dos expanders mais compactos */
+.streamlit-expanderHeader {
+font-size: 0.88rem !important;
+padding: 0.35rem 0.7rem !important;
+background-color: #ffffff !important;
+border: 1px solid #cbd5e1 !important;
+border-radius: 8px !important;
+}
+/* Alto contraste para campos de escrita (number_input, text_input) e menus (selectbox/multiselect) */
+div[data-testid="stNumberInput"] div[data-baseweb="input"],
+div[data-testid="stTextInput"] div[data-baseweb="input"],
+div[data-testid="stSelectbox"] div[data-baseweb="select"] > div,
+div[data-testid="stMultiSelect"] div[data-baseweb="select"] > div {
+background-color: #ffffff !important;
+border: 1.5px solid #94a3b8 !important;
+border-radius: 8px !important;
+color: #0f172a !important;
+box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05) !important;
+}
+div[data-testid="stNumberInput"] input,
+div[data-testid="stTextInput"] input {
+background-color: #ffffff !important;
+color: #0f172a !important;
+font-weight: 600 !important;
+}
+div[data-testid="stNumberInput"] button {
+background-color: #f8fafc !important;
+color: #0f172a !important;
+border-left: 1px solid #cbd5e1 !important;
+padding: 0 4px !important;
+min-width: 22px !important;
+}
+div[data-testid="stNumberInput"] button:hover {
+background-color: #e2e8f0 !important;
+}
+div[data-testid="stNumberInput"] div[data-baseweb="input"]:focus-within,
+div[data-testid="stTextInput"] div[data-baseweb="input"]:focus-within,
+div[data-testid="stSelectbox"] div[data-baseweb="select"] > div:focus-within {
+border-color: #2563eb !important;
+box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.18) !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
+_hdr_col1, _hdr_col2 = st.columns([3.8, 1.2])
+with _hdr_col1:
+    st.markdown("""
+    <div style="background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;padding:12px 18px;margin-bottom:8px;
+                display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;
+                box-shadow:0 2px 8px rgba(15,23,42,0.03);">
+        <div style="display:flex;align-items:center;gap:12px;">
+            <span style="font-size:1.35rem;font-weight:800;color:#0f172a;letter-spacing:-0.5px;">🏛️ OLIMPOTRADE</span>
+            <span style="background:#f1f5f9;color:#334155;border:1px solid #cbd5e1;padding:3px 10px;border-radius:6px;font-size:0.74rem;font-weight:700;">
+                v2.0 • Arquitetura em 3 Fases
+            </span>
+        </div>
+        <div style="font-size:0.82rem;color:#475569;font-weight:500;">
+            1. Laboratório &nbsp;→&nbsp; 2. Teste API (OFF) &nbsp;→&nbsp; 3. Bot ON (VPS 24h)
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+with _hdr_col2:
+    st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
+    show_legacy_archive = st.toggle("🗄️ Mostrar Arquivo (OFF)", value=False, key="show_legacy_archive", help="Mostra ou esconde as 4 abas antigas sem apagar nada.")
+# 1. VALORES GLOBAIS COMANDADOS CENTRALMENTE
+symbol_raw = st.session_state.get('symbol_val', '🧪 Cenário Didático (Fictício)')
+# Usar BTC/USDT como substituto para abas reais se o cenario didatico estiver ativo
+symbol = "BTC/USDT" if symbol_raw == "🧪 Cenário Didático (Fictício)" else symbol_raw
+timeframe = st.session_state.get('timeframe_val', '1h')
+limit_candles = st.session_state.get('limit_candles_val', 500)
+strategy_type = st.session_state.get('strategy_type_val', 'PAULO_GOLD')
+run_button = False
+
+# ----------------- NOVO PAINEL DE CONFIGURAÇÕES COLAPSÁVEL CENTRAL -----------------
+if '_active_caterpillar_dna' not in dir():
+    _active_caterpillar_dna = None
+config = load_config()
+with st.expander("💛 Centro de Comando Global & Configurações", expanded=False):
+    
+    
+    import variables_registry
+    variables_registry.render_variables_dashboard(compact=True)
+    
+    # --- EXPORT DATA BUTTON ---
+    st.divider()
+    st.markdown("#### Exportar Base de Dados de Resultados (CSV)")
+    if st.button("Preparar Ficheiro CSV Atualizado"):
+        try:
+            import sqlite3
+            import pandas as pd
+            import json
+            import os
+            
+            if not os.path.exists("decision_log.sqlite"):
+                st.warning("Base de dados ainda nao existe. Corre um backtest primeiro!")
+            else:
+                with sqlite3.connect("decision_log.sqlite") as conn:
+                    df_export = pd.read_sql_query("SELECT * FROM decisions", conn)
+                if not df_export.empty:
+                    st.info("A desempacotar as dezenas de variaveis...")
+                    context_df = df_export['context_json'].apply(lambda x: pd.Series(json.loads(x)) if pd.notnull(x) else pd.Series(dtype='float64'))
+                    final_df = pd.concat([df_export.drop(columns=['context_json']), context_df], axis=1)
+                    csv_data = final_df.to_csv(index=False).encode('utf-8')
+                    st.download_button(
+                        label="Descarregar Agora (CSV)",
+                        data=csv_data,
+                        file_name="decisoes_export.csv",
+                        mime="text/csv",
+                        key="download_csv_ready_btn"
+                    )
+                else:
+                    st.warning("A base de dados esta vazia.")
+        except Exception as e:
+            st.error(f"Erro ao exportar: {e}")
+    # -------------------------
+    
+    config.update({
+        "ENV": "development",
+        "EXCHANGE_NAME": "binance",
+        "SYMBOL": symbol,
+        "TIMEFRAME": timeframe,
+        "STRATEGY_TYPE": strategy_type,
+        "TRADING_INTERVAL_SECONDS": 300,
+        "LOG_LEVEL": "INFO",
+        "LOG_FILE": "trading_bot.log",
+        "INITIAL_CAPITAL": 100.0,
+        "SHORT_WINDOW": st.session_state.get('short_window_val', 9),
+        "LONG_WINDOW": st.session_state.get('long_window_val', 21),
+        "P2_WINDOW": st.session_state.get('tg_p2', 5),
+        "P3_WINDOW": st.session_state.get('tg_p3', 13),
+        "P4_WINDOW": st.session_state.get('tg_p4', 21),
+        "P5_WINDOW": st.session_state.get('tg_p5', 55),
+        "P6_WINDOW": st.session_state.get('tg_p6', 144),
+        "STOP_LOSS_ACTIVE": (st.session_state.get("tg_sl_pct", 0) > 0),
+        "STOP_LOSS_PERCENT": st.session_state.get('tg_sl_pct', 2.0),
+        "TAKE_PROFIT_ACTIVE": (st.session_state.get("tg_tp_pct", 0) > 0),
+        "TAKE_PROFIT_PERCENT": st.session_state.get('tg_tp_pct', 7.0),
+        "TRAILING_STOP_ACTIVE": (st.session_state.get("tg_ts_pct", 0) > 0),
+        "TRAILING_STOP_PERCENT": st.session_state.get('tg_ts_pct', 1.5),
+        "ALLOW_REENTRY": st.session_state.get('allow_reentry_val', True),
+        "PAULO_GOLD_TREND_FILTER": st.session_state.get('paulo_gold_trend_filter_val', False),
+        "PAULO_GOLD_MIN_DIST_PCT": st.session_state.get('paulo_gold_min_dist_pct_val', 0.0),
+        "FEE_PCT": st.session_state.get('fee_pct_val', 0.1),
+        "TAX_PCT": st.session_state.get('tax_pct_val', 28.0),
+        "SLIPPAGE_PCT": st.session_state.get('slippage_pct_val', 0.05)
+    })
+# Mapear variáveis locais a partir do estado para compatibilidade global
+short_window = st.session_state.get('short_window_val', 9)
+long_window = st.session_state.get('long_window_val', 21)
+p2_window = st.session_state.get('tg_p2', 5)
+p3_window = st.session_state.get('tg_p3', 13)
+p4_window = st.session_state.get('tg_p4', 21)
+p5_window = st.session_state.get('tg_p5', 55)
+p6_window = st.session_state.get('tg_p6', 144)
+p5_filter_active = st.session_state.get('p5_filter_active_val', True)
+exhaustion_filter = st.session_state.get('exhaustion_filter_val', True)
+exhaustion_threshold = st.session_state.get('exhaustion_threshold_val', 2.5)
+operation_mode = st.session_state.get('operation_mode_val', 'TREND_FOLLOWING')
+entry_mode = st.session_state.get('entry_mode_val', '4PONTOS')
+exit_mode = st.session_state.get('exit_mode_val', 'P3')
+multipoint_mode = st.session_state.get('multipoint_mode_val', 'AGILE')
+allow_reentry = st.session_state.get('allow_reentry_val', True)
+paulo_gold_trend_filter = st.session_state.get('paulo_gold_trend_filter_val', False)
+paulo_gold_min_dist_pct = st.session_state.get('paulo_gold_min_dist_pct_val', 0.0)
+max_risk_pct = 1.0
+stop_loss_pct = st.session_state.get('tg_sl_pct', 2.0)
+take_profit_pct = st.session_state.get('tg_tp_pct', 7.0)
+trailing_stop_pct = st.session_state.get('tg_ts_pct', 1.5)
+fee_pct = st.session_state.get('fee_pct_val', 0.1)
+tax_pct = st.session_state.get('tax_pct_val', 28.0)
+slippage_pct = st.session_state.get('slippage_pct_val', 0.05)
+# Inicializar logger
+logger = setup_logging()
+import variables_registry as _vr_global
+_vr_global.initialize_variables_registry()
+# 7. Estrutura Principal em 3 Partes Distintas (+ Gaveta de Arquivo OFF opcional)
+if show_legacy_archive:
+    stage_lab, stage_paper, stage_live, stage_archive = st.tabs([
+        "1. 🧪 Laboratório de Estratégias",
+        "2. 📡 Teste em Tempo Real (API em OFF)",
+        "3. 🤖 Bot ON (Produção & VPS 24h)",
+        "🗄️ Arquivo Antigo (4 Ferramentas em OFF)",
+    ])
+else:
+    stage_lab, stage_paper, stage_live = st.tabs([
+        "1. 🧪 Laboratório de Estratégias",
+        "2. 📡 Teste em Tempo Real (API em OFF)",
+        "3. 🤖 Bot ON (Produção & VPS 24h)",
+    ])
+    stage_archive = None
+
+with stage_lab:
+    st.markdown("""
+    <div style="background:#ffffff;border:1px solid #e2e8f0;border-left:5px solid #4f46e5;
+                border-radius:12px;padding:16px 20px;margin-bottom:14px;
+                box-shadow:0 2px 10px rgba(15,23,42,0.04);">
+        <h3 style="margin:0 0 5px 0;color:#0f172a;font-size:1.2rem;">
+            🧪 Parte 1 — Laboratório de Estratégias (Dados Sintéticos & Passado Real)
+        </h3>
+        <p style="margin:0;color:#475569;font-size:0.9rem;line-height:1.5;">
+            Cria e testa estratégias em cenários inventados (<i>Lateralização Eterna, Alta, Baixa</i>) ou no histórico real
+            (<i>BTC, ETH, SOL</i>) usando o painel <b>💛 Centro de Comando Global</b> acima. Quando estiveres satisfeito com uma estratégia,
+            leva-a para a <b>Parte 2</b>.
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+    tab_trader_game, tab_auto_trainer = st.tabs([
+        "🎮 Simulador Principal (Sintético + Histórico Real)",
+        "🤖 Otimizador & Comparador Automático",
+    ])
+# Ação do Botão Principal do Backtester
+if run_button:
+    st.markdown("### 🚀 Recolhendo dados e processando simulação...")
+    progress_bar = st.progress(0)
+    # Obter dados da Binance
+    collector = DataCollector({'EXCHANGE_NAME': 'binance', 'SYMBOL': symbol, 'TIMEFRAME': timeframe})
+    progress_bar.progress(30)
+    df_ohlcv = collector.get_ohlcv(limit=limit_candles)
+    progress_bar.progress(60)
+    if df_ohlcv is not None and not df_ohlcv.empty:
+        # Criar backtester
+        backtester = Backtester(config, logger)
+        # Correr backtest
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        trades, capital_history = loop.run_until_complete(backtester.run_backtest(df_ohlcv))
+        metrics = backtester.get_performance_metrics()
+        progress_bar.progress(100)
+        progress_bar.empty()
+        # Guardar no session state para preservação
+        st.session_state.backtest_results = metrics
+        st.session_state.backtest_trades = trades
+        st.session_state.backtest_capital_history = capital_history
+        st.session_state.backtest_df = df_ohlcv
+        # st.rerun() removido para evitar loop infinito de re-execução em Streamlit pós-2025
+# ─── CLASSIFICADOR DE TIPO DE MERCADO (usando precos reais da Binance) ──────────
+def classify_market_type(prices_list):
+    """
+    Analisa uma lista de precos de fecho e classifica o tipo de mercado.
+    Usa as N velas disponiveis (todas as que foram carregadas da Binance).
+    Retorna dict com: type, type_pt, emoji, confidence, slope_pct, volatility_pct, range_pct
+    """
+    import numpy as np
+    if len(prices_list) < 10:
+        return {"type": "DESCONHECIDO", "type_pt": "Desconhecido", "emoji": "❓", "confidence": 0,
+                "slope_pct": 0, "volatility_pct": 0, "range_pct": 0}
+    prices_arr = np.array(prices_list, dtype=float)
+    # 1. Tendencia linear: inclinacao percentual total
+    p_start = float(np.mean(prices_arr[:max(1, len(prices_arr)//10)]))  # media dos primeiros 10%
+    p_end   = float(np.mean(prices_arr[-max(1, len(prices_arr)//10):]))  # media dos ultimos 10%
+    slope_pct = ((p_end - p_start) / p_start) * 100.0
+    # 2. Volatilidade: desvio padrao dos retornos diarios
+    returns = np.diff(prices_arr) / prices_arr[:-1]
+    volatility_pct = float(np.std(returns)) * 100.0
+    # 3. Range: amplitude total relativa
+    range_pct = float((np.max(prices_arr) - np.min(prices_arr)) / np.min(prices_arr)) * 100.0
+    # 4. Classificacao por regras
+    if volatility_pct > 4.0:
+        mtype = "CAOTICO"
+        mtype_pt = "Caótico / Hiper-Volátil"
+        emoji = "💥"
+        confidence = min(99, int(volatility_pct / 4.0 * 70))
+    elif slope_pct > 5.0:
+        mtype = "BULL"
+        mtype_pt = "Tendência de Alta (Bull)"
+        emoji = "🐂"
+        confidence = min(99, int(min(slope_pct, 30) / 30 * 100))
+    elif slope_pct < -5.0:
+        mtype = "BEAR"
+        mtype_pt = "Tendência de Baixa (Bear)"
+        emoji = "🐻"
+        confidence = min(99, int(min(abs(slope_pct), 30) / 30 * 100))
+    else:
+        mtype = "LATERAL"
+        mtype_pt = "Mercado Lateral / Range"
+        emoji = "↔️"
+        confidence = min(99, int((1 - abs(slope_pct) / 5.0) * 100))
+    return {
+        "type": mtype,
+        "type_pt": mtype_pt,
+        "emoji": emoji,
+        "confidence": confidence,
+        "slope_pct": round(slope_pct, 2),
+        "volatility_pct": round(volatility_pct, 3),
+        "range_pct": round(range_pct, 2),
+        "n_candles": len(prices_list)
+    }
+# ─────────────────────────────────────────────────────────────────────────────
+def _render_legacy_backtest():
+    global ta
+    with st.expander("ℹ️ Como funciona esta aba (Simulação & Gráficos Real)?", expanded=False):
+        st.markdown("""
+**Para que serve:** Testa uma estratégia no histórico real da Binance para ver exatamente onde o robô compraria, venderia e quanto teria ganho ou perdido (já com taxas, slippage e imposto).
+
+1. **Configurar (no topo):** Abre **💛 Centro de Comando Global & Configurações** para escolher a moeda (`BTC/USDT`), o timeframe (`1h`), a estratégia (`PAULO_GOLD`, `SMA_CROSSOVER`, `EMA_CROSSOVER`, etc.) e os limites de Stop Loss / Take Profit.
+2. **Deteção de Mercado:** Mostra se o período analisado foi de **Alta (Bull)**, **Baixa (Bear)**, **Lateral** ou **Caótico** e sugere Lagartas treinadas especialistas nesse mercado.
+3. **Sumário de Desempenho:** Apresenta Capital Final, Retorno Total, Taxa de Vitória, Max Drawdown, Sharpe/Sortino e Fator de Lucro.
+4. **Curva de Capital:** Compara a estratégia (linha azul) contra apenas comprar e segurar (*Buy & Hold*, linha tracejada).
+5. **Gráfico de Preço & Sinais:** Mostra o preço, as médias móveis e os troços a **verde vivo** onde o robô esteve em posição aberta.
+""")
+    if st.session_state.backtest_results is not None:
+        metrics = st.session_state.backtest_results
+        trades = st.session_state.backtest_trades
+        capital_history = st.session_state.backtest_capital_history
+        df_ohlcv = st.session_state.backtest_df
+        # ─── BANNER: DETEÇÃO AUTOMÁTICA DO TIPO DE MERCADO ──────────────────────────
+        _real_prices = df_ohlcv["close"].tolist()
+        _mkt = classify_market_type(_real_prices)
+        # Encontrar lagartas recomendadas para este tipo de mercado
+        _habitat_map = {
+            "BULL":    ["Alta", "Bull"],
+            "BEAR":    ["Baixa", "Bear"],
+            "LATERAL": ["Lateral", "Range"],
+            "CAOTICO": ["Caótico", "Chaos"]
+        }
+        _matching_caterpillars = []
+        for _cn, _cdna in st.session_state.game_trained_caterpillars.items():
+            _habitat = _cdna.get("market_habitat", "")
+            _keywords = _habitat_map.get(_mkt["type"], [])
+            if any(kw in _habitat for kw in _keywords):
+                _matching_caterpillars.append(_cn)
+        # Cores por tipo de mercado
+        _mkt_colors = {
+            "BULL":    ("#16a34a", "#dcfce7"),  # verde
+            "BEAR":    ("#dc2626", "#fee2e2"),  # vermelho
+            "LATERAL": ("#2563eb", "#dbeafe"),  # azul
+            "CAOTICO": ("#9333ea", "#f3e8ff"),  # roxo
+        }
+        _c_border, _c_bg = _mkt_colors.get(_mkt["type"], ("#6b7280", "#f9fafb"))
+        st.markdown(f"""<div style="border-left: 5px solid {_c_border}; background: {_c_bg}; padding: 12px 18px;
+border-radius: 8px; margin-bottom: 16px;">
+<div style="font-size: 1.1rem; font-weight: 700; color: {_c_border};">
+{_mkt['emoji']} Mercado Detetado: {_mkt['type_pt']}
+<span style="font-size:0.85rem; font-weight:400; margin-left:12px;">
+Confiança: {_mkt['confidence']}% · {_mkt['n_candles']} velas analisadas
+</span>
+</div>
+<div style="font-size: 0.85rem; margin-top: 4px; color: #374151;">
+📈 Inclinação: <b>{_mkt['slope_pct']:+.2f}%</b> &nbsp;|&nbsp;
+📊 Volatilidade: <b>{_mkt['volatility_pct']:.3f}%/vela</b> &nbsp;|&nbsp;
+📏 Amplitude: <b>{_mkt['range_pct']:.1f}%</b>
+</div>
+</div>
+""", unsafe_allow_html=True)
+        # Mostrar lagartas recomendadas (se existirem)
+        if _matching_caterpillars:
+            _rec_col1, _rec_col2 = st.columns([3, 1])
+            with _rec_col1:
+                _names_str = ", ".join([f"🎓 {n}" for n in _matching_caterpillars])
+                st.info(f"**Especialistas disponíveis para este mercado:** {_names_str}")
+            with _rec_col2:
+                if len(_matching_caterpillars) == 1 and st.button(
+                    f"⚡ Ativar '{_matching_caterpillars[0]}'",
+                    key="auto_activate_caterpillar",
+                    type="primary",
+                    width='stretch'
+                ):
+                    st.session_state.strategy_type_val = f"🎓 {_matching_caterpillars[0]}"
+                    st.rerun()
+        # ─────────────────────────────────────────────────────────────────────────────
+        # Calcular as Médias no histórico de acordo com a estratégia ativa para exibição visual
+        df_visualization = df_ohlcv.copy()
+        if strategy_type.startswith("🎓"):
+            # Para a lagarta, mostramos as médias dos seus sensores IA
+            import ta
+            df_visualization['Line_1'] = ta.trend.sma_indicator(df_visualization['close'], window=5)
+            df_visualization['Line_2'] = ta.trend.sma_indicator(df_visualization['close'], window=12)
+            df_visualization['Line_3'] = ta.trend.sma_indicator(df_visualization['close'], window=20)
+            line1_name = "MA Rápida (5)"
+            line2_name = "MA Lenta (12)"
+            line3_name = "MA Chão (200)"
+            line1_color = "#10b981"
+            line2_color = "#3b82f6"
+            line3_color = "#f59e0b"
+        elif strategy_type == "PAULO_GOLD":
+            df_visualization['Line_1'] = ta.trend.sma_indicator(df_visualization['close'], window=short_window)
+            df_visualization['Line_2'] = ta.trend.sma_indicator(df_visualization['close'], window=long_window)
+            line1_name = f"MǸdia Curta ({short_window})"
+            line2_name = f"MǸdia Lenta ({long_window})"
+            line1_color = "#0ea5e9"
+            line2_color = "#f97316"
+        elif strategy_type == "SMA_CROSSOVER":
+            df_visualization['Line_1'] = ta.trend.sma_indicator(df_visualization['close'], window=short_window)
+            df_visualization['Line_2'] = ta.trend.sma_indicator(df_visualization['close'], window=long_window)
+            line1_name = f"SMA Curta ({short_window})"
+            line2_name = f"SMA Lenta ({long_window})"
+            line1_color = "#0ea5e9"
+            line2_color = "#f97316"
+        elif strategy_type == "EMA_CROSSOVER":
+            df_visualization['Line_1'] = ta.trend.ema_indicator(df_visualization['close'], window=short_window)
+            df_visualization['Line_2'] = ta.trend.ema_indicator(df_visualization['close'], window=long_window)
+            line1_name = f"EMA Curta ({short_window})"
+            line2_name = f"EMA Lenta ({long_window})"
+            line1_color = "#3b82f6"
+            line2_color = "#ec4899"
+        elif strategy_type == "BB_RSI_REVERSION" or "Reversão à Média" in str(strategy_type) or "Bollinger" in str(strategy_type):
+            _bb = ta.volatility.BollingerBands(close=df_visualization['close'], window=20, window_dev=2.0)
+            df_visualization['Line_1'] = _bb.bollinger_hband()
+            df_visualization['Line_2'] = _bb.bollinger_lband()
+            line1_name = "Banda Superior (BB 20)"
+            line2_name = "Banda Inferior (BB 20)"
+            line1_color = "#ef4444"
+            line2_color = "#10b981"
+        else:
+            # MULTIPOINT_VECTOR
+            df_visualization['Line_1'] = ta.trend.sma_indicator(df_visualization['close'], window=p2_window)
+            df_visualization['Line_2'] = ta.trend.sma_indicator(df_visualization['close'], window=p3_window)
+            df_visualization['Line_3'] = ta.trend.sma_indicator(df_visualization['close'], window=p4_window)
+            df_visualization['Line_4'] = ta.trend.sma_indicator(df_visualization['close'], window=p5_window)
+            line1_name = f"P2 - Média Rápida ({p2_window})"
+            line2_name = f"P3 - Média Curta ({p3_window})"
+            line3_name = f"P4 - Média Média ({p4_window})"
+            line4_name = f"P5 - Média Longa ({p5_window})"
+            line1_color = "#0ea5e9"
+            line2_color = "#f97316" 
+        # Calcular a primeira linha média que o preço encontra (a mais próxima)
+        if strategy_type in ["SMA_CROSSOVER", "EMA_CROSSOVER", "PAULO_GOLD"]:
+            df_visualization['First_Line'] = df_visualization.apply(
+                lambda row: max(row['Line_1'], row['Line_2']) if (pd.notna(row['Line_1']) and pd.notna(row['Line_2']) and row['close'] >= max(row['Line_1'], row['Line_2'])) else row['close'],
+                axis=1
+            )
+        # --- EXIBIÇÃO DE MÉTRICAS (METRICS CARDS) ---
+        st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+        st.markdown('<h4 style="margin-top:0;">📊 Sumário de Desempenho</h4>', unsafe_allow_html=True)
+        total_pnl = metrics["total_pnl"]
+        pnl_class = "text-green" if total_pnl >= 0 else "text-red"
+        pnl_sign = "+" if total_pnl >= 0 else ""
+        st.markdown(f"""<div class="metric-container">
+<div class="metric-card">
+<div class="metric-label">Capital Final</div>
+<div class="metric-value text-cyan">{metrics['final_capital']:.2f} EUR</div>
+</div>
+<div class="metric-card">
+<div class="metric-label">Retorno Total</div>
+<div class="metric-value {pnl_class}">{pnl_sign}{total_pnl:.2f} EUR ({pnl_sign}{metrics['total_return_pct']:.2f}%)</div>
+</div>
+<div class="metric-card">
+<div class="metric-label">Taxa de Vitória</div>
+<div class="metric-value text-purple">{metrics['win_rate']*100:.1f}%</div>
+</div>
+<div class="metric-card">
+<div class="metric-label">Max Drawdown</div>
+<div class="metric-value text-red">{metrics['max_drawdown_pct']:.2f}%</div>
+</div>
+<div class="metric-card">
+<div class="metric-label">Sharpe / Sortino</div>
+<div class="metric-value text-orange">{metrics['sharpe_ratio']:.2f} / {metrics['sortino_ratio']:.2f}</div>
+</div>
+<div class="metric-card">
+<div class="metric-label">Fator de Lucro</div>
+<div class="metric-value text-cyan">{metrics['profit_factor']:.2f}</div>
+</div>
+</div>
+""", unsafe_allow_html=True)
+        # Outras métricas rápidas
+        st.markdown(
+            f"**Total de Operações:** {metrics['num_trades']} | "
+            f"**Vitórias:** <span class='text-green'>{metrics['num_wins']}</span> ✅ | "
+            f"**Derrotas:** <span class='text-red'>{metrics['num_losses']}</span> ❌",
+            unsafe_allow_html=True
+        )
+        st.markdown('</div>', unsafe_allow_html=True)
+        # --- GRÁFICOS INTERATIVOS ---
+        # 1. Curva de Capital (Equity Curve)
+        st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+        st.markdown('<h4>📈 Curva de Capital (Equity Curve)</h4>', unsafe_allow_html=True)
+        dates_chart = df_ohlcv.index
+        capital_padded = capital_history[:len(dates_chart)]
+        while len(capital_padded) < len(dates_chart):
+            capital_padded.append(capital_padded[-1])
+        fig_equity = go.Figure()
+        # Equity Curve
+        fig_equity.add_trace(go.Scatter(
+            x=dates_chart,
+            y=capital_padded,
+            mode='lines',
+            name='Capital (EUR)',
+            line=dict(color='#0284c7', width=3),
+            fill='tozeroy',
+            fillcolor='rgba(2, 132, 199, 0.04)'
+        ))
+        # Preço do Ativo de Fundo (Normalizado para Capital Inicial)
+        price_normalized = df_ohlcv['close'] / df_ohlcv['close'].iloc[0] * initial_capital
+        fig_equity.add_trace(go.Scatter(
+            x=dates_chart,
+            y=price_normalized,
+            mode='lines',
+            name=f'Estratégia Buy & Hold {symbol}',
+            line=dict(color='rgba(71, 85, 105, 0.4)', width=1.5, dash='dash')
+        ))
+        fig_equity.update_layout(
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            margin=dict(l=0, r=0, t=20, b=0),
+            legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01),
+            xaxis=dict(gridcolor='rgba(0,0,0,0.05)', tickfont=dict(color='#475569')),
+            yaxis=dict(gridcolor='rgba(0,0,0,0.05)', tickfont=dict(color='#475569')),
+            height=350
+        )
+        st.plotly_chart(fig_equity, width='stretch')
+        st.markdown('</div>', unsafe_allow_html=True)
+        # 2. Gráfico Interativo de Sinais no Preço do Ativo + Médias Móveis (SMA)
+        st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+        st.markdown('<h4>🎯 Justificação Visual: Preço & Cruzamento das Médias Móveis (SMA)</h4>', unsafe_allow_html=True)
+        st.markdown(
+            "💡 **Por que o robô entra e sai?** O robô compra quando a linha azul clara (Curta) cruza **acima** da laranja (Lenta). "
+            "Ele vende no cruzamento inverso, ou quando bate no seu Stop Loss automático (limite de segurança) ou Take Profit (alvo de lucro)."
+        )
+        fig_prices = go.Figure()
+        if strategy_type in ["SMA_CROSSOVER", "EMA_CROSSOVER", "PAULO_GOLD"]:
+            fig_prices.add_trace(go.Scatter(
+                x=df_visualization.index,
+                y=df_visualization['First_Line'],
+                mode='lines',
+                line=dict(color='rgba(0,0,0,0)', width=0),
+                showlegend=False,
+                hoverinfo='skip'
+            ))
+        # Linha do Preço Real do Ativo - INTERATIVA (Unified Hover)
+        fig_prices.add_trace(go.Scatter(
+            x=df_visualization.index,
+            y=df_visualization['close'],
+            mode='lines',
+            name=f'Preço {symbol}',
+            line=dict(color='rgba(71, 85, 105, 0.25)', width=1.5),
+            fill='tonexty' if strategy_type in ["SMA_CROSSOVER", "EMA_CROSSOVER", "PAULO_GOLD"] else None,
+            fillcolor='rgba(14, 165, 233, 0.06)' if strategy_type in ["SMA_CROSSOVER", "EMA_CROSSOVER", "PAULO_GOLD"] else None,
+            hovertemplate='Preço: %{y:.2f} EUR<extra></extra>'
+        ))
+        # Segmentos verde lagarta vibrante (#22c55e) ligando a Entrada à Saída de cada trade real
+        for idx_tr, trade in enumerate(trades):
+            trade_mask = (df_visualization.index >= trade['entry_timestamp']) & (df_visualization.index <= trade['exit_timestamp'])
+            trade_segment = df_visualization[trade_mask]
+            if not trade_segment.empty:
+                show_legend = (idx_tr == 0)
+                fig_prices.add_trace(go.Scatter(
+                    x=trade_segment.index,
+                    y=trade_segment['close'],
+                    mode='lines',
+                    name='Lagarta Ativa (Trade Open)',
+                    line=dict(color='#22c55e', width=3.5),
+                    showlegend=show_legend,
+                    hovertemplate='Preço Ativo: %{y:.2f} EUR<extra></extra>'
+                ))
+        # Linhas das médias da estratégia correspondente
+        fig_prices.add_trace(go.Scatter(
+            x=df_visualization.index,
+            y=df_visualization['Line_1'],
+            mode='lines',
+            name=line1_name,
+            line=dict(color=line1_color if strategy_type != "MULTIPOINT_VECTOR" else "#0ea5e9", width=2),
+            hovertemplate=f'{line1_name}: %{{y:.2f}} EUR<extra></extra>'
+        ))
+        fig_prices.add_trace(go.Scatter(
+            x=df_visualization.index,
+            y=df_visualization['Line_2'],
+            mode='lines',
+            name=line2_name,
+            line=dict(color=line2_color if strategy_type != "MULTIPOINT_VECTOR" else "#f97316", width=2),
+            hovertemplate=f'{line2_name}: %{{y:.2f}} EUR<extra></extra>'
+        ))
+        
+        if strategy_type == "MULTIPOINT_VECTOR":
+            fig_prices.add_trace(go.Scatter(
+                x=df_visualization.index,
+                y=df_visualization['Line_3'],
+                mode='lines',
+                name=line3_name,
+                line=dict(color='#10b981', width=1.5),
+                hovertemplate=f'{line3_name}: %{{y:.2f}} EUR<extra></extra>'
+            ))
+            fig_prices.add_trace(go.Scatter(
+                x=df_visualization.index,
+                y=df_visualization['Line_4'],
+                mode='lines',
+                name=line4_name,
+                line=dict(color='#8b5cf6', width=1.5),
+                hovertemplate=f'{line4_name}: %{{y:.2f}} EUR<extra></extra>'
+            ))
+        # Filtrar e agrupar marcas de BUY e SELL/SL/TP com explicações pedagógicas completas
+        buy_x, buy_y, buy_text = [], [], []
+        sell_x, sell_y, sell_text = [], [], []
+        for trade in trades:
+            # Entrada (BUY)
+            buy_x.append(trade['entry_timestamp'])
+            buy_y.append(trade['entry_price'])
+            invested_val = trade['entry_price'] * trade['quantity']
+            
+            # Obter os valores dos pontos no instante da compra
+            p1_val = trade['entry_price']
+            p2_val = p3_val = p4_val = p5_val = 0
+            try:
+                row_val = df_visualization.loc[trade['entry_timestamp']]
+                p2_val = row_val['Line_1'] if 'Line_1' in row_val and not pd.isna(row_val['Line_1']) else 0
+                p3_val = row_val['Line_2'] if 'Line_2' in row_val and not pd.isna(row_val['Line_2']) else 0
+                p4_val = row_val['Line_3'] if 'Line_3' in row_val and not pd.isna(row_val['Line_3']) else 0
+                p5_val = row_val['Line_4'] if 'Line_4' in row_val and not pd.isna(row_val['Line_4']) else 0
+            except Exception:
+                pass
+                
+            points_info = f"P1 (Preço): {p1_val:.2f} EUR<br>P2 (Média): {p2_val:.2f} EUR<br>P3 (Média): {p3_val:.2f} EUR<br>"
+            if strategy_type == "MULTIPOINT_VECTOR":
+                points_info = (
+                    f"P1 (Preço): {p1_val:.2f} EUR<br>"
+                    f"P2 (Média {short_window}): {p2_val:.2f} EUR<br>"
+                    f"P3 (Média {long_window}): {p3_val:.2f} EUR<br>"
+                    f"P4 (Média {p4_window if 'p4_window' in locals() else 50}): {p4_val:.2f} EUR<br>"
+                )
+                if p5_filter_active or entry_mode == "5PONTOS":
+                    points_info += f"P5 (Média {p5_window if 'p5_window' in locals() else 200}): {p5_val:.2f} EUR<br>"
+            
+            buy_text.append(
+                f"📥 <b>ENTRADA (BUY)</b><br>"
+                f"<b>Data</b>: {trade['entry_timestamp'].strftime('%Y-%m-%d %H:%M')}<br>"
+                f"<b>Preço Compra</b>: {trade['entry_price']:.2f} EUR<br>"
+                f"<b>Quantidade</b>: {trade['quantity']:.6f}<br>"
+                f"<b>Valor Investido</b>: {invested_val:.2f} EUR<br><br>"
+                f"<b>Estado dos Pontos de Medição:</b><br>{points_info}<br>"
+                f"<b>Justificação</b>: Gatilho da estratégia ativado! Confirmação de tendência."
+            )
+            # Saída (SELL / STOP LOSS / TAKE PROFIT / TRAILING STOP)
+            sell_x.append(trade['exit_timestamp'])
+            sell_y.append(trade['exit_price'])
+            pnl_sign = "+" if trade['pnl'] >= 0 else ""
+            pnl_pct_sign = "+" if trade['pnl_pct'] >= 0 else ""
+            if trade['reason'] == "STOP_LOSS":
+                justification = f"O preço caiu abaixo do limite de segurança ({stop_loss_pct}%). Operação cortada para proteger o seu capital."
+            elif trade['reason'] == "TRAILING_STOP":
+                justification = f"O preço bateu no seu <b>Stop Loss Móvel (Trailing Stop)</b>, que subiu acompanhando a alta para proteger os lucros da banca antes da queda!"
+            elif trade['reason'] == "TAKE_PROFIT":
+                justification = f"O preço subiu e atingiu o seu alvo de ganho ideal. Lucro embolsado com sucesso."
+            elif trade['reason'] == "STRATEGY_SELL":
+                justification = f"Saída executada por: {trade.get('reason', 'Gatilho de saída da estratégia.')}"
+            else:
+                justification = "Fim do período de testes. Posição fechada de forma virtual ao preço final de mercado para fins de cálculo."
+            # Obter os valores dos pontos no instante da venda
+            p1_exit = trade['exit_price']
+            p2_exit = p3_exit = p4_exit = p5_exit = 0
+            try:
+                row_exit = df_visualization.loc[trade['exit_timestamp']]
+                p2_exit = row_exit['Line_1'] if 'Line_1' in row_exit and not pd.isna(row_exit['Line_1']) else 0
+                p3_exit = row_exit['Line_2'] if 'Line_2' in row_exit and not pd.isna(row_exit['Line_2']) else 0
+                p4_exit = row_exit['Line_3'] if 'Line_3' in row_exit and not pd.isna(row_exit['Line_3']) else 0
+                p5_exit = row_exit['Line_4'] if 'Line_4' in row_exit and not pd.isna(row_exit['Line_4']) else 0
+            except Exception:
+                pass
+                
+            points_exit_info = f"P1 (Preço): {p1_exit:.2f} EUR<br>P2 (Média): {p2_exit:.2f} EUR<br>P3 (Média): {p3_exit:.2f} EUR<br>"
+            if strategy_type == "MULTIPOINT_VECTOR":
+                points_exit_info = (
+                    f"P1 (Preço): {p1_exit:.2f} EUR<br>"
+                    f"P2 (Média {short_window}): {p2_exit:.2f} EUR<br>"
+                    f"P3 (Média {long_window}): {p3_exit:.2f} EUR<br>"
+                    f"P4 (Média {p4_window if 'p4_window' in locals() else 50}): {p4_exit:.2f} EUR<br>"
+                )
+                if p5_filter_active or entry_mode == "5PONTOS":
+                    points_exit_info += f"P5 (Média {p5_window if 'p5_window' in locals() else 200}): {p5_exit:.2f} EUR<br>"
+            sell_text.append(
+                f"❌ <b>SAÍDA ({trade['reason']})</b><br>"
+                f"<b>Data</b>: {trade['exit_timestamp'].strftime('%Y-%m-%d %H:%M')}<br>"
+                f"<b>Preço Venda (P1)</b>: {trade['exit_price']:.2f} EUR<br>"
+                f"<b>Resultado</b>: {pnl_sign}{trade['pnl']:.2f} EUR ({pnl_pct_sign}{trade['pnl_pct']:.2f}%)<br><br>"
+                f"<b>Estado dos Pontos de Medição:</b><br>{points_exit_info}<br>"
+                f"<b>Justificação</b>: {justification}"
+            )
+        # Adicionar marcadores verdes de compra
+        if buy_x:
+            fig_prices.add_trace(go.Scatter(
+                x=buy_x,
+                y=buy_y,
+                mode='markers',
+                name='Entradas (BUY)',
+                marker=dict(symbol='triangle-up', size=14, color='#10b981', line=dict(color='#047857', width=1.5)),
+                text=buy_text,
+                hoverinfo='text'
+            ))
+        # Adicionar marcadores vermelhos de venda
+        if sell_x:
+            fig_prices.add_trace(go.Scatter(
+                x=sell_x,
+                y=sell_y,
+                mode='markers',
+                name='Saídas (SELL/SL/TP)',
+                marker=dict(symbol='triangle-down', size=14, color='#ef4444', line=dict(color='#b91c1c', width=1.5)),
+                text=sell_text,
+                hoverinfo='text'
+            ))
+        fig_prices.update_layout(
+            hovermode='x unified', # Guia vertical unificada com todos os valores das médias
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            margin=dict(l=0, r=0, t=20, b=0),
+            legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01),
+            xaxis=dict(gridcolor='rgba(0,0,0,0.05)', tickfont=dict(color='#475569')),
+            yaxis=dict(gridcolor='rgba(0,0,0,0.05)', tickfont=dict(color='#475569')),
+            height=400
+        )
+        st.plotly_chart(fig_prices, width='stretch')
+        st.caption("💡 Dica: Passe com o rato por cima de qualquer ponto do gráfico para ver a guia vertical unificada com o preço e o valor exato das duas médias móveis!")
+        st.markdown('</div>', unsafe_allow_html=True)
+        # --- TABELA DE OPERAÇÕES ---
+        st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+        st.markdown('<h4>📜 Histórico de Ordens Efetuadas</h4>', unsafe_allow_html=True)
+        if trades:
+            trades_df = pd.DataFrame(trades)
+            # Cálculo dinâmico direto na UI para contornar qualquer bug de cache
+            trades_df['position_value'] = trades_df['entry_price'] * trades_df['quantity']
+            trades_df['capital_after'] = initial_capital + trades_df['pnl'].cumsum()
+            trades_df_display = trades_df[[
+                'entry_timestamp', 'exit_timestamp', 'action', 'entry_price', 'exit_price', 'quantity', 'position_value', 'pnl', 'pnl_pct', 'capital_after', 'reason'
+            ]].copy()
+            trades_df_display.columns = [
+                'Entrada', 'Saída', 'Ação', 'Preço Entrada', 'Preço Saída', 'Quantidade', 'Valor Investido (EUR)', 'PnL (EUR)', 'Retorno (%)', 'Saldo da Banca (EUR)', 'Motivo Fecho'
+            ]
+            def color_pnl(val):
+                color = '#059669' if val >= 0 else '#e11d48'
+                return f'color: {color}; font-weight: bold;'
+            st.dataframe(
+                trades_df_display.style.map(color_pnl, subset=['PnL (EUR)', 'Retorno (%)'])
+                .format({'Preço Entrada': '{:.2f}', 'Preço Saída': '{:.2f}', 'Quantidade': '{:.6f}', 'Valor Investido (EUR)': '{:.2f}', 'PnL (EUR)': '{:+.2f}', 'Retorno (%)': '{:+.2f}%', 'Saldo da Banca (EUR)': '{:.2f}'}),
+                width='stretch'
+            )
+        else:
+            st.info("Nenhuma operação foi efetuada durante esta simulação. Tente ajustar os parâmetros das médias móveis ou selecione um número maior de candles.")
+        st.markdown('</div>', unsafe_allow_html=True)
+    else:
+        # Estado Inicial da UI
+        st.markdown('<div class="glass-card" style="text-align: center; padding: 50px 20px;">', unsafe_allow_html=True)
+        st.markdown('<h3 style="margin-top:0;">🚀 Pronto para Começar!</h3>', unsafe_allow_html=True)
+        st.markdown(
+            'Configure os parâmetros de estratégia e gestão de risco no **painel esquerdo** '
+            'e carregue no botão **"Executar Simulação"** para correr o backtest com dados de mercado reais da Binance.',
+            unsafe_allow_html=True
+        )
+        st.markdown('</div>', unsafe_allow_html=True)
+# --- CONTEÚDO DA ABA 2: OTIMIZADOR DE PARÂMETROS (ARQUIVO OFF) ---
+def _render_legacy_simulator():
+    global np, logging, DataCollector
+    with st.expander("ℹ️ Como funciona esta aba (Laboratório de Simulação & Otimização)?", expanded=False):
+        st.markdown("""
+**Para que serve:** É o teu campo de treino controlado. Podes criar mercados artificiais (Alta, Baixa, Lateral ou Caótico) ou usar uma moeda real para descobrir qual a lógica e os parâmetros que funcionam melhor.
+
+1. **Fonte de Mercado:** Escolhe **Mercado Sintético** (para testar cenários específicos de 50 a 500 velas) ou **Moeda Real** (para usar os dados da Binance).
+2. **Simulação & Velas:** Mostra logo o Retorno, Trades, Win Rate e Drawdown da estratégia atual num gráfico de velas (*Candlestick*).
+3. **📊 Matriz de Lógicas da Lagarta (9 Lógicas):** Compara combinações de entrada (`3P/4P/5P`) e saída (`P2/P3/P4`) e permite clicar em **🏆 Aplicar Lógica Campeã**.
+4. **⚡ Otimizador de Parâmetros Integrado:** Testa várias combinações de Médias, Stop Loss e Take Profit neste mercado e permite clicar em **🏆 Aplicar Melhor Configuração Otimizada (Top 1)** no painel principal.
+""")
+    st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+    st.markdown('<h3>🔮 Laboratório de Simulação & Otimização Unificado</h3>', unsafe_allow_html=True)
+    st.markdown("Este laboratório permite-lhe testar teorias, visualizar o comportamento dos 5 pontos (com ou sem Reversão à Média) e executar o **Otimizador de Parâmetros integrado** para encontrar a configuração perfeita para qualquer bioma de mercado.")
+    
+    col_src1, col_src2 = st.columns([2, 3])
+    with col_src1:
+        market_source = st.radio(
+            "Fonte de Mercado para Testes:",
+            ["SINTETICO", "MOEDA_REAL"],
+            format_func=lambda x: "🔮 Mercado Sintético (Passeio Aleatório / Browniano)" if x == "SINTETICO" else f"📈 Exemplo de Moeda Real da Barra Lateral ({symbol})",
+            help="Escolha se deseja testar as estratégias num mercado gerado artificialmente ou usar dados históricos de uma moeda real."
+        )
+    sim_df = None
+    if market_source == "SINTETICO":
+        st.markdown("##### ⚙️ Configuração do Bioma de Teste Sintético")
+        col_s1, col_s2 = st.columns(2)
+        with col_s1:
+            market_type_sim = st.selectbox(
+                "Tipo de Mercado Simulado",
+                ["Tendência de Alta Forte (Bull Market)", "Tendência de Baixa Forte (Bear Market)", "Mercado Lateral / Range (Consolidação)", "Hiper-Volátil Caótico (Chaos Market)"]
+            )
+        with col_s2:
+            sim_steps = st.slider("Número de Velas (Passos)", 50, 500, 250, step=10, help="Quantidade de velas do gráfico sintético.")
+            
+        if "Alta" in market_type_sim or "Bull" in market_type_sim:
+            drift = 0.5; volatility = 2.0
+        elif "Baixa" in market_type_sim or "Bear" in market_type_sim:
+            drift = -0.5; volatility = 2.0
+        elif "Lateral" in market_type_sim:
+            drift = 0.0; volatility = 1.0
+        else:
+            drift = 0.0; volatility = 6.0
+            
+        st.button("🔄 Gerar e Testar em Mercado Sintético Novo")
+        
+        np.random.seed(int(drift * 100 + volatility * 1000 + sim_steps))
+        dt = 0.1
+        prices = [100.0]
+        for _ in range(sim_steps - 1):
+            change = prices[-1] * (drift / 100.0 * dt + volatility / 100.0 * np.sqrt(dt) * np.random.normal())
+            prices.append(max(5.0, prices[-1] + change))
+            
+        dates = pd.date_range(start="2026-01-01", periods=sim_steps, freq="4h")
+        sim_df = pd.DataFrame({
+            'open': prices,
+            'high': [p * (1 + np.abs(np.random.normal(0, 0.002))) for p in prices],
+            'low': [p * (1 - np.abs(np.random.normal(0, 0.002))) for p in prices],
+            'close': prices,
+            'volume': [1000] * sim_steps
+        }, index=dates)
+        
+        sim_df['high'] = sim_df[['open', 'close', 'high']].max(axis=1)
+        sim_df['low'] = sim_df[['open', 'close', 'low']].min(axis=1)
+        
+    else:
+        if 'backtest_df' in st.session_state and st.session_state.backtest_df is not None:
+            sim_df = st.session_state.backtest_df.copy()
+            st.info(f"📈 Usando dados históricos de **{symbol} ({timeframe})** com {len(sim_df)} velas como base de testes!")
+        else:
+            st.warning("⚠️ Não foram encontrados dados reais na memória. Puxando dados rápidos da Binance...")
+            collector = DataCollector({'EXCHANGE_NAME': 'binance', 'SYMBOL': symbol, 'TIMEFRAME': timeframe})
+            sim_df = collector.get_ohlcv(limit=limit_candles)
+            if sim_df is not None and not sim_df.empty:
+                st.session_state.backtest_df = sim_df
+                st.success("Dados reais carregados com sucesso!")
+    if sim_df is not None and not sim_df.empty:
+        st.session_state.sim_df_val = sim_df
+        
+        # Caching inteligente do backtest para evitar execução em loop nas atualizações de página
+        run_sim = True
+        current_config_hash = hash(str(config))
+        if "sim_metrics" in st.session_state and st.session_state.get("sim_config_hash") == current_config_hash:
+            run_sim = False
+            
+        if run_sim:
+            sim_config = config.copy()
+            sim_config["INITIAL_CAPITAL"] = 100.0
+            
+            sim_bt = Backtester(sim_config, logger)
+            sim_trades, sim_cap_history = asyncio.run(sim_bt.run_backtest(sim_df))
+            sim_metrics = sim_bt.get_performance_metrics()
+            
+            st.session_state.sim_metrics = sim_metrics
+            st.session_state.sim_trades = sim_trades
+            st.session_state.sim_cap_history = sim_cap_history
+            st.session_state.sim_config_hash = current_config_hash
+        else:
+            sim_metrics = st.session_state.sim_metrics
+            sim_trades = st.session_state.sim_trades
+            sim_cap_history = st.session_state.sim_cap_history
+        
+        col_m1, col_m2, col_m3, col_m4 = st.columns(4)
+        with col_m1:
+            st.metric("Retorno Simulação", f"{sim_metrics['total_return_pct']:.2f}%")
+        with col_m2:
+            st.metric("Trades Executados", f"{sim_metrics['num_trades']}")
+        with col_m3:
+            st.metric("Win Rate", f"{sim_metrics['win_rate']*100:.1f}%")
+        with col_m4:
+            st.metric("Max Drawdown", f"{sim_metrics['max_drawdown_pct']:.2f}%")
+            
+        sim_viz = sim_df.copy()
+        if strategy_type == "PAULO_GOLD":
+            sim_viz['Line_1'] = ta.trend.sma_indicator(sim_viz['close'], window=short_window)
+            sim_viz['Line_2'] = ta.trend.sma_indicator(sim_viz['close'], window=long_window)
+            l1_n, l2_n = f"MǸdia {short_window}", f"MǸdia {long_window}"
+        elif strategy_type == "SMA_CROSSOVER":
+            sim_viz['Line_1'] = ta.trend.sma_indicator(sim_viz['close'], window=short_window)
+            sim_viz['Line_2'] = ta.trend.sma_indicator(sim_viz['close'], window=long_window)
+            l1_n, l2_n = f"SMA {short_window}", f"SMA {long_window}"
+        elif strategy_type == "EMA_CROSSOVER":
+            sim_viz['Line_1'] = ta.trend.ema_indicator(sim_viz['close'], window=short_window)
+            sim_viz['Line_2'] = ta.trend.ema_indicator(sim_viz['close'], window=long_window)
+            l1_n, l2_n = f"EMA {short_window}", f"EMA {long_window}"
+        elif strategy_type == "BB_RSI_REVERSION" or "Reversão à Média" in str(strategy_type) or "Bollinger" in str(strategy_type):
+            _bb_s = ta.volatility.BollingerBands(close=sim_viz['close'], window=20, window_dev=2.0)
+            sim_viz['Line_1'] = _bb_s.bollinger_hband()
+            sim_viz['Line_2'] = _bb_s.bollinger_lband()
+            l1_n, l2_n = "BB Superior (20)", "BB Inferior (20)"
+        else:
+            sim_viz['Line_1'] = ta.trend.sma_indicator(sim_viz['close'], window=p2_window)
+            sim_viz['Line_2'] = ta.trend.sma_indicator(sim_viz['close'], window=p3_window)
+            sim_viz['Line_3'] = ta.trend.sma_indicator(sim_viz['close'], window=p4_window)
+            if p5_filter_active or entry_mode == "5PONTOS":
+                sim_viz['Line_4'] = ta.trend.sma_indicator(sim_viz['close'], window=p5_window)
+            l1_n, l2_n, l3_n = f"P2 ({p2_window})", f"P3 ({p3_window})", f"P4 ({p4_window})"
+            l4_n = f"P5 ({p5_window})" if (p5_filter_active or entry_mode == "5PONTOS") else None
+            
+        # Calcular a primeira linha média que o preço encontra (a mais próxima)
+        if strategy_type in ["SMA_CROSSOVER", "EMA_CROSSOVER", "PAULO_GOLD"]:
+            sim_viz['First_Line'] = sim_viz.apply(
+                lambda row: max(row['Line_1'], row['Line_2']) if (pd.notna(row['Line_1']) and pd.notna(row['Line_2']) and row['close'] >= max(row['Line_1'], row['Line_2'])) else row['close'],
+                axis=1
+            )
+        fig_sim = go.Figure()
+        if strategy_type in ["SMA_CROSSOVER", "EMA_CROSSOVER", "PAULO_GOLD"]:
+            fig_sim.add_trace(go.Scatter(
+                x=sim_viz.index,
+                y=sim_viz['First_Line'],
+                mode='lines',
+                line=dict(color='rgba(0,0,0,0)', width=0),
+                showlegend=False,
+                hoverinfo='skip'
+            ))
+        
+        # Gerar OHLC pseudo-realista se faltar open, high, low
+        if 'open' not in sim_viz.columns:
+            import numpy as np
+            np.random.seed(42)
+            sim_viz['open'] = sim_viz['close'] - np.random.normal(0, 0.2, len(sim_viz))
+            sim_viz['high'] = np.maximum(sim_viz['open'], sim_viz['close']) + np.abs(np.random.normal(0, 0.2, len(sim_viz)))
+            sim_viz['low'] = np.minimum(sim_viz['open'], sim_viz['close']) - np.abs(np.random.normal(0, 0.2, len(sim_viz)))
+        fig_sim.add_trace(go.Candlestick(
+            x=sim_viz.index,
+            open=sim_viz['open'],
+            high=sim_viz['high'],
+            low=sim_viz['low'],
+            close=sim_viz['close'],
+            name='Velas',
+            increasing_line_color='#22c55e',
+            decreasing_line_color='#ef4444'
+        ))
+        fig_sim.update_layout(xaxis_rangeslider_visible=False)
+        
+        for idx_s, t_s in enumerate(sim_trades):
+            trade_mask = (sim_viz.index >= t_s['entry_timestamp']) & (sim_viz.index <= t_s['exit_timestamp'])
+            trade_segment = sim_viz[trade_mask]
+            if not trade_segment.empty:
+                show_legend_s = (idx_s == 0)
+                fig_sim.add_trace(go.Scatter(
+                    x=trade_segment.index,
+                    y=trade_segment['close'],
+                    mode='lines',
+                    name='Lagarta Ativa (Trade Open)',
+                    line=dict(color='#22c55e', width=3.5),
+                    showlegend=show_legend_s,
+                    hovertemplate='Preço Ativo: %{y:.2f} EUR<extra></extra>'
+                ))
+                
+        fig_sim.add_trace(go.Scatter(x=sim_viz.index, y=sim_viz['Line_1'], mode='lines', name=l1_n, line=dict(color='#0ea5e9', width=2), hovertemplate=f'{l1_n}: %{{y:.2f}} EUR<extra></extra>'))
+        fig_sim.add_trace(go.Scatter(x=sim_viz.index, y=sim_viz['Line_2'], mode='lines', name=l2_n, line=dict(color=locals().get('line2_color', '#f97316'), width=2), hovertemplate=f'{l2_n}: %{{y:.2f}} EUR<extra></extra>'))
+        
+        if strategy_type.startswith("🎓"):
+            fig_sim.add_trace(go.Scatter(x=sim_viz.index, y=sim_viz['Line_3'], mode='lines', name=locals().get('line3_name', 'Line_3'), line=dict(color=locals().get('line3_color', '#f59e0b'), width=1.5), hovertemplate=f'{locals().get("line3_name", "Line_3")}: %{{y:.2f}} EUR<extra></extra>'))
+            
+        if strategy_type == "MULTIPOINT_VECTOR":
+            fig_sim.add_trace(go.Scatter(x=sim_viz.index, y=sim_viz['Line_3'], mode='lines', name=l3_n, line=dict(color='#10b981', width=1.5), hovertemplate=f'{l3_n}: %{{y:.2f}} EUR<extra></extra>'))
+            if (p5_filter_active or entry_mode == "5PONTOS") and 'Line_4' in sim_viz:
+                fig_sim.add_trace(go.Scatter(x=sim_viz.index, y=sim_viz['Line_4'], mode='lines', name=l4_n, line=dict(color='#8b5cf6', width=1.5), hovertemplate=f'{l4_n}: %{{y:.2f}} EUR<extra></extra>'))
+                
+        sim_buy_x, sim_buy_y, sim_buy_text = [], [], []
+        sim_sell_x, sim_sell_y, sim_sell_text = [], [], []
+        for t_s in sim_trades:
+            entry_t = t_s['entry_timestamp']
+            exit_t = t_s['exit_timestamp']
+            
+            sim_buy_x.append(entry_t)
+            sim_buy_y.append(t_s['entry_price'])
+            
+            try:
+                entry_row = sim_viz.loc[entry_t]
+                p1_val = t_s['entry_price']
+                p2_val = entry_row['Line_1'] if 'Line_1' in entry_row and not pd.isna(entry_row['Line_1']) else 0
+                p3_val = entry_row['Line_2'] if 'Line_2' in entry_row and not pd.isna(entry_row['Line_2']) else 0
+                p4_val = entry_row['Line_3'] if 'Line_3' in entry_row and not pd.isna(entry_row['Line_3']) else 0
+                p5_val = entry_row['Line_4'] if 'Line_4' in entry_row and 'Line_4' in sim_viz and not pd.isna(entry_row['Line_4']) else 0
+                
+                buy_info = (
+                    f"📥 <b>ENTRADA COMPRA (BUY)</b><br>"
+                    f"<b>Data</b>: {entry_t.strftime('%Y-%m-%d %H:%M') if hasattr(entry_t, 'strftime') else entry_t}<br>"
+                    f"<b>Preço Entrada (P1)</b>: {p1_val:.2f} EUR<br>"
+                    f"<b>P2 (Média {p2_window})</b>: {p2_val:.2f} EUR<br>"
+                    f"<b>P3 (Média {p3_window})</b>: {p3_val:.2f} EUR<br>"
+                    f"<b>P4 (Média {p4_window})</b>: {p4_val:.2f} EUR<br>"
+                )
+                if p5_filter_active or entry_mode == "5PONTOS":
+                    buy_info += f"<b>P5 (Média {p5_window})</b>: {p5_val:.2f} EUR<br>"
+                buy_info += f"<i>Gatilho: Entrada {entry_mode}!</i>"
+                sim_buy_text.append(buy_info)
+            except Exception:
+                sim_buy_text.append(f"COMPRA a {t_s['entry_price']:.2f}")
+            sim_sell_x.append(exit_t)
+            sim_sell_y.append(t_s['exit_price'])
+            
+            try:
+                exit_row = sim_viz.loc[exit_t]
+                p1_val = t_s['exit_price']
+                p2_val = exit_row['Line_1'] if 'Line_1' in exit_row and not pd.isna(exit_row['Line_1']) else 0
+                p3_val = exit_row['Line_2'] if 'Line_2' in exit_row and not pd.isna(exit_row['Line_2']) else 0
+                p4_val = exit_row['Line_3'] if 'Line_3' in exit_row and not pd.isna(exit_row['Line_3']) else 0
+                p5_val = exit_row['Line_4'] if 'Line_4' in exit_row and 'Line_4' in sim_viz and not pd.isna(exit_row['Line_4']) else 0
+                
+                sell_info = (
+                    f"📤 <b>SAÍDA VENDA ({t_s['reason']})</b><br>"
+                    f"<b>Data</b>: {exit_t.strftime('%Y-%m-%d %H:%M') if hasattr(exit_t, 'strftime') else exit_t}<br>"
+                    f"<b>Preço Saída (P1)</b>: {p1_val:.2f} EUR<br>"
+                    f"<b>P2 (Média {p2_window})</b>: {p2_val:.2f} EUR<br>"
+                    f"<b>P3 (Média {p3_window})</b>: {p3_val:.2f} EUR<br>"
+                    f"<b>P4 (Média {p4_window})</b>: {p4_val:.2f} EUR<br>"
+                )
+                if p5_filter_active or entry_mode == "5PONTOS":
+                    sell_info += f"<b>P5 (Média {p5_window})</b>: {p5_val:.2f} EUR<br>"
+                sell_info += f"<i>Resultado: {t_s['pnl']:.2f} EUR ({t_s['pnl_pct']:.2f}%)</i>"
+                sim_sell_text.append(sell_info)
+            except Exception:
+                sim_sell_text.append(f"VENDA a {t_s['exit_price']:.2f} ({t_s['reason']})")
+                
+        fig_sim.add_trace(go.Scatter(x=sim_buy_x, y=sim_buy_y, mode='markers', name='COMPRA', marker=dict(symbol='triangle-up', size=14, color='#10b981', line=dict(width=1.5, color='#047857')), text=sim_buy_text, hoverinfo='text'))
+        fig_sim.add_trace(go.Scatter(x=sim_sell_x, y=sim_sell_y, mode='markers', name='VENDA', marker=dict(symbol='triangle-down', size=14, color='#ef4444', line=dict(width=1.5, color='#b91c1c')), text=sim_sell_text, hoverinfo='text'))
+        
+        fig_sim.update_layout(
+            title=f"Laboratório Visual - Bioma de Testes ({market_source})", 
+            hovermode='x unified', 
+            template='plotly_white', 
+            height=500, 
+            margin=dict(l=10, r=10, t=40, b=10)
+        )
+        st.plotly_chart(fig_sim, width='stretch')
+        if strategy_type == "MULTIPOINT_VECTOR":
+            import logging
+            main_logger = logging.getLogger("TradingBot")
+            old_level = main_logger.level
+            main_logger.setLevel(logging.WARNING)
+            entries = ["3PONTOS", "4PONTOS", "5PONTOS"]
+            exits = ["P2", "P3", "P4"]
+            
+            matrix_data = []
+            for ent in entries:
+                row_dict = {"Modo de Entrada": "Super-Ágil (3P)" if ent == "3PONTOS" else ("Equilibrada (4P)" if ent == "4PONTOS" else "Conservadora (5P)")}
+                for ex in exits:
+                    m_cfg = config.copy()
+                    m_cfg.update({
+                        "STRATEGY_TYPE": "MULTIPOINT_VECTOR",
+                        "ENTRY_MODE": ent,
+                        "EXIT_MODE": ex,
+                        "P2_WINDOW": p2_window,
+                        "P3_WINDOW": p3_window,
+                        "P4_WINDOW": p4_window,
+                        "P5_WINDOW": p5_window,
+                        "P5_SLOPE_FILTER_ACTIVE": False if ent == "3PONTOS" else p5_filter_active,
+                        "INITIAL_CAPITAL": 100.0
+                    })
+                    bt_mat = Backtester(m_cfg, main_logger)
+                    asyncio.run(bt_mat.run_backtest(sim_df))
+                    met = bt_mat.get_performance_metrics()
+                    
+                    cell_label = f"Saída {ex}"
+                    row_dict[cell_label] = {
+                        "ret": met["total_return_pct"],
+                        "dd": met["max_drawdown_pct"],
+                        "trades": met["num_trades"],
+                        "entry": ent,
+                        "exit": ex
+                    }
+                matrix_data.append(row_dict)
+            
+            main_logger.setLevel(old_level)
+            
+            st.markdown("---")
+            st.markdown("<h3>📊 A Matriz de Lógicas da Lagarta (Análise de 9 Lógicas)</h3>", unsafe_allow_html=True)
+            st.markdown("Esta tabela exibe o resultado financeiro de **todas as 9 combinações de Entrada e Saída** possíveis para a nossa lagarta **neste mesmo mercado ativo**. Descubra instantaneamente qual a melhor forma de se mover perante estas ondas!")
+            st.info("💡 **Segredo Quantitativo**: Se os resultados de saídas diferentes (P2, P3, P4) derem o mesmo valor na tabela, significa que a tua **Gestão de Risco (Take Profit ou Stop Loss)** fechou as operações antes de o preço tocar nos gatilhos de saída das médias! Para veres a diferença dinâmica das saídas da lagarta pura, experimenta desativar o Take Profit ou alargar o Stop Loss!")
+            
+            best_ret = -999.0
+            best_combo = None
+            for row in matrix_data:
+                for ex in ["P2", "P3", "P4"]:
+                    cell = row[f"Saída {ex}"]
+                    if cell["ret"] > best_ret:
+                        best_ret = cell["ret"]
+                        best_combo = cell
+            
+            html_table = "<table style='width:100%; border-collapse: collapse; text-align: center; font-family: sans-serif;'>"
+            html_table += "<tr style='background-color: #0f172a; color: white;'>"
+            html_table += "<th style='padding: 12px; border: 1px solid #1e293b;'>Gatilho de Entrada (Pernas)</th>"
+            html_table += "<th style='padding: 12px; border: 1px solid #1e293b;'>⚡ Saída Rápida (P2 / Média 9)</th>"
+            html_table += "<th style='padding: 12px; border: 1px solid #1e293b;'>⚖️ Saída Intermédia (P3 / Média 21)</th>"
+            html_table += "<th style='padding: 12px; border: 1px solid #1e293b;'>🐢 Saída Lenta (P4 / Média 50)</th>"
+            html_table += "</tr>"
+            
+            for row in matrix_data:
+                html_table += "<tr style='border-bottom: 1px solid #cbd5e1;'>"
+                html_table += f"<td style='padding: 15px; font-weight: bold; background-color: #f8fafc; border: 1px solid #cbd5e1;'>{row['Modo de Entrada']}</td>"
+                for ex in ["P2", "P3", "P4"]:
+                    cell = row[f"Saída {ex}"]
+                    ret = cell["ret"]
+                    dd = cell["dd"]
+                    num_t = cell["trades"]
+                    
+                    is_champion = (cell == best_combo)
+                    bg_color = "rgba(16, 185, 129, 0.15)" if ret > 0 else "rgba(239, 68, 68, 0.08)"
+                    border_style = "border: 2px solid #3b82f6;" if is_champion else "border: 1px solid #cbd5e1;"
+                    
+                    html_table += f"<td style='padding: 12px; background-color: {bg_color}; {border_style}'>"
+                    html_table += f"<div style='font-size: 1.1rem; font-weight: bold; color: {'#10b981' if ret > 0 else '#ef4444'};'>{ret:+.2f}%</div>"
+                    html_table += f"<div style='font-size: 0.8rem; color: #64748b;'>(Drawdown: {dd:.2f}%)</div>"
+                    html_table += f"<div style='font-size: 0.8rem; color: #475569;'>{num_t} Trades</div>"
+                    if is_champion:
+                        html_table += "<div style='margin-top: 6px; padding: 2px 6px; background-color: #3b82f6; color: white; border-radius: 4px; font-size: 0.75rem; font-weight: bold; display: inline-block;'>🏆 Campeã</div>"
+                    html_table += "</td>"
+                html_table += "</tr>"
+            html_table += "</table>"
+            st.markdown(html_table, unsafe_allow_html=True)
+            
+            col_l1, col_l2 = st.columns([3, 1])
+            with col_l1:
+                st.markdown(f"💡 **Análise Quantitativa**: A melhor lógica para este bioma de mercado foi **Entrada {best_combo['entry']} + Saída {best_combo['exit']}**, obtendo um retorno de **{best_combo['ret']:+.2f}%**.")
+            with col_l2:
+                if st.button("🏆 Aplicar Lógica Campeã", width='stretch'):
+                    st.session_state.entry_mode_val = best_combo["entry"]
+                    st.session_state.exit_mode_val = best_combo["exit"]
+                    if best_combo["entry"] == "3PONTOS":
+                        st.session_state.p5_filter_active_val = False
+                    st.success("Lógica campeã carregada com sucesso! Re-execute para visualizar.")
+                    st.rerun()
+        st.markdown("---")
+        st.markdown("<h3>⚡ Otimizador de Parâmetros Integrado</h3>", unsafe_allow_html=True)
+        st.markdown("Corra o Otimizador de Parâmetros **sobre este mercado ativo** para varrer o comportamento da estratégia e encontrar a combinação perfeita de Médias, Stop Loss e Take Profit.")
+        
+        if "opt_sim_results" not in st.session_state:
+            st.session_state.opt_sim_results = None
+        if st.button("⚡ Executar Varredura de Parâmetros neste Mercado", width='stretch'):
+            with st.spinner("A processar varredura de parâmetros..."):
+                main_logger = logging.getLogger("TradingBot")
+                old_level = main_logger.level
+                main_logger.setLevel(logging.WARNING)
+                sw_range = [5, 9, 12]
+                lw_range = [21, 26, 50]
+                sl_range = [1.5, 2.5]
+                tp_range = [5.0, 10.0]
+                ts_range = [False, True]
+                
+                results_sint = []
+                for sw in sw_range:
+                    for lw in lw_range:
+                        if sw >= lw:
+                            continue
+                        for sl in sl_range:
+                            for tp in tp_range:
+                                for ts in ts_range:
+                                    local_cfg = config.copy()
+                                    local_cfg.update({
+                                        "SHORT_WINDOW": sw,
+                                        "LONG_WINDOW": lw,
+                                        "P2_WINDOW": sw,
+                                        "P3_WINDOW": lw,
+                                        "P4_WINDOW": 50,
+                                        "P5_WINDOW": 200,
+                                        "P5_SLOPE_FILTER_ACTIVE": False,
+                                        "STOP_LOSS_PERCENT": sl,
+                                        "TAKE_PROFIT_PERCENT": tp,
+                                        "TRAILING_STOP_ACTIVE": ts,
+                                        "INITIAL_CAPITAL": 100.0
+                                    })
+                                    
+                                    bt_sint = Backtester(local_cfg, main_logger)
+                                    asyncio.run(bt_sint.run_backtest(sim_df))
+                                    metrics_sint = bt_sint.get_performance_metrics()
+                                    
+                                    results_sint.append({
+                                        "P2 (Rápida)": sw,
+                                        "P3 (Confirmadora)": lw,
+                                        "Stop Loss (%)": sl,
+                                        "Take Profit (%)": tp,
+                                        "Trailing Stop": ts,
+                                        "Retorno (%)": metrics_sint["total_return_pct"],
+                                        "Max Drawdown (%)": metrics_sint["max_drawdown_pct"],
+                                        "Trades Executados": metrics_sint["num_trades"],
+                                        "Win Rate (%)": metrics_sint["win_rate"] * 100
+                                    })
+                                    
+                main_logger.setLevel(old_level)
+                if results_sint:
+                    st.session_state.opt_sim_results = sorted(results_sint, key=lambda x: x["Retorno (%)"], reverse=True)
+                    st.success("Otimização concluída com sucesso!")
+                else:
+                    st.warning("Nenhum resultado obtido.")
+                    
+        if st.session_state.opt_sim_results is not None:
+            top_df = pd.DataFrame(st.session_state.opt_sim_results)
+            st.markdown("##### 🏆 Top 5 Configurações Vencedoras")
+            st.dataframe(top_df.head(5).style.format({
+                "Retorno (%)": "{:+.2f}%",
+                "Max Drawdown (%)": "{:.2f}%",
+                "Win Rate (%)": "{:.1f}%",
+                "Stop Loss (%)": "{:.1f}%",
+                "Take Profit (%)": "{:.1f}%"
+            }), width='stretch')
+            
+            best_row = top_df.iloc[0]
+            if st.button("🏆 Aplicar Melhor Configuração Otimizada (Top 1) no Painel Principal", width='stretch'):
+                st.session_state.p2_window_val = int(best_row["P2 (Rápida)"])
+                st.session_state.p3_window_val = int(best_row["P3 (Confirmadora)"])
+                st.session_state.short_window_val = int(best_row["P2 (Rápida)"])
+                st.session_state.long_window_val = int(best_row["P3 (Confirmadora)"])
+                st.session_state.stop_loss_pct_val = float(best_row["Stop Loss (%)"])
+                st.session_state.take_profit_pct_val = float(best_row["Take Profit (%)"])
+                st.session_state.trailing_stop_active_val = bool(best_row["Trailing Stop"])
+                st.session_state.p5_filter_active_val = False
+                
+                st.success("Configuração Top 1 aplicada com sucesso no Painel de Configurações! Re-execute para visualizar.")
+                st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
+# --- CONTEÚDO DA ABA 4: LAB MATEMÁTICO (ARQUIVO OFF) ---
+def _render_legacy_math_lab():
+    import tab_math_lab
+    tab_math_lab.render()
+# =========================================================================
+# SEPARADOR 5: JOGO DO TRADER QUANTITATIVO (ARENA BLIND TRADER)
+# =========================================================================
+with tab_trader_game:
+    import variables_registry
+    variables_registry.initialize_variables_registry()
+    with st.expander("ℹ️ Como funciona esta aba (Arena de Jogo & Auto-Treino)?", expanded=False):
+        st.markdown("""
+**Para que serve:** É um simulador interativo vela-a-vela (Blind Trader) onde podes jogar manualmente ou deixar o bot jogar sozinho para testar estratégias com realismo (comissões, slippage, Stop Loss e Trailing Stop).
+
+1. **Modo Manual vs Automático:** Podes avançar vela a vela e decidir quando entrar/sair, ou deixar a estratégia selecionada (ex.: *Lagarta*, *Claude*, *Camadas*) jogar automaticamente.
+2. **Previsão Markov (1.ª ordem):** Calcula em tempo real a probabilidade da próxima vela subir (`UP`), descer (`DOWN`) ou ficar lateral (`FLAT`) com base no histórico recente.
+3. **Sub-gráficos & Garrafão TS:** Mostra o preço, as linhas `P2..P6`, o Stop Móvel adaptativo (*Garrafão TS*), ADX e Volume.
+4. **Hall of Fame / Hall of Shame:** Guarda todas as partidas em `trader_highscores.json` e `game_sessions.json` para comparares as melhores e piores configurações.
+""")
+    # =========================================================================
+    # SEPARADOR 5: JOGO DO TRADER QUANTITATIVO (ARENA BLIND TRADER)
+    # =========================================================================
+    with tab_trader_game:
+        import os, json, time
+        import numpy as np
+        import pandas as pd
+        import plotly.graph_objects as go
+        from plotly.subplots import make_subplots
+        def train_markov_chain(df, threshold=0.03):
+            """
+            Treina uma Cadeia de Markov de 1a ordem com base nos retornos percentuais das velas.
+            Estados:
+              UP (Retorno > threshold)
+              DOWN (Retorno < -threshold)
+              FLAT (-threshold <= Retorno <= threshold)
+            Retorna a matriz de transicao de formato dict: {estado_atual: {proximo_estado: probabilidade}}
+            """
+            if df is None or len(df) < 2:
+                return {'UP': {'UP': 1/3, 'DOWN': 1/3, 'FLAT': 1/3},
+                        'DOWN': {'UP': 1/3, 'DOWN': 1/3, 'FLAT': 1/3},
+                        'FLAT': {'UP': 1/3, 'DOWN': 1/3, 'FLAT': 1/3}}
+            
+            close = df['close']
+            pct_returns = ((close - close.shift(1)) / close.shift(1)) * 100
+            
+            states = []
+            for ret in pct_returns:
+                if pd.isna(ret):
+                    states.append(None)
+                elif ret > threshold:
+                    states.append('UP')
+                elif ret < -threshold:
+                    states.append('DOWN')
+                else:
+                    states.append('FLAT')
+                    
+            transitions = {
+                'UP': {'UP': 0, 'DOWN': 0, 'FLAT': 0},
+                'DOWN': {'UP': 0, 'DOWN': 0, 'FLAT': 0},
+                'FLAT': {'UP': 0, 'DOWN': 0, 'FLAT': 0}
+            }
+            
+            for i in range(1, len(states)):
+                s_prev = states[i-1]
+                s_curr = states[i]
+                if s_prev is not None and s_curr is not None:
+                    transitions[s_prev][s_curr] += 1
+                    
+            matrix = {}
+            for state, next_states in transitions.items():
+                total = sum(next_states.values())
+                matrix[state] = {}
+                if total > 0:
+                    for ns, count in next_states.items():
+                        matrix[state][ns] = count / total
+                else:
+                    matrix[state] = {'UP': 1/3, 'DOWN': 1/3, 'FLAT': 1/3}
+                    
+            return matrix
+
+        highscores_file = "trader_highscores.json"
+        # --- ESTADO DO JOGO ---
+        if "tg_markov_matrix" not in st.session_state: st.session_state.tg_markov_matrix = None
+        if "tg_active" not in st.session_state: st.session_state.tg_active = False
+        if "tg_step" not in st.session_state: st.session_state.tg_step = 144
+        if "tg_capital" not in st.session_state: st.session_state.tg_capital = 100.0
+        if "tg_position" not in st.session_state: st.session_state.tg_position = "NONE"
+        if "tg_last_exit_step" not in st.session_state: st.session_state.tg_last_exit_step = -1
+        if "tg_entry_price" not in st.session_state: st.session_state.tg_entry_price = 0.0
+        if "tg_entry_atr" not in st.session_state: st.session_state.tg_entry_atr = 0.0
+        if "tg_macd_weakness_count" not in st.session_state: st.session_state.tg_macd_weakness_count = 0
+        if "tg_entry_atr" not in st.session_state: st.session_state.tg_entry_atr = 0.0
+        if "tg_macd_weakness_count" not in st.session_state: st.session_state.tg_macd_weakness_count = 0
+        if "tg_entry_step" not in st.session_state: st.session_state.tg_entry_step = 0
+        if "tg_trades" not in st.session_state: st.session_state.tg_trades = []
+        if "tg_data" not in st.session_state: st.session_state.tg_data = None
+        if "tg_trader_name" not in st.session_state: st.session_state.tg_trader_name = "Trader Anon"
+        if "tg_max_candles" not in st.session_state: st.session_state.tg_max_candles = 100
+        if "tg_running" not in st.session_state: st.session_state.tg_running = False
+        if "tg_game_finished" not in st.session_state: st.session_state.tg_game_finished = False
+        if "tg_strategy_type" not in st.session_state: st.session_state.tg_strategy_type = "Default"
+        # Carregar ultimo jogo persistido caso o estado ativo seja None e existam dados salvos
+        if "tg_data" not in st.session_state or st.session_state.tg_data is None:
+            if os.path.exists("last_game_data.csv") and os.path.exists("last_game_state.json"):
+                try:
+                    st.session_state.tg_data = pd.read_csv("last_game_data.csv", index_col=0, parse_dates=True)
+                    with open("last_game_state.json", "r", encoding="utf-8") as f:
+                        meta = json.load(f)
+                    st.session_state.tg_capital = meta.get("capital", 100.0)
+                    st.session_state.tg_trades = meta.get("trades", [])
+                    st.session_state.tg_trader_name = meta.get("trader_name", "Trader Anon")
+                    st.session_state.tg_max_candles = meta.get("max_candles", 100)
+                    st.session_state.tg_p2 = meta.get("p2", 5)
+                    st.session_state.tg_p3 = meta.get("p3", 13)
+                    st.session_state.tg_p4 = meta.get("p4", 21)
+                    st.session_state.tg_p5 = meta.get("p5", 55)
+                    st.session_state.tg_p6 = meta.get("p6", 144)
+                    st.session_state.tg_markov_matrix = meta.get("markov_matrix", None)
+                    if st.session_state.tg_markov_matrix is None and st.session_state.tg_data is not None:
+                        st.session_state.tg_markov_matrix = train_markov_chain(st.session_state.tg_data)
+                    st.session_state.tg_game_finished = True
+                    st.session_state.tg_active = False
+                except Exception:
+                    st.session_state.tg_data = None
+            else:
+                st.session_state.tg_data = None
+                # --- REGISTO INTELIGENTE DE VARIÁVEIS NA ENTRADA ---
+        def record_and_append_trade(t_dict):
+            df_data = st.session_state.get("tg_data", None)
+            e_step = t_dict.get("entry_step", st.session_state.tg_entry_step)
+            x_step = t_dict.get("exit_step", None)
+            
+            # 1. Registar variáveis na ENTRADA
+            if df_data is not None and e_step < len(df_data):
+                try:
+                    t_dict["entry_std"] = float(df_data['sma_std'].iloc[e_step])
+                    t_dict["entry_stretching"] = float(df_data['stretching'].iloc[e_step]) if 'stretching' in df_data.columns else 0.0
+                    t_dict["entry_mola"] = float(df_data['mola_pct'].iloc[e_step]) if 'mola_pct' in df_data.columns else 0.0
+                    t_dict["entry_sma5"] = float(df_data['sma_5'].iloc[e_step])
+                    t_dict["entry_sma13"] = float(df_data['sma_13'].iloc[e_step])
+                    t_dict["entry_sma21"] = float(df_data['sma_21'].iloc[e_step])
+                    t_dict["entry_sma55"] = float(df_data['sma_55'].iloc[e_step])
+                    t_dict["entry_sma144"] = float(df_data['sma_144'].iloc[e_step])
+                    t_dict["entry_rsi"] = float(df_data['rsi_14'].iloc[e_step]) if 'rsi_14' in df_data.columns else 0.0
+                    t_dict["entry_bb_dist"] = float(df_data['bb_dist'].iloc[e_step]) if 'bb_dist' in df_data.columns else 0.0
+                    t_dict["entry_macd"] = float(df_data['macd_hist'].iloc[e_step]) if 'macd_hist' in df_data.columns else 0.0
+                    t_dict["entry_atr"] = float(df_data['atr_14'].iloc[e_step]) if 'atr_14' in df_data.columns else 0.0
+                except Exception:
+                    pass
+            
+            # 2. Registar variáveis na SAÍDA
+            if df_data is not None and x_step is not None and x_step < len(df_data):
+                try:
+                    t_dict["exit_std"] = float(df_data['sma_std'].iloc[x_step])
+                    t_dict["exit_stretching"] = float(df_data['stretching'].iloc[x_step]) if 'stretching' in df_data.columns else 0.0
+                    t_dict["exit_mola"] = float(df_data['mola_pct'].iloc[x_step]) if 'mola_pct' in df_data.columns else 0.0
+                    t_dict["exit_sma5"] = float(df_data['sma_5'].iloc[x_step])
+                    t_dict["exit_sma13"] = float(df_data['sma_13'].iloc[x_step])
+                    t_dict["exit_sma21"] = float(df_data['sma_21'].iloc[x_step])
+                    t_dict["exit_sma55"] = float(df_data['sma_55'].iloc[x_step])
+                    t_dict["exit_sma144"] = float(df_data['sma_144'].iloc[x_step])
+                    t_dict["exit_rsi"] = float(df_data['rsi_14'].iloc[x_step]) if 'rsi_14' in df_data.columns else 0.0
+                    t_dict["exit_bb_dist"] = float(df_data['bb_dist'].iloc[x_step]) if 'bb_dist' in df_data.columns else 0.0
+                    t_dict["exit_macd"] = float(df_data['macd_hist'].iloc[x_step]) if 'macd_hist' in df_data.columns else 0.0
+                    t_dict["exit_atr"] = float(df_data['atr_14'].iloc[x_step]) if 'atr_14' in df_data.columns else 0.0
+                except Exception:
+                    pass
+            _log_arena_trade_global(t_dict)
+
+        # Periodos das medias
+        if "tg_p2" not in st.session_state: st.session_state.tg_p2 = 5
+        if "tg_p3" not in st.session_state: st.session_state.tg_p3 = 13
+        if "tg_p4" not in st.session_state: st.session_state.tg_p4 = 21
+        if "tg_p5" not in st.session_state: st.session_state.tg_p5 = 55
+        if "tg_p6" not in st.session_state: st.session_state.tg_p6 = 144
+        # Visibilidade persistente entre batimentos
+        # Gestao de risco
+        pass
+        if "tg_sl_pct" not in st.session_state: st.session_state.tg_sl_pct = 2.0
+        pass
+        if "tg_tp_pct" not in st.session_state: st.session_state.tg_tp_pct = 4.0
+        pass
+        if "tg_ts_pct" not in st.session_state: st.session_state.tg_ts_pct = 1.5
+        if "tg_highest_price" not in st.session_state: st.session_state.tg_highest_price = 0.0
+        if "tg_lowest_price" not in st.session_state: st.session_state.tg_lowest_price = 999999.0
+        # Visibilidade das linhas — persiste entre batimentos via session_state
+        if "tg_vis_price" not in st.session_state: st.session_state.tg_vis_price = True
+        if "tg_vis_canal" not in st.session_state: st.session_state.tg_vis_canal = True
+        if "tg_vis_vector" not in st.session_state: st.session_state.tg_vis_vector = True
+        if "tg_vis_sma5" not in st.session_state: st.session_state.tg_vis_sma5 = True
+        if "tg_vis_sma13" not in st.session_state: st.session_state.tg_vis_sma13 = True
+        if "tg_vis_sma21" not in st.session_state: st.session_state.tg_vis_sma21 = True
+        if "tg_vis_sma55" not in st.session_state: st.session_state.tg_vis_sma55 = True
+        if "tg_vis_sma144" not in st.session_state: st.session_state.tg_vis_sma144 = True
+        # Bot co-piloto / autonomo
+        if "tg_bot_mode" not in st.session_state: st.session_state.tg_bot_mode = "Manual"
+        if "tg_bot_compress_thresh" not in st.session_state: st.session_state.tg_bot_compress_thresh = 2.0
+        if "tg_bot_vel_thresh" not in st.session_state: st.session_state.tg_bot_vel_thresh = 0.03
+        def _build_chart(sub_df, df_full, title_str, show_full_range=False):
+            """Constroi o grafico Plotly. Reutilizavel para modo jogo e modo revisao."""
+            y_min = float(sub_df['close'].min() * 0.995)
+            y_max = float(sub_df['close'].max() * 1.005)
+            
+            subchart_type = st.session_state.get('tg_subchart_type', ['Heatmap (Vel/Acel)'])
+            if isinstance(subchart_type, str):
+                if subchart_type == "Ambos": subchart_type = ["Heatmap (Vel/Acel)", "Histograma MACD"]
+                elif subchart_type == "Nenhum": subchart_type = []
+                else: subchart_type = [subchart_type]
+            
+            num_subcharts = len(subchart_type)
+            if num_subcharts == 0:
+                fig = make_subplots(rows=1, cols=1)
+                chart_height = 450
+            elif num_subcharts == 1:
+                fig = make_subplots(rows=2, cols=1, shared_xaxes=True, row_heights=[0.8, 0.2], vertical_spacing=0.03)
+                chart_height = 520 if show_full_range else 500
+            elif num_subcharts == 2:
+                fig = make_subplots(rows=3, cols=1, shared_xaxes=True, row_heights=[0.7, 0.15, 0.15], vertical_spacing=0.03)
+                chart_height = 620
+            elif num_subcharts == 3:
+                fig = make_subplots(rows=4, cols=1, shared_xaxes=True, row_heights=[0.55, 0.15, 0.15, 0.15], vertical_spacing=0.03)
+                chart_height = 720
+            else:
+                fig = make_subplots(rows=5, cols=1, shared_xaxes=True, row_heights=[0.4, 0.15, 0.15, 0.15, 0.15], vertical_spacing=0.03)
+                chart_height = 820
+            upper_band = sub_df['avg_sma'] + 1.0 * sub_df['sma_std']
+            lower_band = sub_df['avg_sma'] - 1.0 * sub_df['sma_std']
+            fig.add_trace(go.Scatter(
+                x=sub_df.index.tolist() + sub_df.index.tolist()[::-1],
+                y=upper_band.tolist() + lower_band.tolist()[::-1],
+                fill='toself', fillcolor='rgba(148,163,184,0.12)',
+                line=dict(color='rgba(255,255,255,0)'), hoverinfo="skip",
+                name='Canal Desvio Padrao', visible=True
+            ), row=1, col=1)
+            fig.add_trace(go.Scatter(
+                x=sub_df.index, y=sub_df['avg_sma'], name='Media do Vetor',
+                line=dict(color='#94a3b8', width=1.5, dash='dash'), visible=True
+            ), row=1, col=1)
+            fig.add_trace(go.Scatter(x=sub_df.index, y=sub_df['sma_5'], name=f'SMA {st.session_state.tg_p2} (Rapida)', line=dict(color='#00E676', width=2), visible=True), row=1, col=1)
+            fig.add_trace(go.Scatter(x=sub_df.index, y=sub_df['sma_13'], name=f'SMA {st.session_state.tg_p3}', line=dict(color='#00B0FF', width=2), visible=True), row=1, col=1)
+            fig.add_trace(go.Scatter(x=sub_df.index, y=sub_df['sma_21'], name=f'SMA {st.session_state.tg_p4}', line=dict(color='#FF9100', width=2), visible=True), row=1, col=1)
+            fig.add_trace(go.Scatter(x=sub_df.index, y=sub_df['sma_55'], name=f'SMA {st.session_state.tg_p5}', line=dict(color='#D500F9', width=2), visible=True), row=1, col=1)
+            fig.add_trace(go.Scatter(x=sub_df.index, y=sub_df['sma_144'], name=f'SMA {st.session_state.tg_p6} (Lenta)', line=dict(color='#FF1744', width=2), visible=True), row=1, col=1)
+            fig.add_trace(go.Scatter(
+                x=sub_df.index, y=sub_df['close'], name='Preco Real',
+                line=dict(color='#1e293b', width=3), visible=True
+            ), row=1, col=1)
+            # Marcadores de trades sobre a janela visivel
+            game_buy_x, game_buy_y, game_sell_x, game_sell_y = [], [], [], []
+            for tr in st.session_state.tg_trades:
+                if "entry_step" in tr and "exit_step" in tr:
+                    entry_time = df_full.index[tr['entry_step']]
+                    exit_time = df_full.index[tr['exit_step']]
+                    if tr['type'] == "LONG":
+                        if entry_time in sub_df.index: game_buy_x.append(entry_time); game_buy_y.append(tr['entry_price'])
+                        if exit_time in sub_df.index: game_sell_x.append(exit_time); game_sell_y.append(tr['exit_price'])
+                    else:
+                        if entry_time in sub_df.index: game_sell_x.append(entry_time); game_sell_y.append(tr['entry_price'])
+                        if exit_time in sub_df.index: game_buy_x.append(exit_time); game_buy_y.append(tr['exit_price'])
+            if game_buy_x:
+                fig.add_trace(go.Scatter(x=game_buy_x, y=game_buy_y, mode='markers', name='Compra / Fecho Short', marker=dict(symbol='triangle-up', size=16, color='#10b981', line=dict(color='white', width=1))), row=1, col=1)
+            if game_sell_x:
+                fig.add_trace(go.Scatter(x=game_sell_x, y=game_sell_y, mode='markers', name='Venda / Fecho Long', marker=dict(symbol='triangle-down', size=16, color='#ef4444', line=dict(color='white', width=1))), row=1, col=1)
+
+            # Linhas conectando entrada e sada com PnL
+            for tr in st.session_state.tg_trades:
+                if "entry_step" in tr and "exit_step" in tr:
+                    entry_time = df_full.index[tr['entry_step']]
+                    exit_time = df_full.index[tr['exit_step']]
+                    if entry_time in sub_df.index or exit_time in sub_df.index:
+                        t_type = tr.get('type', 'LONG')
+                        en_p = tr.get('entry_price', 0)
+                        ex_p = tr.get('exit_price', 0)
+                        
+                        pnl_pct = tr.get('pnl_pct', 0)
+                        pnl_val = tr.get('pnl_eur', 0)
+                        if pnl_pct == 0 and en_p > 0:
+                            if t_type == 'LONG': pnl_pct = (ex_p - en_p) / en_p * 100
+                            else: pnl_pct = (en_p - ex_p) / en_p * 100
+                        
+                        is_win = pnl_val >= 0
+                        color = '#10b981' if is_win else '#ef4444'
+                        
+                        # Reta ligando os dois pontos
+                        fig.add_shape(
+                            type="line",
+                            x0=entry_time, y0=en_p,
+                            x1=exit_time, y1=ex_p,
+                            line=dict(color=color, width=2, dash='dot'),
+                            row=1, col=1
+                        )
+                        
+                        # Anotao com os valores
+                        pct_sign = "+" if pnl_pct > 0 else ""
+                        val_sign = "+" if pnl_val > 0 else ""
+                        annot_text = f"<b>{t_type}</b><br>{pct_sign}{pnl_pct:.2f}%"
+                        if abs(pnl_val) > 0.001:
+                            annot_text += f"<br>{val_sign}{pnl_val:.2f} €"
+                            
+                        fig.add_annotation(
+                            x=exit_time, y=ex_p,
+                            text=annot_text,
+                            showarrow=True,
+                            arrowhead=1,
+                            arrowsize=1.5,
+                            arrowwidth=2,
+                            arrowcolor=color,
+                            ax=exit_time, ay=y_max if is_win else y_min,
+                            axref='x', ayref='y',
+                            font=dict(size=11, color="white"),
+                            bgcolor=color,
+                            bordercolor="rgba(255,255,255,0.4)",
+                            borderwidth=1,
+                            borderpad=4,
+                            row=1, col=1
+                        )
+            # ── TODOS OS BATIMENTOS (sinais gerados, actuados ou não) ──────────────
+            y_min = float(sub_df['close'].min() * 0.995)
+            y_max = float(sub_df['close'].max() * 1.005)
+
+            # Recolher os steps que já têm trade real (entrada ou saída)
+            acted_steps = set()
+            for tr in st.session_state.tg_trades:
+                if "entry_step" in tr: acted_steps.add(tr['entry_step'])
+                if "exit_step"  in tr: acted_steps.add(tr['exit_step'])
+
+            # Gerar sinais para TODOS os steps visíveis no sub_df
+            missed_long_x,  missed_long_y  = [], []
+            missed_short_x, missed_short_y = [], []
+            for step_idx in range(len(df_full)):
+                t = df_full.index[step_idx]
+                if t not in sub_df.index:
+                    continue
+                if step_idx in acted_steps:
+                    continue   # já tem marcador de trade, não duplicar
+                try:
+                    sig, _conf, _conds = compute_bot_signal(df_full, step_idx)
+                except Exception:
+                    continue
+                price_at = float(df_full['close'].iloc[step_idx])
+                if sig == "LONG":
+                    missed_long_x.append(t)
+                    missed_long_y.append(price_at * 0.997)
+                elif sig == "SHORT":
+                    missed_short_x.append(t)
+                    missed_short_y.append(price_at * 1.003)
+
+            # Marcadores pequenos para sinais não actuados
+            if missed_long_x:
+                fig.add_trace(go.Scatter(
+                    x=missed_long_x, y=missed_long_y, mode='markers',
+                    name='Sinal LONG (não actuado)',
+                    marker=dict(symbol='triangle-up', size=8,
+                                color='rgba(16,185,129,0.35)',
+                                line=dict(color='rgba(16,185,129,0.7)', width=1)),
+                    hovertemplate='Sinal LONG<br>%{x}<extra></extra>',
+                ), row=1, col=1)
+            if missed_short_x:
+                fig.add_trace(go.Scatter(
+                    x=missed_short_x, y=missed_short_y, mode='markers',
+                    name='Sinal SHORT (não actuado)',
+                    marker=dict(symbol='triangle-down', size=8,
+                                color='rgba(239,68,68,0.35)',
+                                line=dict(color='rgba(239,68,68,0.7)', width=1)),
+                    hovertemplate='Sinal SHORT<br>%{x}<extra></extra>',
+                ), row=1, col=1)
+
+            # Linhas verticais nos trades reais (entrada azul, saída verde/vermelha)
+            for tr in st.session_state.tg_trades:
+                if "entry_step" in tr and "exit_step" in tr:
+                    entry_time = df_full.index[tr['entry_step']]
+                    exit_time  = df_full.index[tr['exit_step']]
+                    is_win     = tr.get('pnl_eur', tr.get('pnl', 0)) >= 0
+                    exit_color = 'rgba(16,185,129,0.55)' if is_win else 'rgba(239,68,68,0.55)'
+                    if entry_time in sub_df.index:
+                        fig.add_shape(type="line",
+                            x0=entry_time, x1=entry_time, y0=y_min, y1=y_max,
+                            line=dict(color='rgba(0,176,255,0.6)', width=1.5, dash='dash'),
+                            row=1, col=1)
+                    if exit_time in sub_df.index and exit_time != entry_time:
+                        fig.add_shape(type="line",
+                            x0=exit_time, x1=exit_time, y0=y_min, y1=y_max,
+                            line=dict(color=exit_color, width=1.5, dash='dash'),
+                            row=1, col=1)
+            current_row = 2
+            for sub in subchart_type:
+                if sub == "Heatmap (Vel/Acel)":
+                    vel_dir = sub_df['velocity'].apply(lambda x: 1.0 if x > 0 else (-1.0 if x < 0 else 0.0)).tolist()
+                    acc_dir = sub_df['acceleration'].apply(lambda x: 1.0 if x > 0 else (-1.0 if x < 0 else 0.0)).tolist()
+                    fig.add_trace(go.Heatmap(
+                        x=sub_df.index, y=['Forca (Acel.)', 'Direcao (Vel.)'], z=[acc_dir, vel_dir],
+                        colorscale=[[0.0,'#e74c3c'],[0.5,'#cbd5e1'],[1.0,'#2ecc71']],
+                        showscale=False, hovertemplate='%{x}<br>%{y}: %{z}<extra></extra>'
+                    ), row=current_row, col=1)
+                
+                elif sub == "Histograma MACD":
+                    macd_vals = sub_df['macd_hist'].fillna(0.0).tolist()
+                    macd_colors = []
+                    for idx in range(len(macd_vals)):
+                        val = macd_vals[idx]
+                        prev_val = macd_vals[idx-1] if idx > 0 else 0.0
+                        if val >= 0:
+                            if val > prev_val: macd_colors.append('#2ecc71')
+                            else: macd_colors.append('#27ae60')
+                        else:
+                            if val < prev_val: macd_colors.append('#e74c3c')
+                            else: macd_colors.append('#c0392b')
+                    
+                    fig.add_trace(go.Bar(
+                        x=sub_df.index, y=macd_vals, marker_color=macd_colors, name='Histograma MACD',
+                        showlegend=False, hovertemplate='%{x}<br>MACD Hist: %{y:.4f}<extra></extra>'
+                    ), row=current_row, col=1)
+
+                elif sub == "Volume":
+                    vol_colors = ['#10B981' if c >= o else '#EF4444' for c, o in zip(sub_df['close'], sub_df['open'])]
+                    fig.add_trace(go.Bar(
+                        x=sub_df.index, y=sub_df['volume'], marker_color=vol_colors, name='Volume', showlegend=False
+                    ), row=current_row, col=1)
+                    if 'volume_sma_20' in sub_df.columns:
+                        fig.add_trace(go.Scatter(
+                            x=sub_df.index, y=sub_df['volume_sma_20'], line=dict(color='#F59E0B', width=2), name='SMA Volume (20)', showlegend=False
+                        ), row=current_row, col=1)
+                
+                elif sub == "ADX (Tendência)":
+                    if 'adx_14' in sub_df.columns:
+                        fig.add_trace(go.Scatter(
+                            x=sub_df.index, y=sub_df['adx_14'], line=dict(color='#3B82F6', width=2), name='ADX (14)', showlegend=False
+                        ), row=current_row, col=1)
+                        # Add ADX 25 threshold line
+                        fig.add_shape(type="line",
+                            x0=sub_df.index[0], x1=sub_df.index[-1], y0=25, y1=25,
+                            line=dict(color='rgba(239,68,68,0.8)', width=1.5, dash='dot'),
+                            row=current_row, col=1)
+                        fig.update_yaxes(title_text="ADX", title_font=dict(size=11, color="#2563eb"), row=current_row, col=1)
+                current_row += 1
+
+            fig.update_layout(
+                title=title_str,
+                hovermode='x unified', template='plotly_white', height=chart_height,
+                margin=dict(l=10, r=10, t=40, b=160),
+                uirevision='game_chart',
+                legend=dict(
+                    orientation="h", yanchor="top", y=-0.35,
+                    xanchor="center", x=0.5,
+                    font=dict(size=11),
+                    bgcolor="rgba(255,255,255,0.85)",
+                    bordercolor="rgba(0,0,0,0.1)", borderwidth=1
+                )
+            )
+            fig.update_xaxes(showgrid=True, gridcolor='#e2e8f0', row=1, col=1)
+            fig.update_yaxes(showgrid=True, gridcolor='#e2e8f0', row=1, col=1)
+
+            current_row = 2
+            for sub in subchart_type:
+                fig.update_xaxes(showgrid=True, gridcolor='#e2e8f0', row=current_row, col=1)
+                fig.update_yaxes(showgrid=True, gridcolor='#e2e8f0', row=current_row, col=1)
+                current_row += 1
+
+            return fig
+        def generate_game_market():
+            np.random.seed(int(time.time() * 100) % 100000)
+            max_candles = st.session_state.get("tg_max_candles", 100)
+            steps = 144 + max_candles + 16
+            symbol_raw = st.session_state.get('symbol_val', '\U0001f9ea Cen\u00e1rio Did\u00e1tico (Fict\u00edcio)')
+            
+            def generate_synthetic_data(steps):
+                drift = np.random.choice([0.08, -0.04, 0.0, 0.12])
+                volatility = np.random.uniform(1.3, 3.2)
+                dt = 0.1
+                prices = [100.0]
+                for _ in range(steps - 1):
+                    change = prices[-1] * (drift / 100.0 * dt + volatility / 100.0 * np.sqrt(dt) * np.random.normal())
+                    prices.append(max(10.0, prices[-1] + change))
+                dates = pd.date_range(start="2026-01-01", periods=steps, freq="1h")
+                return pd.DataFrame({
+                    'close': prices,
+                    'open': [p - np.random.normal(0, 0.1) for p in prices],
+                    'high': [p + abs(np.random.normal(0, 0.15)) for p in prices],
+                    'low': [p - abs(np.random.normal(0, 0.15)) for p in prices],
+                    'volume': [1000] * steps
+                }, index=dates)
+
+            df = None
+            if symbol_raw != '\U0001f9ea Cen\u00e1rio Did\u00e1tico (Fict\u00edcio)':
+                try:
+                    collector = DataCollector({'EXCHANGE_NAME': 'binance', 'SYMBOL': symbol_raw, 'TIMEFRAME': '1h'})
+                    df_all = collector.get_ohlcv(limit=1500)
+                    if df_all is not None and len(df_all) >= steps:
+                        max_start = len(df_all) - steps
+                        start_idx = np.random.randint(0, max_start + 1)
+                        df = df_all.iloc[start_idx : start_idx + steps].copy()
+                        required_cols = ['open', 'high', 'low', 'close', 'volume']
+                        if not all(col in df.columns for col in required_cols):
+                            df = None
+                    else:
+                        st.sidebar.warning("Dados hist\u00f3ricos insuficientes na base de dados. Usando cen\u00e1rio fict\u00edcio.")
+                except Exception as e:
+                    st.sidebar.warning(f"Erro ao carregar dados do par real ({e}). Usando cen\u00e1rio fict\u00edcio.")
+            
+            if df is None:
+                df = generate_synthetic_data(steps)
+            df['sma_5'] = df['close'].rolling(window=st.session_state.tg_p2).mean()
+            df['sma_13'] = df['close'].rolling(window=st.session_state.tg_p3).mean()
+            df['sma_21'] = df['close'].rolling(window=st.session_state.tg_p4).mean()
+            df['sma_55'] = df['close'].rolling(window=st.session_state.tg_p5).mean()
+            df['sma_144'] = df['close'].rolling(window=st.session_state.tg_p6).mean()
+            smas = ['sma_5','sma_13','sma_21','sma_55','sma_144']
+            df['avg_sma'] = df[smas].mean(axis=1)
+            df['sma_std'] = df[smas].std(axis=1)
+            df['stretching'] = df[smas].sub(df['avg_sma'], axis=0).abs().mean(axis=1).div(df['avg_sma']).mul(100)
+            df['velocity'] = df['close'].diff(periods=1)
+            df['acceleration'] = df['velocity'].diff(periods=2)
+            df['volatility'] = df['close'].rolling(window=20, min_periods=1).std()
+            
+            def classify_regime_row(row):
+                p = row['close']
+                s2 = row['sma_5']
+                s3 = row['sma_13']
+                s4 = row['sma_21']
+                s5 = row['sma_55']
+                s6 = row['sma_144']
+                v = row['velocity']
+                vol = row['volatility']
+                stretch = row['stretching']
+                if pd.isna(s6) or pd.isna(v) or pd.isna(vol) or pd.isna(stretch):
+                    return "LATERAL"
+                is_bull_trend = (s2 > s3) and (s3 > s4) and (s4 > s5) and (v > 0)
+                is_bear_trend = (s2 < s3) and (s3 < s4) and (s4 < s5) and (v < 0)
+                if stretch < 0.6:
+                    return "LATERAL"
+                elif is_bull_trend:
+                    return "BULL"
+                elif is_bear_trend:
+                    return "BEAR"
+                elif vol > p * 0.012:
+                    return "CAOTICO"
+                else:
+                    return "LATERAL"
+            
+            df['regime'] = df.apply(classify_regime_row, axis=1)
+            df['disp_pct'] = (df['sma_5'] - df['sma_144']) / df['sma_144'] * 100
+            smas_col = ['sma_5','sma_13','sma_21','sma_55','sma_144']
+            df['mola_pct'] = df[smas_col].std(axis=1) / df[smas_col].mean(axis=1) * 100
+            df['infil_bull'] = (df['sma_5'] > df['sma_13']) & (df['sma_13'] > df['sma_21']) & (df['sma_55'] < df['sma_144'])
+            df['infil_bear'] = (df['sma_5'] < df['sma_13']) & (df['sma_13'] < df['sma_21']) & (df['sma_55'] > df['sma_144'])
+            df['reteste_val'] = ((df['close'] - df['sma_55']).abs() / df['sma_55'] * 100 < 0.8) | ((df['close'] - df['sma_144']).abs() / df['sma_144'] * 100 < 0.8)
+            
+            # 4 novos indicadores dinâmicos para a Arena
+            delta_t = df['close'].diff()
+            gain_t = delta_t.clip(lower=0).rolling(window=14).mean()
+            loss_t = (-delta_t.clip(upper=0)).rolling(window=14).mean()
+            rs_t = gain_t / (loss_t + 1e-9)
+            df['rsi_14'] = 100 - (100 / (1 + rs_t))
+            bb_std_t = df['close'].rolling(window=20).std()
+            bb_mid_t = df['close'].rolling(window=20).mean()
+            df['bb_dist'] = ((df['close'] - (bb_mid_t - 2 * bb_std_t)) / (4 * bb_std_t + 1e-9)) * 100
+            macd_line_t = df['close'].ewm(span=12, adjust=False).mean() - df['close'].ewm(span=26, adjust=False).mean()
+            macd_signal_t = macd_line_t.ewm(span=9, adjust=False).mean()
+            df['macd_hist'] = macd_line_t - macd_signal_t
+            if 'high' in df.columns and 'low' in df.columns:
+                tr_t = np.maximum(df['high'] - df['low'], np.maximum((df['high'] - df['close'].shift()).abs(), (df['low'] - df['close'].shift()).abs()))
+            else:
+                tr_t = df['close'].diff().abs()
+            df['atr_14'] = tr_t.rolling(window=14).mean()
+            try:
+                import ta
+                df['adx_14'] = ta.trend.ADXIndicator(high=df['high'], low=df['low'], close=df['close'], window=14).adx()
+            except Exception:
+                df['adx_14'] = 0.0
+            df['volume_sma_20'] = df['volume'].rolling(window=20).mean()
+            df['volume_pct_diff'] = ((df['volume'] - df['volume_sma_20']) / df['volume_sma_20']) * 100.0
+            
+            df.bfill(inplace=True)
+            return df
+        def recalculate_indicators():
+            if st.session_state.tg_data is None: return
+            if st.session_state.tg_data is not None:
+                df = st.session_state.tg_data
+                df['sma_5'] = df['close'].rolling(window=st.session_state.tg_p2).mean()
+                df['sma_13'] = df['close'].rolling(window=st.session_state.tg_p3).mean()
+                df['sma_21'] = df['close'].rolling(window=st.session_state.tg_p4).mean()
+                df['sma_55'] = df['close'].rolling(window=st.session_state.tg_p5).mean()
+                df['sma_144'] = df['close'].rolling(window=st.session_state.tg_p6).mean()
+                smas = ['sma_5','sma_13','sma_21','sma_55','sma_144']
+                df['avg_sma'] = df[smas].mean(axis=1)
+                df['sma_std'] = df[smas].std(axis=1)
+                df['stretching'] = df[smas].sub(df['avg_sma'], axis=0).abs().mean(axis=1).div(df['avg_sma']).mul(100)
+                df['velocity'] = df['close'].diff(periods=1)
+                df['acceleration'] = df['velocity'].diff(periods=2)
+                df['volatility'] = df['close'].rolling(window=20, min_periods=1).std()
+                
+                def classify_regime_row(row):
+                    p = row['close']
+                    s2 = row['sma_5']
+                    s3 = row['sma_13']
+                    s4 = row['sma_21']
+                    s5 = row['sma_55']
+                    s6 = row['sma_144']
+                    v = row['velocity']
+                    vol = row['volatility']
+                    stretch = row['stretching']
+                    if pd.isna(s6) or pd.isna(v) or pd.isna(vol) or pd.isna(stretch):
+                        return "LATERAL"
+                    is_bull_trend = (s2 > s3) and (s3 > s4) and (s4 > s5) and (v > 0)
+                    is_bear_trend = (s2 < s3) and (s3 < s4) and (s4 < s5) and (v < 0)
+                    if stretch < 0.6:
+                        return "LATERAL"
+                    elif is_bull_trend:
+                        return "BULL"
+                    elif is_bear_trend:
+                        return "BEAR"
+                    elif vol > p * 0.012:
+                        return "CAOTICO"
+                    else:
+                        return "LATERAL"
+                
+                df['regime'] = df.apply(classify_regime_row, axis=1)
+                df['disp_pct'] = (df['sma_5'] - df['sma_144']) / df['sma_144'] * 100
+                smas_col = ['sma_5','sma_13','sma_21','sma_55','sma_144']
+                df['mola_pct'] = df[smas_col].std(axis=1) / df[smas_col].mean(axis=1) * 100
+                df['infil_bull'] = (df['sma_5'] > df['sma_13']) & (df['sma_13'] > df['sma_21']) & (df['sma_55'] < df['sma_144'])
+                df['infil_bear'] = (df['sma_5'] < df['sma_13']) & (df['sma_13'] < df['sma_21']) & (df['sma_55'] > df['sma_144'])
+                df['reteste_val'] = ((df['close'] - df['sma_55']).abs() / df['sma_55'] * 100 < 0.8) | ((df['close'] - df['sma_144']).abs() / df['sma_144'] * 100 < 0.8)
+                
+                # 4 novos indicadores dinâmicos para a Arena
+                delta_t = df['close'].diff()
+                gain_t = delta_t.clip(lower=0).rolling(window=14).mean()
+                loss_t = (-delta_t.clip(upper=0)).rolling(window=14).mean()
+                rs_t = gain_t / (loss_t + 1e-9)
+                df['rsi_14'] = 100 - (100 / (1 + rs_t))
+                bb_std_t = df['close'].rolling(window=20).std()
+                bb_mid_t = df['close'].rolling(window=20).mean()
+                df['bb_dist'] = ((df['close'] - (bb_mid_t - 2 * bb_std_t)) / (4 * bb_std_t + 1e-9)) * 100
+                macd_line_t = df['close'].ewm(span=12, adjust=False).mean() - df['close'].ewm(span=26, adjust=False).mean()
+                macd_signal_t = macd_line_t.ewm(span=9, adjust=False).mean()
+                df['macd_hist'] = macd_line_t - macd_signal_t
+                if 'high' in df.columns and 'low' in df.columns:
+                    tr_t = np.maximum(df['high'] - df['low'], np.maximum((df['high'] - df['close'].shift()).abs(), (df['low'] - df['close'].shift()).abs()))
+                else:
+                    tr_t = df['close'].diff().abs()
+                df['atr_14'] = tr_t.rolling(window=14).mean()
+            try:
+                import ta
+                df['adx_14'] = ta.trend.ADXIndicator(high=df['high'], low=df['low'], close=df['close'], window=14).adx()
+            except Exception:
+                df['adx_14'] = 0.0
+            df['volume_sma_20'] = df['volume'].rolling(window=20).mean()
+            df['volume_pct_diff'] = ((df['volume'] - df['volume_sma_20']) / df['volume_sma_20']) * 100.0
+            
+            df.bfill(inplace=True)
+            st.session_state.tg_data = df
+        # Sincronização automática se as médias mudaram
+        current_smas = (st.session_state.tg_p2, st.session_state.tg_p3, st.session_state.tg_p4, st.session_state.tg_p5, st.session_state.tg_p6)
+        if st.session_state.get('tg_last_calculated_smas') != current_smas:
+            recalculate_indicators()
+            st.session_state.tg_last_calculated_smas = current_smas
+        def compute_bot_signal(df, step):
+            """Calcula sinal do bot com os filtros universais aplicados (Squeeze e Momentum)."""
+            if step < 10:
+                return "HOLD", 0.0, {}
+
+            # 0. Pausa universal após Stop Loss (evita rajadas de SL seguidos no mesmo crash/serrilha)
+            _sl_cd = int(st.session_state.get('tg_sl_cooldown_candles', 0) or 0)
+            if _sl_cd > 0 and st.session_state.get("tg_position", "NONE") == "NONE":
+                _tr_hist = st.session_state.get("tg_trades", [])
+                if _tr_hist and _tr_hist[-1].get("reason") == "STOP LOSS":
+                    _since_sl = step - int(_tr_hist[-1].get("exit_step", step))
+                    if 0 <= _since_sl < _sl_cd:
+                        return "HOLD", 0.0, {
+                            "Pausa pós-SL": f"{_since_sl}/{_sl_cd} velas após Stop Loss",
+                            "Estado": "⏸️ A aguardar estabilização após SL."
+                        }
+
+            # 1. Filtro de Squeeze / Dispersão Percentual (bloqueia antes de calcular a estratégia se estiver em compressão)
+            _disp_min = st.session_state.get('tg_lagarta_min_disp', 0.0)
+            if _disp_min > 0.0 and 'mola_pct' in df.columns:
+                _disp_now = float(df['mola_pct'].iloc[step])
+                _disp_prev = float(df['mola_pct'].iloc[step-1]) if step > 0 else _disp_now
+                
+                if st.session_state.get('tg_filter_squeeze_active', False):
+                    # Filtro de Squeeze Ativo: Atua como ESCUDO. 
+                    # Se as médias estão muito juntas (compressão), não deixa entrar de todo.
+                    if _disp_now < _disp_min:
+                        return "HOLD", 0.0, {
+                            "Filtro Squeeze Ativo": f"Mola: {_disp_now:.3f}% < Mínimo: {_disp_min:.2f}%",
+                            "Estado": "⏸️ Em compressão. Sinais da estratégia bloqueados."
+                        }
+                else:
+                    # Antes o slider sozinho ativava. Agora, se a checkbox estiver desligada, 
+                    # o slider não bloqueia nada (para evitar confusões).
+                    pass
+
+            # 2. Calcular o sinal bruto da estratégia ativa
+            sig, conf, conds = _compute_bot_signal_raw(df, step)
+            _cur_st = st.session_state.get("tg_strategy_type", "")
+            _is_mean_rev = ("Reversão à Média" in _cur_st) or ("Bollinger" in _cur_st) or ("Camaleão" in _cur_st)
+
+            # 2.5 Filtro Universal Anti-Serrilha (Separação Mínima P2–P3 %) para qualquer estratégia
+            _min_p2_p3 = float(st.session_state.get('tg_min_p2_p3_pct', 0.0) or 0.0)
+            _is_lat_mode = "Lateral" in str(conds.get("Modo", ""))
+            if _min_p2_p3 > 0.0 and sig in ("LONG", "SHORT") and not _is_lat_mode:
+                _p2_k = f"sma_{int(st.session_state.get('tg_p2', 5))}"
+                _p3_k = f"sma_{int(st.session_state.get('tg_p3', 13))}"
+                _p2_v = float(df[_p2_k].iloc[step]) if _p2_k in df.columns else float(df['sma_5'].iloc[step]) if 'sma_5' in df.columns else 0.0
+                _p3_v = float(df[_p3_k].iloc[step]) if _p3_k in df.columns else float(df['sma_13'].iloc[step]) if 'sma_13' in df.columns else 0.0
+                if _p3_v > 0:
+                    _sep_pct = abs(_p2_v - _p3_v) / _p3_v * 100.0
+                    if _sep_pct < _min_p2_p3:
+                        return "HOLD", 0.0, {
+                            "Filtro Anti-Serrilha (P2-P3)": f"Separação {_sep_pct:.2f}% < {_min_p2_p3:.2f}%",
+                            "Estado": "⏸️ Médias demasiado coladas (evita taxa em serrilha)."
+                        }
+
+            # 3. Filtro de Momentum (apenas para estratégias seguidoras de tendência; Reversão compra contra o momentum curto!)
+            if (not _is_mean_rev) and st.session_state.get('tg_filter_momentum_active', False) and sig in ("LONG", "SHORT"):
+                vel = df['velocity'].iloc[step] if 'velocity' in df.columns else 0.0
+                acc = df['acceleration'].iloc[step] if 'acceleration' in df.columns else 0.0
+                
+                if sig == "LONG" and (vel <= 0 or acc <= 0):
+                    return "HOLD", 0.0, {
+                        **conds,
+                        "Filtro Momentum": "Cancelado (LONG exige Velocidade > 0 e Aceleração > 0)",
+                        "Estado Físico": f"Vel: {vel:.4f}, Acc: {acc:.4f}"
+                    }
+                elif sig == "SHORT" and (vel >= 0 or acc >= 0):
+                    return "HOLD", 0.0, {
+                        **conds,
+                        "Filtro Momentum": "Cancelado (SHORT exige Velocidade < 0 e Aceleração < 0)",
+                        "Estado Físico": f"Vel: {vel:.4f}, Acc: {acc:.4f}"
+                    }
+            # 4. Filtro Global MACD (ignorado em Reversão à Média, pois na sobrevenda o MACD é naturalmente negativo!)
+            if (not _is_mean_rev) and st.session_state.get('tg_filter_macd_active', False):
+                macd = df['macd_hist'].iloc[step] if 'macd_hist' in df.columns else 0.0
+                macd_long_entry = st.session_state.get("tg_macd_long_entry", 0.1)
+                macd_long_exit = st.session_state.get("tg_macd_long_exit", 0.1)
+                macd_short_entry = st.session_state.get("tg_macd_short_entry", -0.1)
+                macd_short_exit = st.session_state.get("tg_macd_short_exit", -0.1)
+                
+                _cur_pos = st.session_state.get("tg_position", "NONE")
+                
+                # Saídas forçadas
+                if _cur_pos == "LONG" and macd < macd_long_exit:
+                    return "HOLD", 100.0, {**conds, "Filtro MACD": "Saída Forçada (MACD Sem Força)"}
+                elif _cur_pos == "SHORT" and macd > macd_short_exit:
+                    return "HOLD", 100.0, {**conds, "Filtro MACD": "Saída Forçada (MACD Sem Força)"}
+                    
+                # Bloqueio de Entradas
+                if sig == "LONG" and macd < macd_long_entry:
+                    return "HOLD", 0.0, {**conds, "Filtro MACD": "Cancelado (MACD < Long Entry)"}
+                elif sig == "SHORT" and macd > macd_short_entry:
+                    return "HOLD", 0.0, {**conds, "Filtro MACD": "Cancelado (MACD > Short Entry)"}
+
+            # 5. Filtro de Volume
+            if st.session_state.get('tg_filter_volume_active', False) and sig in ("LONG", "SHORT"):
+                vol_pct = df['volume_pct_diff'].iloc[step] if 'volume_pct_diff' in df.columns else 0.0
+                thresh = st.session_state.get('tg_volume_threshold_pct', 0.0)
+                if vol_pct < thresh:
+                    return "HOLD", 0.0, {**conds, "Filtro Volume": f"Cancelado (Volume {vol_pct:.1f}% vs Exigido {thresh:.1f}%)"}
+
+            return sig, conf, conds
+
+        def _compute_bot_signal_raw(df, step):
+            """Calcula sinal do bot bruto: LONG / SHORT / HOLD com confianca 0-100%."""
+            if step < 10:
+                return "HOLD", 0.0, {}
+
+            # ─── ESTRATÉGIA CLAUDE v4 — PIRÂMIDE FIBONACCI (FLAT EXIT) ───────────────
+            # v4: quando pirâmide parte → VAI PARA FLAT (não reverte imediatamente)
+            # Só re-entra com nova pirâmide alinhada. Elimina whipsaw.
+            if "Claude" in st.session_state.get("tg_strategy_type", "Default"):
+                p2_now  = df['sma_5'].iloc[step];   p2_prev = df['sma_5'].iloc[step-1]
+                p3_now  = df['sma_13'].iloc[step];  p3_prev = df['sma_13'].iloc[step-1]
+                p4_now  = df['sma_21'].iloc[step]
+                vel     = df['velocity'].iloc[step] if 'velocity' in df.columns else 0.0
+                disp    = df['sma_std'].iloc[step]  if 'sma_std'  in df.columns else 0.0
+
+                cross_p2p3_long  = (p2_prev <= p3_prev) and (p2_now > p3_now)
+                cross_p2p3_short = (p2_prev >= p3_prev) and (p2_now < p3_now)
+
+                _cur = st.session_state.get("tg_position", "NONE")
+
+                cond = {
+                    "P2 > P3":   bool(p2_now > p3_now),
+                    "P2 > P4":   bool(p2_now > p4_now),
+                    "Cruz ↑P3":  bool(cross_p2p3_long),
+                    "Cruz ↓P3":  bool(cross_p2p3_short),
+                    "Vel +":     bool(vel > 0),
+                }
+
+                # ENTRADA LONG: pirâmide alinha para CIMA
+                if cross_p2p3_long and p2_now > p4_now and vel > 0:
+                    if _cur == "LONG":
+                        return "HOLD", 0.0, {**cond, "Estado": "Teimosia LONG"}
+                    return "LONG", 100.0, {**cond, "Gatilho": "Pirâmide ▲ LONG"}
+
+                # ENTRADA SHORT: pirâmide alinha para BAIXO
+                elif cross_p2p3_short and p2_now < p4_now and vel < 0:
+                    if _cur == "SHORT":
+                        return "HOLD", 0.0, {**cond, "Estado": "Teimosia SHORT"}
+                    return "SHORT", 100.0, {**cond, "Gatilho": "Pirâmide ▼ SHORT"}
+
+                # SAÍDA FLAT: pirâmide parte → sinal HOLD com 90% para forçar saída
+                # Bot Autónomo sai (HOLD >= tg_min_confidence) mas NÃO reverte
+                elif _cur == "LONG" and cross_p2p3_short:
+                    return "HOLD", 90.0, {**cond, "Gatilho": "Pirâmide partiu ↓ — FLAT"}
+                elif _cur == "SHORT" and cross_p2p3_long:
+                    return "HOLD", 90.0, {**cond, "Gatilho": "Pirâmide partiu ↑ — FLAT"}
+
+                else:
+                    return "HOLD", 0.0, {**cond, "Estado": "A aguardar pirâmide"}
+
+            # --- ESTRATÉGIA CUSTOMIZADA: ESTRATÉGIA MÉDIA CAMADAS (DUAS LINHAS) ---
+            if "Camadas" in st.session_state.get("tg_strategy_type", "Default") or "Esmigalhador" in st.session_state.get("tg_strategy_type", "Default"):
+                p2_per = st.session_state.get("tg_p2", 5)
+                p3_per = st.session_state.get("tg_p3", 13)
+                p4_per = st.session_state.get("tg_p4", 21)
+                
+                col_p2 = "sma_5" if p2_per > 1 else "close"
+                col_p3 = "sma_13"
+                col_p4 = "sma_21"
+                
+                price_now = df[col_p2].iloc[step]
+                price_prev = df[col_p2].iloc[step-1]
+                
+                p3_now = df[col_p3].iloc[step]
+                p3_prev = df[col_p3].iloc[step-1]
+                
+                p4_now = df[col_p4].iloc[step]
+                p4_prev = df[col_p4].iloc[step-1]
+                
+                # 1. Cruzamento da linha do meio P4 (média das médias / pivot)
+                cross_p4_long = (price_prev <= p4_prev) and (price_now > p4_now)
+                cross_p4_short = (price_prev >= p4_prev) and (price_now < p4_now)
+                
+                # 2. Cruzamento da 2ª média P3 (reentrada)
+                cross_p3_long = (price_prev <= p3_prev) and (price_now > p3_now)
+                cross_p3_short = (price_prev >= p3_prev) and (price_now < p3_now)
+                
+                cond_dict = {
+                    "Preço (1)": float(price_now),
+                    "2ª Média (P3)": float(p3_now),
+                    "Pivot Meio (P4)": float(p4_now),
+                    "Acima do Pivot": bool(price_now > p4_now)
+                }
+                
+                if cross_p4_long:
+                    return "LONG", 100.0, {**cond_dict, "Gatilho": "Cruzamento Equador (P4) de Alta"}
+                elif cross_p4_short:
+                    return "SHORT", 100.0, {**cond_dict, "Gatilho": "Cruzamento Equador (P4) de Baixa"}
+                elif price_now > p4_now and cross_p3_long:
+                    return "LONG", 100.0, {**cond_dict, "Gatilho": "Reentrada 2ª Média (P3) de Alta"}
+                elif price_now < p4_now and cross_p3_short:
+                    return "SHORT", 100.0, {**cond_dict, "Gatilho": "Reentrada 2ª Média (P3) de Baixa"}
+                else:
+                    return "HOLD", 0.0, cond_dict
+
+            elif "Momentum & MACD" in st.session_state.get("tg_strategy_type", "Default"):
+                vel = df['velocity'].iloc[step] if 'velocity' in df.columns else 0.0
+                acc = df['acceleration'].iloc[step] if 'acceleration' in df.columns else 0.0
+                macd = df['macd_hist'].iloc[step] if 'macd_hist' in df.columns else 0.0
+                
+                cond_dict = {"Velocidade": vel, "Aceleração": acc, "MACD Hist": macd}
+                
+                if vel > 0 and acc > 0:
+                    return "LONG", 100.0, cond_dict
+                elif vel < 0 and acc < 0:
+                    return "SHORT", 100.0, cond_dict
+                else:
+                    return "HOLD", 0.0, cond_dict
+                    
+                macd_long_exit = st.session_state.get("tg_macd_long_exit", 0.0)
+                macd_short_exit = st.session_state.get("tg_macd_short_exit", 0.0)
+
+                if _cur == "LONG" and macd < macd_long_exit:
+                    return "HOLD", 100.0, {**cond_dict, "Gatilho": "Saída MACD Sem Força"}
+                elif _cur == "SHORT" and macd > macd_short_exit:
+                    return "HOLD", 100.0, {**cond_dict, "Gatilho": "Saída MACD Sem Força"}
+                    
+                return "HOLD", 0.0, cond_dict
+
+            elif "Camaleão" in st.session_state.get("tg_strategy_type", "Default"):
+                _cur = st.session_state.get("tg_position", "NONE")
+                if _cur == "NONE":
+                    st.session_state.tg_camaleao_entry_regime = None
+                if step >= 55:
+                    _px = float(df['close'].iloc[step])
+                    _prev_px = float(df['close'].iloc[step - 1])
+                    _adx = float(df['adx_14'].iloc[step]) if 'adx_14' in df.columns and not pd.isna(df['adx_14'].iloc[step]) else 20.0
+                    _rsi = float(df['rsi_14'].iloc[step]) if 'rsi_14' in df.columns and not pd.isna(df['rsi_14'].iloc[step]) else 50.0
+                    _slice = df['close'].iloc[step - 55:step + 1]
+                    _mid = float(_slice.iloc[-20:].mean())
+                    _std = float(_slice.iloc[-20:].std())
+                    _low_b, _high_b = _mid - 2.0 * _std, _mid + 2.0 * _std
+                    p2_n, p2_p = float(df['sma_5'].iloc[step]), float(df['sma_5'].iloc[step - 1])
+                    p3_n, p3_p = float(df['sma_13'].iloc[step]), float(df['sma_13'].iloc[step - 1])
+                    p4_n = float(df['sma_21'].iloc[step])
+                    vel = float(df['velocity'].iloc[step]) if 'velocity' in df.columns else 0.0
+
+                    # 1) Se já está em posição, respeitar o regime em que a operação nasceu (evita fechar compra lateral quando ADX oscila nos 25!)
+                    _entry_reg = st.session_state.get("tg_camaleao_entry_regime") or ("TREND" if _adx > 25.0 else "LAT")
+                    if _cur == "LONG":
+                        if _entry_reg == "LAT" and _px >= (_mid + 0.45 * _std):
+                            return "HOLD", 100.0, {"Modo": "🌊 Saída Lateral", "ADX(14)": round(_adx, 1), "Gatilho": "Alvo Média Atingido"}
+                        if _entry_reg == "TREND" and (p2_n < p3_n or (_px < p3_n and vel < 0)):
+                            return "HOLD", 100.0, {"Modo": "🔥 Saída Tendência", "ADX(14)": round(_adx, 1), "Gatilho": "Quebra Tendência (P2/P3)"}
+                    elif _cur == "SHORT":
+                        if _entry_reg == "LAT" and _px <= (_mid - 0.45 * _std):
+                            return "HOLD", 100.0, {"Modo": "🌊 Saída Lateral", "ADX(14)": round(_adx, 1), "Gatilho": "Alvo Média Atingido"}
+                        if _entry_reg == "TREND" and (p2_n > p3_n or (_px > p3_n and vel > 0)):
+                            return "HOLD", 100.0, {"Modo": "🔥 Saída Tendência", "ADX(14)": round(_adx, 1), "Gatilho": "Quebra Tendência (P2/P3)"}
+
+                    # 2) Procurar novas entradas quando está fora do mercado (_cur == "NONE")
+                    if _cur == "NONE":
+                        _sma50_now = float(_slice.iloc[-50:].mean())
+                        _sma50_prev = float(df['close'].iloc[max(0, step - 70):step - 20].mean())
+                        _slope50 = ((_sma50_now - _sma50_prev) / _sma50_prev * 100.0) if _sma50_prev > 0 else 0.0
+                        _macd_now = float(df['macd_hist'].iloc[step]) if 'macd_hist' in df.columns and not pd.isna(df['macd_hist'].iloc[step]) else 0.0
+                        if _adx > 27.0:
+                            cond_t = {"Modo": "🔥 Tendência (ADX>27)", "ADX(14)": round(_adx, 1), "P2": round(p2_n, 2), "P3": round(p3_n, 2)}
+                            _spread_expanding_up = (p2_n - p3_n) > (p2_p - p3_p) and p2_n > p2_p
+                            _spread_expanding_dn = (p3_n - p2_n) > (p3_p - p2_p) and p2_n < p2_p
+                            # Entra apenas com ADX > 27, pirâmide alinhada, leque a abrir e momentum/MACD a favor
+                            if p2_n > p3_n and p2_n > p4_n and _px > p2_n and _spread_expanding_up and vel > 0 and _macd_now > 0 and _rsi < 70.0:
+                                st.session_state.tg_camaleao_entry_regime = "TREND"
+                                return "LONG", 100.0, {**cond_t, "Gatilho": "Tendência de Alta Confirmada"}
+                            if p2_n < p3_n and p2_n < p4_n and _px < p2_n and _spread_expanding_dn and vel < 0 and _macd_now < 0 and _rsi > 30.0:
+                                st.session_state.tg_camaleao_entry_regime = "TREND"
+                                return "SHORT", 100.0, {**cond_t, "Gatilho": "Tendência de Baixa Confirmada"}
+                            return "HOLD", 0.0, cond_t
+                        else:
+                            _bw_pct = (4.0 * _std / _mid) * 100.0 if _mid > 0 else 0.0
+                            _rec_low = float(df['close'].iloc[step - 2:step + 1].min())
+                            _rec_high = float(df['close'].iloc[step - 2:step + 1].max())
+                            _rec_rsi_min = float(df['rsi_14'].iloc[step - 2:step + 1].min()) if 'rsi_14' in df.columns else _rsi
+                            _rec_rsi_max = float(df['rsi_14'].iloc[step - 2:step + 1].max()) if 'rsi_14' in df.columns else _rsi
+                            cond_l = {"Modo": "🌊 Lateral (ADX≤25)", "ADX(14)": round(_adx, 1), "RSI(14)": round(_rsi, 1)}
+                            if _bw_pct >= 2.5:
+                                # Só faz reversão à média quando a média macro está realmente plana (evita apanhar facas a cair ou shortar subidas fortes)
+                                if _rec_low <= _low_b and _rec_rsi_min <= 35.0 and _px > _prev_px and _slope50 >= -0.15:
+                                    st.session_state.tg_camaleao_entry_regime = "LAT"
+                                    return "LONG", 100.0, {**cond_l, "Gatilho": "Viragem após Sobrevenda"}
+                                if _rec_high >= (_mid + 2.1 * _std) and _rec_rsi_max >= 70.0 and _px < _prev_px and _slope50 <= 0.15 and _px <= _sma50_now * 1.03:
+                                    st.session_state.tg_camaleao_entry_regime = "LAT"
+                                    return "SHORT", 100.0, {**cond_l, "Gatilho": "Viragem após Sobrecompra"}
+                            return "HOLD", 0.0, cond_l
+                return "HOLD", 0.0, {}
+
+            elif "Reversão à Média" in st.session_state.get("tg_strategy_type", "Default") or "Bollinger" in st.session_state.get("tg_strategy_type", "Default"):
+                _cur = st.session_state.get("tg_position", "NONE")
+                if step >= 55:
+                    _px = float(df['close'].iloc[step])
+                    _slice = df['close'].iloc[step - 55:step + 1]
+                    _mid = float(_slice.iloc[-20:].mean())
+                    _std = float(_slice.iloc[-20:].std())
+                    _low_b = _mid - 2.0 * _std
+                    _high_b = _mid + 2.0 * _std
+                    _bw_pct = (4.0 * _std / _mid) * 100.0 if _mid > 0 else 0.0
+                    _sma50_now = float(_slice.iloc[-50:].mean())
+                    _sma50_prev = float(df['close'].iloc[max(0, step - 70):step - 20].mean())
+                    _slope50 = ((_sma50_now - _sma50_prev) / _sma50_prev * 100.0) if _sma50_prev > 0 else 0.0
+                    _rsi = float(df['rsi_14'].iloc[step]) if 'rsi_14' in df.columns and not pd.isna(df['rsi_14'].iloc[step]) else 50.0
+                    _adx = float(df['adx_14'].iloc[step]) if 'adx_14' in df.columns and not pd.isna(df['adx_14'].iloc[step]) else 20.0
+                    cond_dict = {
+                        "Preço": round(_px, 2),
+                        "BB Inf": round(_low_b, 2),
+                        "Média (BB20)": round(_mid, 2),
+                        "BB Sup": round(_high_b, 2),
+                        "RSI(14)": round(_rsi, 1),
+                        "ADX(14)": round(_adx, 1),
+                    }
+                    # Saída apenas quando ultrapassa a média com margem acima das comissões
+                    if _cur == "LONG" and _px >= (_mid + 0.4 * _std):
+                        return "HOLD", 100.0, {**cond_dict, "Gatilho": "Alvo Acima da Média Atingido"}
+                    if _cur == "SHORT" and _px <= (_mid - 0.4 * _std):
+                        return "HOLD", 100.0, {**cond_dict, "Gatilho": "Alvo Abaixo da Média Atingido"}
+
+                    # Só entra em mercado verdadeiramente Lateral (ADX <= 25) e com amplitude suficiente (>= 2.0%)
+                    if _adx <= 25.0 and _bw_pct >= 2.0:
+                        if _px <= _low_b and _rsi <= 35.0 and _slope50 >= -1.5:
+                            return "LONG", 100.0, {**cond_dict, "Gatilho": "Sobrevenda em Regime Lateral"}
+                        elif _px >= (_mid + 2.15 * _std) and _rsi >= 70.0 and _slope50 <= 0.8:
+                            return "SHORT", 100.0, {**cond_dict, "Gatilho": "Sobrecompra Extrema em Regime Lateral"}
+                    return "HOLD", 0.0, cond_dict
+                return "HOLD", 0.0, {}
+
+            elif "Momentum Puro" in st.session_state.get("tg_strategy_type", "Default"):
+                vel = df['velocity'].iloc[step] if 'velocity' in df.columns else 0.0
+                acc = df['acceleration'].iloc[step] if 'acceleration' in df.columns else 0.0
+                
+                cond_dict = {"Velocidade": vel, "Aceleração": acc}
+                _cur = st.session_state.get("tg_position", "NONE")
+                
+                if vel > 0 and acc > 0:
+                    return "LONG", 100.0, cond_dict
+                elif vel < 0 and acc < 0:
+                    return "SHORT", 100.0, cond_dict
+                    
+                if _cur == "LONG" and vel < 0:
+                    return "HOLD", 100.0, {**cond_dict, "Gatilho": "Saída Direção Negativa"}
+                elif _cur == "SHORT" and vel > 0:
+                    return "HOLD", 100.0, {**cond_dict, "Gatilho": "Saída Direção Positiva"}
+                    
+                return "HOLD", 0.0, cond_dict
+
+            # --- ESTRATÉGIA CUSTOMIZADA: CRUZAMENTO DE LINHA ÚNICA ---
+            _s_typ = st.session_state.get("tg_strategy_type", "Default")
+            if "Lagarta" in _s_typ or "Linha Solitária" in _s_typ or "Cruzamento" in _s_typ:
+                if "Lagarta" in _s_typ:
+                    ref_line_name = "Qualquer SMA Ativa"
+                else:
+                    ref_line_name = st.session_state.get("tg_single_line_ref", "SMA Rápida (P2)")
+                mapping = {
+                    "SMA Rápida (P2)": "sma_5",
+                    "SMA Sinal (P3)": "sma_13",
+                    "SMA Intermédia (P4)": "sma_21",
+                    "SMA Lenta 1 (P5)": "sma_55",
+                    "SMA Lenta 2 (P6)": "sma_144",
+                    "Média do Vetor (avg_sma)": "avg_sma",
+                    "Desvio Padrão (sma_std)": "sma_std"
+                }
+                col_name = mapping.get(ref_line_name, "sma_5")
+
+                price_now = df['close'].iloc[step]
+                price_prev = df['close'].iloc[step-1]
+
+                # Proteção: se a linha de referência é igual ao preço (ex: P2=1 → SMA1=preço),
+                # a Lagarta nunca cruzaria a si própria. Avançar para a próxima linha útil.
+                fallback_cols = ["sma_13", "sma_21", "sma_55", "sma_144", "avg_sma"]
+                if col_name not in ("avg_sma", "sma_std"):
+                    line_test = df[col_name].iloc[step]
+                    if abs(line_test - price_now) < 1e-9:  # linha = preço → inútil
+                        for fb in fallback_cols:
+                            if abs(df[fb].iloc[step] - price_now) > 1e-9:
+                                col_name = fb
+                                ref_line_name = f"Auto ({fb})"
+                                break
+
+                is_growing = price_now > price_prev
+                is_falling = price_now < price_prev
+
+                # Lógica especial para Desvio Padrão (Breakout de Volatilidade)
+                if ref_line_name == "Desvio Padrão (sma_std)":
+                    avg_now  = df['avg_sma'].iloc[step]
+                    avg_prev = df['avg_sma'].iloc[step-1]
+                    std_now  = df['sma_std'].iloc[step]
+                    std_prev = df['sma_std'].iloc[step-1]
+                    dist_now  = abs(price_now  - avg_now)
+                    dist_prev = abs(price_prev - avg_prev)
+
+                    is_breakout = (dist_prev <= std_prev) and (dist_now > std_now)
+
+                    cond_dict = {
+                        "Afastamento > Desvio Padrão": bool(dist_now > std_now),
+                        "Afastamento em Alta": bool(dist_now > dist_prev),
+                        "Breakout de Volatilidade": bool(is_breakout),
+                        "Preço a Crescer": bool(is_growing),
+                    }
+
+                    if is_breakout and is_growing:
+                        return "LONG", 100.0, {**cond_dict, "Gatilho": "Breakout de Alta"}
+                    elif is_breakout and is_falling:
+                        return "SHORT", 100.0, {**cond_dict, "Gatilho": "Breakout de Baixa"}
+                    else:
+                        return "HOLD", 0.0, cond_dict
+                else:
+                    _is_lagarta = "Lagarta" in st.session_state.get("tg_strategy_type", "") or "Linha Solitária" in st.session_state.get("tg_strategy_type", "")
+                    _cur_pos    = st.session_state.get("tg_position", "NONE")
+
+                    # --- Modo "Qualquer SMA Ativa": verifica todas as 5 SMAs ---
+                    if ref_line_name == "Qualquer SMA Ativa":
+                        all_sma_cols = ["sma_5", "sma_13", "sma_21", "sma_55", "sma_144"]
+                        first_long = None
+                        first_short = None
+                        crossed_lines = []
+                        for sma_col in all_sma_cols:
+                            ln  = df[sma_col].iloc[step]
+                            lp  = df[sma_col].iloc[step-1]
+                            if abs(ln - price_now) < 1e-9:   # SMA = preço (período 1), ignorar
+                                continue
+                            if (price_prev <= lp) and (price_now > ln):
+                                crossed_lines.append(f"↑ {sma_col}")
+                                if first_long is None:
+                                    first_long = sma_col
+                            elif (price_prev >= lp) and (price_now < ln):
+                                crossed_lines.append(f"↓ {sma_col}")
+                                if first_short is None:
+                                    first_short = sma_col
+
+                        cond_dict = {
+                            "Linhas Cruzadas": str(crossed_lines) if crossed_lines else "nenhuma",
+                            "Cruzamento Alta":  bool(first_long),
+                            "Cruzamento Baixa": bool(first_short),
+                        }
+                        # Teimosia correta: manter se cruzou na MESMA direção da posição atual
+                        # Reverter se cruzou na direção OPOSTA
+                        if first_long and not first_short:
+                            # cruzamento de alta: se já em LONG → manter (HOLD), senão → LONG
+                            if _cur_pos == "LONG":
+                                return "HOLD", 0.0, {**cond_dict, "Gatilho": "Teimosia — já em LONG, mantém"}
+                            return "LONG", 100.0, {**cond_dict, "Gatilho": f"↑ cruzou {first_long}"}
+                        elif first_short and not first_long:
+                            # cruzamento de baixa: se já em SHORT → manter (HOLD), senão → SHORT
+                            if _cur_pos == "SHORT":
+                                return "HOLD", 0.0, {**cond_dict, "Gatilho": "Teimosia — já em SHORT, mantém"}
+                            return "SHORT", 100.0, {**cond_dict, "Gatilho": f"↓ cruzou {first_short}"}
+                        else:
+                            return "HOLD", 0.0, cond_dict
+
+                    # --- Modo linha única (padrão) ---
+                    line_now  = df[col_name].iloc[step]
+                    line_prev = df[col_name].iloc[step-1]
+
+                    is_crossover_long  = (price_prev <= line_prev) and (price_now > line_now)
+                    is_crossover_short = (price_prev >= line_prev) and (price_now < line_now)
+
+                    cond_dict = {
+                        f"Preço > {ref_line_name}": bool(price_now > line_now),
+                        "Cruzamento de Alta":  bool(is_crossover_long),
+                        "Cruzamento de Baixa": bool(is_crossover_short),
+                    }
+
+                    if is_crossover_long:
+                        # Já em LONG → teimosia (mesma direção, mantém)
+                        if _cur_pos == "LONG":
+                            return "HOLD", 0.0, {**cond_dict, "Gatilho": "Teimosia — já em LONG, mantém"}
+                        # Em SHORT ou NONE → reverter/entrar LONG
+                        return "LONG", 100.0, {**cond_dict, "Gatilho": "Cruzamento de Alta → LONG"}
+                    elif is_crossover_short:
+                        # Já em SHORT → teimosia (mesma direção, mantém)
+                        if _cur_pos == "SHORT":
+                            return "HOLD", 0.0, {**cond_dict, "Gatilho": "Teimosia — já em SHORT, mantém"}
+                        # Em LONG ou NONE → reverter/entrar SHORT
+                        return "SHORT", 100.0, {**cond_dict, "Gatilho": "Cruzamento de Baixa → SHORT"}
+                    else:
+                        return "HOLD", 0.0, cond_dict
+                
+            # Verificar se a estratégia ativa é o Cérebro de Consenso DNA
+            if st.session_state.get("tg_strategy_type", "Default") == "Cérebro de Consenso (IA)" and os.path.exists("bot_consensus_dna.json"):
+                try:
+                    with open("bot_consensus_dna.json", "r", encoding="utf-8") as f:
+                        dna = json.load(f)
+                    reg = df['regime'].iloc[step]
+                    reg_rules = dna["regimes"].get(reg, {})
+                    
+                    if reg_rules and reg_rules.get("active", False):
+                        stretch = df['stretching'].iloc[step]
+                        mola_pct = df['mola_pct'].iloc[step]
+                        disp_pct = df['disp_pct'].iloc[step]
+                        acc = df['acceleration'].iloc[step]
+                        velocity = df['velocity'].iloc[step]
+                        volatility = df['volatility'].iloc[step]
+                        
+                        rsi = df['rsi_14'].iloc[step] if 'rsi_14' in df.columns and not pd.isna(df['rsi_14'].iloc[step]) else 50.0
+                        bb = df['bb_dist'].iloc[step] if 'bb_dist' in df.columns and not pd.isna(df['bb_dist'].iloc[step]) else 50.0
+                        macd = df['macd_hist'].iloc[step] if 'macd_hist' in df.columns and not pd.isna(df['macd_hist'].iloc[step]) else 0.0
+                        atr = df['atr_14'].iloc[step] if 'atr_14' in df.columns and not pd.isna(df['atr_14'].iloc[step]) else 1.0
+                        
+                        # --- CONDIÇÕES DE COMPRA (LONG) ---
+                        opp_rules = reg_rules.get("buy_rules", {})
+                        cond_long = {}
+                        
+                        mola_mean = opp_rules.get("mola", {}).get("mean", 2.0)
+                        cond_long["Compressão Mola (Coesão)"] = (mola_pct <= mola_mean * 1.3) if mola_mean > 0 else True
+                        
+                        strt_mean = opp_rules.get("stretching", {}).get("mean", 1.5)
+                        cond_long["Estiramento Mola (Stretching)"] = (stretch <= strt_mean * 1.3) if strt_mean > 0 else True
+                        
+                        disp_mean = opp_rules.get("disp", {}).get("mean", 0.0)
+                        cond_long["Dispersão Vetorial"] = (disp_pct >= disp_mean - 1.5)
+                        
+                        vel_mean = opp_rules.get("velocity", {}).get("mean", 0.0)
+                        cond_long["Velocidade Tendência"] = (velocity >= 0) if vel_mean >= 0 else (velocity < 0)
+                        
+                        acc_mean = opp_rules.get("acceleration", {}).get("mean", 0.0)
+                        cond_long["Aceleração Reversão"] = (acc >= 0) if acc_mean >= 0 else (acc < 0)
+                        
+                        vol_mean = opp_rules.get("volatility", {}).get("mean", 10.0)
+                        cond_long["Volatilidade Controlada"] = (volatility <= vol_mean * 1.5) if vol_mean > 0 else True
+                        
+                        cond_long["Infiltração Bull (Regime)"] = bool(df['infil_bull'].iloc[step])
+                        cond_long["Reteste Fibonacci"] = bool(df['reteste_val'].iloc[step])
+                        
+                        rsi_mean = opp_rules.get("rsi", {}).get("mean", 50.0)
+                        cond_long["Momentum Força (RSI)"] = (abs(rsi - rsi_mean) <= 20.0)
+                        
+                        bb_mean = opp_rules.get("bb", {}).get("mean", 50.0)
+                        cond_long["Fronteira Est. (Bollinger)"] = (abs(bb - bb_mean) <= 30.0)
+                        
+                        macd_mean = opp_rules.get("macd", {}).get("mean", 0.0)
+                        cond_long["Aceleração Macro (MACD)"] = (macd >= 0) if macd_mean >= 0 else (macd < 0)
+                        
+                        atr_mean = opp_rules.get("atr", {}).get("mean", 1.0)
+                        cond_long["Respiração Mercado (ATR)"] = (atr <= atr_mean * 1.5) if atr_mean > 0 else True
+                        # --- CONDIÇÕES DE VENDA (SHORT) ---
+                        thr_rules = reg_rules.get("sell_rules", {})
+                        cond_short = {}
+                        
+                        mola_mean = thr_rules.get("mola", {}).get("mean", 2.0)
+                        cond_short["Compressão Mola (Coesão)"] = (mola_pct <= mola_mean * 1.3) if mola_mean > 0 else True
+                        
+                        strt_mean = thr_rules.get("stretching", {}).get("mean", 1.5)
+                        cond_short["Estiramento Mola (Stretching)"] = (stretch <= strt_mean * 1.3) if strt_mean > 0 else True
+                        
+                        disp_mean = thr_rules.get("disp", {}).get("mean", 0.0)
+                        cond_short["Dispersão Vetorial"] = (disp_pct <= disp_mean + 1.5)
+                        
+                        vel_mean = thr_rules.get("velocity", {}).get("mean", 0.0)
+                        cond_short["Velocidade Tendência"] = (velocity <= 0) if vel_mean <= 0 else (velocity > 0)
+                        
+                        acc_mean = thr_rules.get("acceleration", {}).get("mean", 0.0)
+                        cond_short["Aceleração Reversão"] = (acc <= 0) if acc_mean <= 0 else (acc > 0)
+                        
+                        vol_mean = thr_rules.get("volatility", {}).get("mean", 10.0)
+                        cond_short["Volatilidade Controlada"] = (volatility <= vol_mean * 1.5) if vol_mean > 0 else True
+                        
+                        cond_short["Infiltração Bear (Regime)"] = bool(df['infil_bear'].iloc[step])
+                        cond_short["Reteste Fibonacci"] = bool(df['reteste_val'].iloc[step])
+                        
+                        rsi_mean = thr_rules.get("rsi", {}).get("mean", 50.0)
+                        cond_short["Momentum Força (RSI)"] = (abs(rsi - rsi_mean) <= 20.0)
+                        
+                        bb_mean = thr_rules.get("bb", {}).get("mean", 50.0)
+                        cond_short["Fronteira Est. (Bollinger)"] = (abs(bb - bb_mean) <= 30.0)
+                        
+                        macd_mean = thr_rules.get("macd", {}).get("mean", 0.0)
+                        cond_short["Aceleração Macro (MACD)"] = (macd <= 0) if macd_mean <= 0 else (macd > 0)
+                        
+                        atr_mean = thr_rules.get("atr", {}).get("mean", 1.0)
+                        cond_short["Respiração Mercado (ATR)"] = (atr <= atr_mean * 1.5) if atr_mean > 0 else True
+                        long_score = sum(cond_long.values()) / len(cond_long) if cond_long else 0.0
+                        short_score = sum(cond_short.values()) / len(cond_short) if cond_short else 0.0
+                        
+                        if long_score > short_score and long_score >= (st.session_state.get('tg_min_confidence_pct', 80.0) / 100.0):
+                            return "LONG", round(long_score * 100), cond_long
+                        elif short_score > long_score and short_score >= (st.session_state.get('tg_min_confidence_pct', 80.0) / 100.0):
+                            return "SHORT", round(short_score * 100), cond_short
+                        else:
+                            return "HOLD", round(max(long_score, short_score) * 100), cond_long if long_score >= short_score else cond_short
+                except Exception:
+                    pass
+                    
+            # Fallback para regras padrão do jogo
+            vel = df['velocity'].iloc[step]
+            acc = df['acceleration'].iloc[step]
+            stretch = df['stretching'].iloc[step]
+            
+            rsi = df['rsi_14'].iloc[step] if 'rsi_14' in df.columns and not pd.isna(df['rsi_14'].iloc[step]) else 50.0
+            bb = df['bb_dist'].iloc[step] if 'bb_dist' in df.columns and not pd.isna(df['bb_dist'].iloc[step]) else 50.0
+            macd = df['macd_hist'].iloc[step] if 'macd_hist' in df.columns and not pd.isna(df['macd_hist'].iloc[step]) else 0.0
+            atr = df['atr_14'].iloc[step] if 'atr_14' in df.columns and not pd.isna(df['atr_14'].iloc[step]) else 1.0
+            
+            cond_long = {
+                "Compressão Mola (<2.5)": bool(df['mola_pct'].iloc[step] <= 2.5),
+                "Estiramento Mola (Média)": bool(stretch <= 2.0),
+                "Dispersão Vetorial (>0)": bool(df['disp_pct'].iloc[step] >= 0),
+                "Velocidade Tendência (+)": bool(vel > 0),
+                "Aceleração Reversão (+)": bool(acc > 0),
+                "Volatilidade Saudável": bool(df['volatility'].iloc[step] <= 5.0),
+                "Infiltração Bull": bool(df['infil_bull'].iloc[step]),
+                "Reteste Fibonacci": bool(df['reteste_val'].iloc[step]),
+                "Momentum Força (RSI < 70)": bool(rsi <= 70.0),
+                "Fronteira Est. (Bollinger < 80)": bool(bb <= 80.0),
+                "Aceleração Macro (MACD > 0)": bool(macd >= 0),
+                "Respiração Mercado (ATR)": bool(atr <= 1.5)
+            }
+            
+            cond_short = {
+                "Compressão Mola (<2.5)": bool(df['mola_pct'].iloc[step] <= 2.5),
+                "Estiramento Mola (Média)": bool(stretch <= 2.0),
+                "Dispersão Vetorial (<0)": bool(df['disp_pct'].iloc[step] <= 0),
+                "Velocidade Tendência (-)": bool(vel < 0),
+                "Aceleração Reversão (-)": bool(acc < 0),
+                "Volatilidade Saudável": bool(df['volatility'].iloc[step] <= 5.0),
+                "Infiltração Bear": bool(df['infil_bear'].iloc[step]),
+                "Reteste Fibonacci": bool(df['reteste_val'].iloc[step]),
+                "Momentum Força (RSI > 30)": bool(rsi >= 30.0),
+                "Fronteira Est. (Bollinger > 20)": bool(bb >= 20.0),
+                "Aceleração Macro (MACD < 0)": bool(macd <= 0),
+                "Respiração Mercado (ATR)": bool(atr <= 1.5)
+            }
+            long_score  = sum(cond_long.values())  / len(cond_long)
+            short_score = sum(cond_short.values()) / len(cond_short)
+            if long_score > short_score and long_score >= 0.6:
+                return "LONG", round(long_score * 100), cond_long
+            elif short_score > long_score and short_score >= 0.6:
+                return "SHORT", round(short_score * 100), cond_short
+            else:
+                return "HOLD", round(max(long_score, short_score) * 100), cond_long if long_score >= short_score else cond_short
+        
+        def start_new_game():
+            st.session_state.tg_data = generate_game_market()
+            st.session_state.tg_markov_matrix = train_markov_chain(st.session_state.tg_data)
+            st.session_state.tg_step = 144
+            st.session_state.tg_capital = 100.0
+            st.session_state.tg_position = "NONE"
+            st.session_state.tg_last_exit_step = -1
+            st.session_state.tg_entry_price = 0.0
+            st.session_state.tg_entry_atr = 0.0
+            st.session_state.tg_macd_weakness_count = 0
+            st.session_state.tg_entry_step = 0
+            st.session_state.tg_trades = []
+            st.session_state.tg_active = True
+            st.session_state.tg_game_finished = False
+            st.session_state.tg_running = False
+            st.session_state.tg_highest_price = 0.0
+            st.session_state.tg_lowest_price = 999999.0
+        def load_highscores():
+            if os.path.exists(highscores_file):
+                try:
+                    with open(highscores_file, "r", encoding="utf-8") as f:
+                        return json.load(f)
+                except Exception:
+                    return []
+            return []
+        def save_highscore(name, final_capital, trades_count):
+            scores = load_highscores()
+            strat_type = st.session_state.get("tg_strategy_type", "Default (Fórmula do Jogo)")
+            ref_line = st.session_state.get("tg_single_line_ref", "-") if "Cruzamento" in strat_type else "-"
+            bot_mode = st.session_state.get("tg_bot_mode", "Manual")
+            
+            sl_val = f"{st.session_state.tg_sl_pct:.1f}%" if (st.session_state.get("tg_sl_pct", 0) > 0) else "OFF"
+            tp_val = f"{st.session_state.tg_tp_pct:.1f}%" if (st.session_state.get("tg_tp_pct", 0) > 0) else "OFF"
+            ts_val = f"{st.session_state.tg_ts_pct:.1f}%" if (st.session_state.get("tg_ts_pct", 0) > 0) else "OFF"
+            
+            config_desc = (f"Médias:[{st.session_state.tg_p2},{st.session_state.tg_p3},{st.session_state.tg_p4},{st.session_state.tg_p5},{st.session_state.tg_p6}] "
+                           f"SL={sl_val} TP={tp_val} TS={ts_val}")
+            
+            # Calcular eficácia LONG e SHORT da sessão
+            _all_trades = st.session_state.get("tg_trades", [])
+            _l_trades = [t for t in _all_trades if t["type"] == "LONG"]
+            _s_trades = [t for t in _all_trades if t["type"] == "SHORT"]
+            _l_wins = sum(1 for t in _l_trades if t.get("pnl_pct", 0) > 0)
+            _s_wins = sum(1 for t in _s_trades if t.get("pnl_pct", 0) > 0)
+            l_eff = (_l_wins / len(_l_trades) * 100) if _l_trades else 0.0
+            s_eff = (_s_wins / len(_s_trades) * 100) if _s_trades else 0.0
+            
+            num_tests = st.session_state.get("tg_max_candles", 100)
+            
+            scores.append({
+                "name": name, 
+                "capital": float(final_capital),
+                "return": float(final_capital - 100.0), 
+                "trades": int(trades_count),
+                "num_tests": int(num_tests),
+                "strategy": strat_type,
+                "ref_line": ref_line,
+                "bot_mode": bot_mode,
+                "config": config_desc, 
+                "l_eff": float(l_eff),
+                "s_eff": float(s_eff),
+                "date": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M")
+            })
+            
+            try:
+                with open(highscores_file, "w", encoding="utf-8") as f:
+                    json.dump(scores, f, indent=2, ensure_ascii=False)
+            except Exception:
+                pass
+        def save_game_session():
+            """Guarda sessão completa (com todos os trades e indicadores) em game_sessions.json."""
+            sessions_file = "game_sessions.json"
+            try:
+                sessions = json.load(open(sessions_file, "r", encoding="utf-8")) if os.path.exists(sessions_file) else {}
+            except Exception:
+                sessions = {}
+
+            _trades = st.session_state.get("tg_trades", [])
+            _strat  = st.session_state.get("tg_strategy_type", "Default")
+            _ref    = st.session_state.get("tg_single_line_ref", "-")
+            _name   = st.session_state.get("tg_trader_name", "Trader")
+            _ts_now = pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S")
+            _session_key = f"{_name} | {_ts_now}"
+
+            _l_trades = [t for t in _trades if t.get("type") == "LONG"]
+            _s_trades = [t for t in _trades if t.get("type") == "SHORT"]
+            _l_wins   = sum(1 for t in _l_trades if t.get("pnl_pct", 0) > 0)
+            _s_wins   = sum(1 for t in _s_trades if t.get("pnl_pct", 0) > 0)
+            _total_pnl = sum(t.get("pnl_pct", 0) for t in _trades)
+
+            sessions[_session_key] = {
+                "timestamp":   _ts_now,
+                "trader_name": _name,
+                "strategy":    _strat,
+                "ref_line":    _ref,
+                "smas": [
+                    st.session_state.get("tg_p2", 5),
+                    st.session_state.get("tg_p3", 13),
+                    st.session_state.get("tg_p4", 21),
+                    st.session_state.get("tg_p5", 55),
+                    st.session_state.get("tg_p6", 144),
+                ],
+                "sl_pct":   st.session_state.get("tg_sl_pct", 2.0)  if (st.session_state.get("tg_sl_pct", 0) > 0) else None,
+                "ts_pct":   st.session_state.get("tg_ts_pct", 1.5)  if (st.session_state.get("tg_ts_pct", 0) > 0) else None,
+                "tp_pct":   st.session_state.get("tg_tp_pct", 7.0)  if (st.session_state.get("tg_tp_pct", 0) > 0) else None,
+                "disp_filter": st.session_state.get("tg_lagarta_min_disp", 0.0),
+                "final_capital": float(st.session_state.tg_capital),
+                "return_pct":    float(st.session_state.tg_capital - 100.0),
+                "total_trades":  len(_trades),
+                "win_rate_long":  round(_l_wins / max(1, len(_l_trades)) * 100, 1),
+                "win_rate_short": round(_s_wins / max(1, len(_s_trades)) * 100, 1),
+                "total_pnl_sum":  round(_total_pnl, 3),
+                "avg_pnl_per_trade": round(_total_pnl / max(1, len(_trades)), 3),
+                "trades": _trades,   # lista completa com todos os 12 indicadores
+            }
+            try:
+                with open(sessions_file, "w", encoding="utf-8") as f:
+                    json.dump(sessions, f, indent=2, ensure_ascii=False)
+            except Exception:
+                pass
+
+        def save_last_game_persistent(df):
+            try:
+                pass # df.to_csv("last_game_data.csv", index=True)
+                game_meta = {
+                    "capital": st.session_state.tg_capital,
+                    "trades": st.session_state.tg_trades,
+                    "trader_name": st.session_state.tg_trader_name,
+                    "max_candles": st.session_state.get("tg_max_candles", 100),
+                    "p2": st.session_state.tg_p2,
+                    "p3": st.session_state.tg_p3,
+                    "p4": st.session_state.tg_p4,
+                    "p5": st.session_state.tg_p5,
+                    "p6": st.session_state.tg_p6,
+                    "markov_matrix": st.session_state.get("tg_markov_matrix", None),
+                }
+                with open("last_game_state.json", "w", encoding="utf-8") as f:
+                    json.dump(game_meta, f, indent=2, ensure_ascii=False)
+            except Exception:
+                pass
+        # CSS dos botoes casino - ARCADE LED STYLE
+        st.markdown("""<style>
+div[data-testid="column"]:has(div.game-control-anchor) {
+background: linear-gradient(160deg, rgba(15,23,42,0.95) 0%, rgba(30,41,59,0.98) 100%) !important;
+backdrop-filter: blur(20px) !important;
+border-radius: 18px !important;
+border: 1px solid rgba(124,58,237,0.35) !important;
+padding: 16px !important;
+box-shadow: 0 0 0 1px rgba(124,58,237,0.15), 0 8px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06) !important;
+}
+@keyframes pulse-green-led {
+0%   { box-shadow: 0 0 10px 3px #10b981, 0 0 28px 8px rgba(16,185,129,0.5), inset 0 0 16px rgba(16,185,129,0.25); }
+50%  { box-shadow: 0 0 22px 9px #10b981, 0 0 55px 18px rgba(16,185,129,0.8), inset 0 0 28px rgba(16,185,129,0.55); }
+100% { box-shadow: 0 0 10px 3px #10b981, 0 0 28px 8px rgba(16,185,129,0.5), inset 0 0 16px rgba(16,185,129,0.25); }
+}
+@keyframes pulse-red-led {
+0%   { box-shadow: 0 0 10px 3px #ef4444, 0 0 28px 8px rgba(239,68,68,0.5), inset 0 0 16px rgba(239,68,68,0.25); }
+50%  { box-shadow: 0 0 22px 9px #ef4444, 0 0 55px 18px rgba(239,68,68,0.8), inset 0 0 28px rgba(239,68,68,0.55); }
+100% { box-shadow: 0 0 10px 3px #ef4444, 0 0 28px 8px rgba(239,68,68,0.5), inset 0 0 16px rgba(239,68,68,0.25); }
+}
+/* --- LAYOUT ALIGNMENT HACKS PERFECTED --- */
+div.element-container:has(.arena-row-marker),
+div.element-container:has(.casino-buttons-marker),
+div.element-container:has(.advisor-bottom-marker) {
+display: none !important;
+}
+div.element-container:has(.arena-row-marker) + div.element-container > div[data-testid="stHorizontalBlock"] {
+align-items: stretch !important;
+}
+div.element-container:has(.arena-row-marker) + div.element-container > div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
+display: flex !important;
+flex-direction: column !important;
+}
+div.element-container:has(.arena-row-marker) + div.element-container > div[data-testid="stHorizontalBlock"] > div[data-testid="column"] > div[data-testid="stVerticalBlock"] {
+height: 100% !important;
+display: flex !important;
+flex-direction: column !important;
+}
+div[data-testid="column"]:has(div.game-control-anchor) div[data-testid="stVerticalBlock"] {
+gap: 4px !important;
+}
+div.element-container:has(.casino-buttons-marker) + div.element-container {
+margin-top: auto !important;
+padding-top: 10px !important;
+}
+div.element-container:has(.advisor-bottom-marker) + div.element-container {
+margin-top: auto !important;
+padding-top: 10px !important;
+}
+div.element-container:has(.casino-long-active) + div.element-container .stButton button,
+div.element-container:has(.casino-long-inactive) + div.element-container .stButton button,
+div.element-container:has(.casino-short-active) + div.element-container .stButton button,
+div.element-container:has(.casino-short-inactive) + div.element-container .stButton button,
+div.element-container:has(.casino-blocked) + div.element-container .stButton button {
+border-radius: 4px !important;
+font-weight: 900 !important;
+font-size: 14px !important;
+letter-spacing: 0.5px !important;
+text-transform: uppercase !important;
+transition: all 0.2s ease !important;
+height: 72px !important;
+min-height: 72px !important;
+border: none !important;
+}
+div.element-container:has(.casino-long-active) + div.element-container .stButton button {
+background: #4ade80 !important;
+color: #064e3b !important;
+box-shadow: 0 0 25px 8px rgba(74, 222, 128, 0.6) !important;
+animation: pulse-green-led 1.5s ease-in-out infinite !important;
+border: 2px solid #86efac !important;
+}
+div.element-container:has(.casino-long-inactive) + div.element-container .stButton button {
+background: #16a34a !important;
+color: #ffffff !important;
+border: 2px solid #14532d !important;
+}
+div.element-container:has(.casino-long-inactive) + div.element-container .stButton button:hover {
+background: #15803d !important;
+}
+div.element-container:has(.casino-short-active) + div.element-container .stButton button {
+background: #f87171 !important;
+color: #450a0a !important;
+box-shadow: 0 0 25px 8px rgba(248, 113, 113, 0.6) !important;
+animation: pulse-red-led 1.5s ease-in-out infinite !important;
+border: 2px solid #fca5a5 !important;
+}
+div.element-container:has(.casino-short-inactive) + div.element-container .stButton button {
+background: #dc2626 !important;
+color: #ffffff !important;
+border: 2px solid #7f1d1d !important;
+}
+div.element-container:has(.casino-short-inactive) + div.element-container .stButton button:hover {
+background: #b91c1c !important;
+}
+div.element-container:has(.casino-blocked) + div.element-container .stButton button {
+background: #334155 !important;
+color: #64748b !important;
+cursor: not-allowed !important;
+border: 2px solid #1e293b !important;
+}
+div.element-container:has(.casino-blocked) + div.element-container .stButton button:hover {
+background: #334155 !important;
+}
+.casino-blocked button {
+background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%) !important;
+color: #334155 !important;
+border: 3px solid #1e293b !important;
+opacity: 0.4 !important;
+cursor: not-allowed !important;
+}
+.review-banner {
+background: linear-gradient(135deg, #eef2ff 0%, #f8fafc 55%, #ecfdf5 100%);
+border-radius: 14px; padding: 18px 24px; margin-bottom: 14px;
+border: 1px solid #c7d2fe;
+box-shadow: 0 6px 20px rgba(79, 70, 229, 0.08);
+}
+.review-stat {
+text-align: center; padding: 10px 12px;
+background: #ffffff; border-radius: 10px;
+border: 1px solid #e2e8f0;
+box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
+}
+</style>
+""", unsafe_allow_html=True)
+        # =========================================================================
+        # PAINEL DE LANCAMENTO - premium, sempre visivel, sem expander
+        # =========================================================================
+        _strat_d = st.session_state.get('tg_strategy_type', 'Default (Formulas do Jogo)')
+        _ref_d   = st.session_state.get('tg_single_line_ref', 'SMA Rapida (P2)')
+        _sl_on = (st.session_state.get('tg_sl_pct', 0) > 0)
+        _tp_on = (st.session_state.get('tg_tp_pct', 0) > 0)
+        _ts_on = (st.session_state.get('tg_ts_pct', 0) > 0)
+        _sl_v    = st.session_state.get('tg_sl_pct', 2.0)
+        _tp_v    = st.session_state.get('tg_tp_pct', 7.0)
+        _ts_v    = st.session_state.get('tg_ts_pct', 1.5)
+        _p2 = st.session_state.get('tg_p2', 9)
+        _p3 = st.session_state.get('tg_p3', 21)
+        _p4 = st.session_state.get('tg_p4', 50)
+        _p5 = st.session_state.get('tg_p5', 100)
+        _p6 = st.session_state.get('tg_p6', 200)
+        _tag_map = {'Default': 'EQ', 'Cerebro': 'DNA', 'Cruzamento': 'X-LINE', 'Lagarta': 'LAGARTA', 'Linha Solitária': 'SOLO', 'Camadas': 'LAYERS'}
+        _clr_map = {'Default': '#64748b', 'Cerebro': '#7c3aed', 'Cruzamento': '#0284c7', 'Lagarta': '#10b981', 'Linha Solitária': '#22c55e', 'Camadas': '#dc2626'}
+        _strat_tag = next((v for k, v in _tag_map.items() if k in _strat_d), '...')
+        _strat_clr = next((v for k, v in _clr_map.items() if k in _strat_d), '#64748b')
+        _strat_sub = ('Linha: ' + _ref_d) if 'Cruzamento' in _strat_d else ''
+
+        def _rb(lbl, on, val):
+            if on:
+                return (
+                    f'<span style="background:rgba(16,185,129,0.15);color:#10b981;'
+                    f'border:1px solid rgba(16,185,129,0.4);border-radius:5px;'
+                    f'padding:2px 8px;font-size:11px;font-weight:700;">{lbl} {val:.1f}%</span>'
+                )
+            return (
+                f'<span style="background:rgba(100,116,139,0.1);color:#94a3b8;'
+                f'border:1px solid rgba(100,116,139,0.2);border-radius:5px;'
+                f'padding:2px 8px;font-size:11px;"><s>{lbl}</s></span>'
+            )
+
+        _risk = _rb('SL', _sl_on, _sl_v) + '&nbsp;' + _rb('TP', _tp_on, _tp_v) + '&nbsp;' + _rb('TS', _ts_on, _ts_v)
+
+        def _sma_badge(label, val, bg, bc, tc):
+            return (
+                f'<span style="background:{bg};border:1px solid {bc};border-radius:6px;'
+                f'padding:3px 10px;font-size:13px;font-weight:800;color:{tc};">{label} {val}</span>'
+            )
+
+        _badges = (
+            _sma_badge('P2', _p2, 'rgba(37,99,235,0.2)',   'rgba(37,99,235,0.5)',   '#60a5fa') +
+            _sma_badge('P3', _p3, 'rgba(234,179,8,0.15)',  'rgba(234,179,8,0.4)',   '#fbbf24') +
+            _sma_badge('P4', _p4, 'rgba(249,115,22,0.15)', 'rgba(249,115,22,0.4)', '#fb923c') +
+            _sma_badge('P5', _p5, 'rgba(168,85,247,0.15)', 'rgba(168,85,247,0.4)', '#c084fc') +
+            _sma_badge('P6', _p6, 'rgba(16,185,129,0.15)', 'rgba(16,185,129,0.4)', '#34d399')
+        )
+
+        if not st.session_state.tg_active and not st.session_state.tg_game_finished:
+            st.markdown(
+                '<div style="background:linear-gradient(135deg,rgba(15,23,42,0.97),rgba(30,41,59,0.97));'
+                'border:1px solid rgba(124,58,237,0.35);border-radius:16px;padding:20px 28px;'
+                'margin-bottom:16px;box-shadow:0 8px 32px rgba(0,0,0,0.3);">'
+                '<div style="display:flex;align-items:flex-start;gap:28px;flex-wrap:wrap;">'
+                '<div style="flex:0 0 auto;min-width:150px;">'
+                '<div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Jogador</div>'
+                f'<div style="font-size:20px;font-weight:800;color:#f1f5f9;">{st.session_state.tg_trader_name}</div>'
+                '</div>'
+                '<div style="flex:1;min-width:280px;">'
+                '<div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Medias Ativas no Jogo</div>'
+                f'<div style="display:flex;gap:6px;flex-wrap:wrap;">{_badges}</div>'
+                '</div>'
+                '<div style="flex:0 0 auto;min-width:180px;">'
+                '<div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Estrategia Ativa</div>'
+                f'<div style="font-size:14px;font-weight:700;color:{_strat_clr};">[{_strat_tag}] {_strat_d}</div>'
+                f'<div style="font-size:11px;color:#94a3b8;margin-top:2px;">{_strat_sub}</div>'
+                f'<div style="margin-top:8px;display:flex;gap:4px;flex-wrap:wrap;">{_risk}</div>'
+                '</div>'
+                '</div>'
+                '<div style="font-size:10px;color:#475569;margin-top:14px;text-align:right;font-style:italic;">'
+                'Altera estrategia, medias e risco no Centro de Comando no topo da pagina'
+                '</div>'
+                '</div>',
+                unsafe_allow_html=True
+            )
+            _cn, _cc, _cb = st.columns([2, 1, 1])
+            with _cn:
+                _ni = st.text_input(
+                    'Nome do Jogo / Teste:',
+                    value=st.session_state.tg_trader_name,
+                    key='tg_name_wdg',
+                    placeholder='Ex: Teste Cerebro Fibonacci'
+                )
+                if _ni:
+                    st.session_state.tg_trader_name = _ni
+            with _cc:
+                _mc = st.number_input(
+                    'Duração (Velas):',
+                    min_value=50,
+                    max_value=5000,
+                    value=st.session_state.get('tg_max_candles', 100),
+                    step=50,
+                    key='tg_max_candles_wdg'
+                )
+                if _mc:
+                    st.session_state.tg_max_candles = int(_mc)
+            with _cb:
+                st.markdown('<div style="height:28px;"></div>', unsafe_allow_html=True)
+                if st.button('Iniciar Novo Jogo', type='primary', width='stretch', key='tg_btn_start_main'):
+                    start_new_game()
+                    st.rerun()
+
+        elif st.session_state.tg_active:
+            def _sba(val, bg, bc, tc):
+                return (
+                    f'<span style="background:{bg};border:1px solid {bc};border-radius:5px;'
+                    f'padding:2px 8px;font-size:12px;font-weight:700;color:{tc};">{val}</span>'
+                )
+            _slim = (
+                _sba(_p2, 'rgba(37,99,235,0.2)',   'rgba(37,99,235,0.5)',   '#60a5fa') +
+                _sba(_p3, 'rgba(234,179,8,0.15)',  'rgba(234,179,8,0.4)',   '#fbbf24') +
+                _sba(_p4, 'rgba(249,115,22,0.15)', 'rgba(249,115,22,0.4)', '#fb923c') +
+                _sba(_p5, 'rgba(168,85,247,0.15)', 'rgba(168,85,247,0.4)', '#c084fc') +
+                _sba(_p6, 'rgba(16,185,129,0.15)', 'rgba(16,185,129,0.4)', '#34d399')
+            )
+            st.markdown(
+                '<div style="background:rgba(124,58,237,0.1);border:1px solid rgba(124,58,237,0.3);'
+                'border-radius:10px;padding:10px 20px;margin-bottom:12px;'
+                'display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">'
+                '<div style="display:flex;align-items:center;gap:16px;">'
+                f'<span style="color:#a78bfa;font-weight:700;font-size:13px;">EM JOGO: {st.session_state.tg_trader_name}</span>'
+                f'<span style="color:#64748b;font-size:12px;">[{_strat_tag}] {_strat_d}</span>'
+                '</div>'
+                f'<div style="display:flex;gap:6px;">{_slim}</div>'
+                '</div>',
+                unsafe_allow_html=True
+            )
+        # --- AUTO-TREINO: movido para o tab Cerebro do Bot (DNA) ---
+        # =========================================================================
+        # MODO REVISAO: gráfico completo apos o fim do jogo
+        # =========================================================================
+        if st.session_state.tg_game_finished and st.session_state.tg_data is not None:
+            df = st.session_state.tg_data
+            
+            # Calcular eficácia LONG/SHORT
+            long_trades = [t for t in st.session_state.tg_trades if t.get('type') == 'LONG']
+            short_trades = [t for t in st.session_state.tg_trades if t.get('type') == 'SHORT']
+            long_len = len(long_trades)
+            short_len = len(short_trades)
+            long_wr = (sum(1 for t in long_trades if t.get('pnl_pct', 0) > 0) / max(long_len, 1) * 100) if long_len > 0 else 0.0
+            short_wr = (sum(1 for t in short_trades if t.get('pnl_pct', 0) > 0) / max(short_len, 1) * 100) if short_len > 0 else 0.0
+            ret_pct = st.session_state.tg_capital - 100.0
+            # Calcular retorno líquido após imposto (só sobre lucros)
+            _tax_pct  = st.session_state.get('tax_pct_val', 28.0)
+            _tax_eur  = max(0.0, ret_pct) * (_tax_pct / 100.0)
+            ret_after_tax = ret_pct - _tax_eur
+            ret_color = "#10B981" if ret_pct >= 0 else "#EF4444"
+            emoji_result = "🏆" if ret_pct > 0 else ("😐" if ret_pct == 0 else "💀")
+            st.markdown(f"""<div class="review-banner">
+<div style="color:#4338ca; font-size:13px; font-weight:700; margin-bottom:12px; letter-spacing:1.5px; text-transform:uppercase;">
+{emoji_result} Sessao concluida — {st.session_state.tg_trader_name} &nbsp;&nbsp;•&nbsp;&nbsp; Grafico completo disponivel para consulta
+</div>
+<div style="display:flex; gap:16px; flex-wrap:wrap;">
+<div class="review-stat" style="flex:1;">
+<div style="color:#475569; font-size:11px; font-weight:600; text-transform:uppercase;">Banca Final</div>
+<div style="color:#059669; font-size:22px; font-weight:900; font-family:monospace;">{st.session_state.tg_capital:.2f} EUR</div>
+</div>
+<div class="review-stat" style="flex:1;">
+<div style="color:#475569; font-size:11px; font-weight:600; text-transform:uppercase;">Retorno Bruto</div>
+<div style="color:{'#059669' if ret_pct >= 0 else '#dc2626'}; font-size:22px; font-weight:900; font-family:monospace;">{ret_pct:+.2f}%</div>
+</div>
+<div class="review-stat" style="flex:1;">
+<div style="color:#475569; font-size:11px; font-weight:600; text-transform:uppercase;">Líquido (após {_tax_pct:.0f}% IRS)</div>
+<div style="color:{'#059669' if ret_after_tax >= 0 else '#dc2626'}; font-size:22px; font-weight:900; font-family:monospace;">{ret_after_tax:+.2f}%</div>
+</div>
+<div class="review-stat" style="flex:1;">
+<div style="color:#475569; font-size:11px; font-weight:600; text-transform:uppercase;">Operacoes</div>
+<div style="color:#1e293b; font-size:22px; font-weight:900; font-family:monospace;">{len(st.session_state.tg_trades)}</div>
+</div>
+<div class="review-stat" style="flex:1;">
+<div style="color:#475569; font-size:11px; font-weight:600; text-transform:uppercase;">Win Rate LONG</div>
+<div style="color:#059669; font-size:22px; font-weight:900; font-family:monospace;">
+{long_wr:.0f}% <span style='font-size:11px; color:#64748b;'>({long_len})</span>
+</div>
+</div>
+<div class="review-stat" style="flex:1;">
+<div style="color:#475569; font-size:11px; font-weight:600; text-transform:uppercase;">Win Rate SHORT</div>
+<div style="color:#dc2626; font-size:22px; font-weight:900; font-family:monospace;">
+{short_wr:.0f}% <span style='font-size:11px; color:#64748b;'>({short_len})</span>
+</div>
+</div>
+</div>
+</div>
+""", unsafe_allow_html=True)
+            # --- Gráfico + painel lateral com nome e botão ---
+            col_rev_chart, col_rev_btn = st.columns([8, 2])
+            with col_rev_btn:
+                st.markdown('<div class="game-control-anchor"></div>', unsafe_allow_html=True)
+                _new_name = st.text_input(
+                    "Nome do próximo jogo:",
+                    value=st.session_state.tg_trader_name,
+                    key="rv_trader_name",
+                    placeholder="Ex: Estratégia Claude"
+                )
+                if _new_name:
+                    st.session_state.tg_trader_name = _new_name
+                
+                _new_mc = st.number_input(
+                    "Duração do Jogo (Velas):",
+                    min_value=50,
+                    max_value=5000,
+                    value=st.session_state.get('tg_max_candles', 100),
+                    step=50,
+                    key='rv_max_candles_wdg'
+                )
+                if _new_mc:
+                    st.session_state.tg_max_candles = int(_new_mc)
+                import pandas as pd
+                st.markdown("---")
+                try:
+                    df_trades = pd.DataFrame(st.session_state.tg_trades)
+                    if not df_trades.empty:
+                        csv_data = df_trades.to_csv(index=False).encode('utf-8')
+                        st.download_button(
+                            label="📥 Descarregar Excel das Variáveis (CSV)",
+                            data=csv_data,
+                            file_name=f"arena_resultados_{st.session_state.tg_trader_name}.csv",
+                            mime="text/csv",
+                            key="rv_download_csv_btn"
+                        )
+                except Exception as e:
+                    pass
+                try:
+                    import strategy_report_generator as _srg
+                    _report_md = _srg.generate_arena_report(df, st.session_state.tg_trades, dict(st.session_state))
+                    st.download_button(
+                        label="📋 Descarregar Relatório para IA (.md)",
+                        data=_report_md.encode("utf-8"),
+                        file_name=f"relatorio_ia_{st.session_state.tg_trader_name}.md",
+                        mime="text/markdown",
+                        key="rv_download_ai_report_btn",
+                    )
+                    st.caption("✅ Relatório também gravado automaticamente na pasta para análise imediata!")
+                    with st.expander("📖 Ler Relatório aqui no ecrã (ou abrir histórico)", expanded=False):
+                        import glob as _glob
+                        _hist_files = sorted(_glob.glob("relatorios/*.md"), reverse=True)[:15]
+                        _view_opts = ["Relatório Atual"] + [os.path.basename(p) for p in _hist_files]
+                        _sel_rep = st.selectbox("Escolher relatório", _view_opts, key="rv_view_report_sel")
+                        if _sel_rep == "Relatório Atual":
+                            st.markdown(_report_md)
+                        else:
+                            with open(os.path.join("relatorios", _sel_rep), "r", encoding="utf-8") as _rf:
+                                st.markdown(_rf.read())
+                except Exception as e:
+                    pass
+                st.markdown("<br>", unsafe_allow_html=True)
+                if st.button("🔄 Novo Jogo", type="primary", width='stretch', key="rv_new_game"):
+                    start_new_game()
+                    st.rerun()
+            with col_rev_chart:
+                max_c = st.session_state.get('tg_max_candles', 100)
+                full_game_df = df.iloc[144 : 144 + max_c + 1]
+                fig_review = _build_chart(
+                    full_game_df, df,
+                    title_str=f"Revisao Completa — {st.session_state.tg_trader_name} | {max_c} Velas Jogadas",
+                    show_full_range=True
+                )
+                st.plotly_chart(fig_review, width='stretch')
+
+            # =========================================================================
+            # RELATÓRIO DE SESSÃO
+            # =========================================================================
+            if st.session_state.tg_trades:
+                _trades = st.session_state.tg_trades
+                _strat  = st.session_state.get('tg_strategy_type', 'Default')
+                _ref    = st.session_state.get('tg_single_line_ref', 'SMA Rápida (P2)')
+
+                tab_perf, tab_justif, tab_padroes = st.tabs([
+                    "📊 Performance",
+                    "🔍 Justificação de Entradas",
+                    "💡 Padrões & Conclusões"
+                ])
+
+                # ── TAB 1: PERFORMANCE ────────────────────────────────────────────
+                with tab_perf:
+                    _wins   = [t for t in _trades if t.get('pnl_pct', 0) > 0]
+                    _losses = [t for t in _trades if t.get('pnl_pct', 0) <= 0]
+                    _longs  = [t for t in _trades if t.get('type') == 'LONG']
+                    _shorts = [t for t in _trades if t.get('type') == 'SHORT']
+                    _by_reason = {}
+                    for t in _trades:
+                        r = t.get('reason', 'Outro')
+                        _by_reason.setdefault(r, []).append(t.get('pnl_pct', 0))
+
+                    c1, c2, c3, c4 = st.columns(4)
+                    c1.metric("Win Rate Global", f"{len(_wins)/max(1,len(_trades))*100:.0f}%",
+                              f"{len(_wins)}V / {len(_losses)}D")
+                    c2.metric("Melhor Trade",
+                              f"{max(_trades, key=lambda t: t.get('pnl_pct',0)).get('pnl_pct',0):+.2f}%",
+                              f"#{_trades.index(max(_trades, key=lambda t: t.get('pnl_pct',0)))} {max(_trades, key=lambda t: t.get('pnl_pct',0)).get('type','')}")
+                    c3.metric("Pior Trade",
+                              f"{min(_trades, key=lambda t: t.get('pnl_pct',0)).get('pnl_pct',0):+.2f}%",
+                              f"#{_trades.index(min(_trades, key=lambda t: t.get('pnl_pct',0)))} {min(_trades, key=lambda t: t.get('pnl_pct',0)).get('type','')}")
+                    _avg_dur_w = sum(t.get('candles',0) for t in _wins)/max(1,len(_wins))
+                    _avg_dur_l = sum(t.get('candles',0) for t in _losses)/max(1,len(_losses))
+                    c4.metric("Duração: V vs D", f"{_avg_dur_w:.1f} vs {_avg_dur_l:.1f} velas")
+
+                    st.markdown("---")
+                    ca, cb = st.columns(2)
+                    with ca:
+                        st.markdown("**Por Direção**")
+                        _long_wr  = sum(1 for t in _longs  if t.get('pnl_pct',0)>0)/max(1,len(_longs))*100
+                        _short_wr = sum(1 for t in _shorts if t.get('pnl_pct',0)>0)/max(1,len(_shorts))*100
+                        _long_avg  = sum(t.get('pnl_pct',0) for t in _longs)/max(1,len(_longs))
+                        _short_avg = sum(t.get('pnl_pct',0) for t in _shorts)/max(1,len(_shorts))
+                        df_dir = pd.DataFrame({
+                            "Direção": ["LONG","SHORT"],
+                            "Trades":  [len(_longs), len(_shorts)],
+                            "Win Rate":[f"{_long_wr:.0f}%", f"{_short_wr:.0f}%"],
+                            "PnL Médio":[f"{_long_avg:+.2f}%", f"{_short_avg:+.2f}%"],
+                        })
+                        st.dataframe(df_dir, hide_index=True, width='stretch')
+                    with cb:
+                        st.markdown("**Por Motivo de Saída**")
+                        _reason_rows = []
+                        for r, pnls in _by_reason.items():
+                            _wr = sum(1 for p in pnls if p>0)/len(pnls)*100
+                            _reason_rows.append({"Motivo": r, "Trades": len(pnls),
+                                                 "Win Rate": f"{_wr:.0f}%",
+                                                 "PnL Médio": f"{sum(pnls)/len(pnls):+.2f}%"})
+                        st.dataframe(pd.DataFrame(_reason_rows), hide_index=True, width='stretch')
+
+                    # Dispersão por faixas
+                    st.markdown("---")
+                    st.markdown("**Por Faixa de Dispersão na Entrada**")
+                    _disp_bands = [(0,0.3,"0–0.30 🔴"),(0.3,0.6,"0.30–0.60 🟡"),(0.6,1.0,"0.60–1.0 🟢"),(1.0,99,"  > 1.0  🔵")]
+                    _band_rows = []
+                    for lo, hi, lbl in _disp_bands:
+                        band = [t for t in _trades if lo <= t.get('entry_std',0) < hi]
+                        if not band: continue
+                        _bwr = sum(1 for t in band if t.get('pnl_pct',0)>0)/len(band)*100
+                        _band_rows.append({"Faixa": lbl,"Trades":len(band),"Win Rate":f"{_bwr:.0f}%",
+                                           "PnL Médio":f"{sum(t.get('pnl_pct',0) for t in band)/len(band):+.2f}%",
+                                           "PnL Total":f"{sum(t.get('pnl_pct',0) for t in band):+.2f}%"})
+                    if _band_rows:
+                        st.dataframe(pd.DataFrame(_band_rows), hide_index=True, width='stretch')
+
+                # ── TAB 2: JUSTIFICAÇÃO DE ENTRADAS ──────────────────────────────
+                with tab_justif:
+                    st.markdown("Cada entrada justificada pelas condições do mercado no momento da entrada:")
+                    _disp_thresh = st.session_state.get('tg_lagarta_min_disp', 0.3)
+                    _rows = []
+                    for i, tr in enumerate(_trades):
+                        _typ  = tr.get('type','')
+                        _disp = tr.get('entry_std', 0)
+                        _vel  = tr.get('entry_velocity', None) or tr.get('entry_stretching', None)
+                        _rsi  = tr.get('entry_rsi', None)
+                        _macd = tr.get('entry_macd', None)
+                        _pnl  = tr.get('pnl_pct', 0)
+                        _reason_exit = tr.get('reason','')
+
+                        # Justificação da entrada
+                        _justif = []
+                        _ent_adx = tr.get('candle_adx_14', None)
+                        if 'Camaleão' in _strat:
+                            if _ent_adx is not None and _ent_adx > 25.0:
+                                _justif.append(f"🦎 Tendência (ADX {_ent_adx:.1f}>25)")
+                            else:
+                                _adx_s = f"ADX {_ent_adx:.1f}≤25" if _ent_adx is not None else "Lateral"
+                                _justif.append(f"🦎 Reversão ({_adx_s})")
+                        elif 'Reversão' in _strat or 'Bollinger' in _strat:
+                            _justif.append(f"🎯 Extremo Bollinger+RSI ({'Fundo' if _typ=='LONG' else 'Topo'})")
+                        elif 'Claude' in _strat:
+                            _justif.append(f"🤖 Pirâmide Fibonacci ({'↑ Alta' if _typ=='LONG' else '↓ Baixa'})")
+                        elif 'Lagarta' in _strat or 'Linha Solitária' in _strat:
+                            _justif.append(f"Cruzamento {'↑ Alta' if _typ=='LONG' else '↓ Baixa'} ({_ref})")
+                        elif 'Camadas' in _strat:
+                            _justif.append(f"P2 {'rompe P4 ↑' if _typ=='LONG' else 'rompe P4 ↓'}")
+                        elif 'Cérebro' in _strat:
+                            _justif.append("Consenso DNA atingido")
+                        else:
+                            _justif.append(f"{'≥7' if _typ=='LONG' else '≥7'}/12 condições")
+
+                        _disp_ok = _disp >= _disp_thresh
+                        _justif.append(f"Dispersão {_disp:.2f} {'✅' if _disp_ok else '⚠️'}")
+                        if _vel is not None:
+                            _justif.append(f"Vel {'↑' if _vel>0 else '↓'}{abs(_vel):.3f}")
+                        if _rsi is not None:
+                            _rsi_tag = "sobrecomp⚠️" if _rsi>70 else ("sobrevend⚠️" if _rsi<30 else "neutro✅")
+                            _justif.append(f"RSI {_rsi:.0f} {_rsi_tag}")
+                        if _macd is not None:
+                            _justif.append(f"MACD {'↑' if _macd>0 else '↓'}")
+
+                        _rows.append({
+                            "#": i,
+                            "Dir": _typ,
+                            "Entrada": f"{tr.get('entry_price',0):.2f}",
+                            "Saída": f"{tr.get('exit_price',0):.2f}",
+                            "PnL": f"{_pnl:+.2f}%",
+                            "Saiu por": _reason_exit,
+                            "Justificação da Entrada": " | ".join(_justif),
+                        })
+                    st.dataframe(pd.DataFrame(_rows), hide_index=True, width='stretch', height=500)
+
+                # ── TAB 3: PADRÕES & CONCLUSÕES ───────────────────────────────────
+                with tab_padroes:
+                    _total_pnl = sum(t.get('pnl_pct',0) for t in _trades)
+                    _avg_disp_w = sum(t.get('entry_std',0) for t in _wins)/max(1,len(_wins))
+                    _avg_disp_l = sum(t.get('entry_std',0) for t in _losses)/max(1,len(_losses))
+                    _avg_dur_total = sum(t.get('candles',0) for t in _trades)/max(1,len(_trades))
+                    _sl_count = sum(1 for t in _trades if 'STOP LOSS' in t.get('reason',''))
+                    _ts_count = sum(1 for t in _trades if 'TRAILING' in t.get('reason',''))
+                    _bot_count= sum(1 for t in _trades if 'Bot Exit' in t.get('reason',''))
+                    _1vela    = sum(1 for t in _trades if t.get('candles',0) <= 1)
+
+                    obs = []
+                    if _avg_disp_w > _avg_disp_l + 0.1:
+                        obs.append(f"✅ Vencedores tiveram dispersão média mais alta ({_avg_disp_w:.2f} vs {_avg_disp_l:.2f}) — o filtro de dispersão >{_disp_thresh:.2f} está justificado.")
+                    else:
+                        obs.append(f"ℹ️ Dispersão não diferenciou claramente vencedores ({_avg_disp_w:.2f}) de perdedores ({_avg_disp_l:.2f}) neste jogo.")
+                    if _avg_dur_w > _avg_dur_l + 0.5:
+                        obs.append(f"✅ Vencedores duraram mais ({_avg_dur_w:.1f} velas) que perdedores ({_avg_dur_l:.1f}) — trades com tempo para desenvolver são mais rentáveis.")
+                    if _1vela > len(_trades) * 0.3:
+                        obs.append(f"⚠️ {_1vela} trades de 1 vela ({_1vela/len(_trades)*100:.0f}%) — mercado muito volátil ou SL/TS muito apertado.")
+                    if _sl_count > _ts_count:
+                        obs.append(f"⚠️ Mais Stop Loss ({_sl_count}) que Trailing Stop ({_ts_count}) — o mercado reverteu antes de ganhar tração.")
+                    else:
+                        obs.append(f"✅ Mais Trailing Stop ({_ts_count}) que Stop Loss ({_sl_count}) — bom sinal, os trades desenvolveram-se.")
+                    if _bot_count > 0:
+                        _bot_trades = [t for t in _trades if 'Bot Exit' in t.get('reason','')]
+                        _bot_avg = sum(t.get('pnl_pct',0) for t in _bot_trades)/len(_bot_trades)
+                        obs.append(f"ℹ️ {_bot_count} saídas por reversão de sinal (Bot Exit), média {_bot_avg:+.2f}% — a teimosia reverteu nessa altura.")
+                    if _total_pnl > 0:
+                        obs.append(f"🏆 Sessão positiva: +{_total_pnl:.2f}% acumulado em {len(_trades)} operações.")
+                    else:
+                        obs.append(f"💡 Sessão negativa ({_total_pnl:.2f}%). Experimenta aumentar o filtro de dispersão ou ajustar SL/TS.")
+
+                    for o in obs:
+                        st.markdown(o)
+
+                    st.markdown("---")
+                    st.markdown("**Configuração desta sessão**")
+                    st.code(f"Estratégia: {_strat}\nLinha ref.: {_ref}\nFiltro dispersão: >{_disp_thresh:.2f}\nSL: {st.session_state.tg_sl_pct:.1f}%  |  TS: {st.session_state.tg_ts_pct:.1f}%")
+        # =========================================================================
+        # MODO JOGO ATIVO
+        # =========================================================================
+        elif st.session_state.tg_active and st.session_state.tg_data is not None:
+            df = st.session_state.tg_data
+            current_step = st.session_state.tg_step
+            progress_candles = current_step - 144
+            price_now = df['close'].iloc[current_step]
+            # Gatilhos de seguranca
+            if st.session_state.tg_position != "NONE":
+                def _eval_exit_triggers(pos, px_now, ent_p):
+                    sl_on = st.session_state.get("tg_sl_pct_active", True) and (st.session_state.get("tg_sl_pct", 0) > 0)
+                    tp_on = st.session_state.get("tg_tp_pct_active", True) and (st.session_state.get("tg_tp_pct", 0) > 0)
+                    atr_on = st.session_state.get("tg_garrafao_atr_active", False)
+                    ts_pct_on = st.session_state.get("tg_ts_pct_active", False) and (st.session_state.get("tg_ts_pct", 0) > 0)
+                    if pos == "LONG":
+                        st.session_state.tg_highest_price = max(st.session_state.tg_highest_price, px_now)
+                        if sl_on and px_now <= ent_p * (1 - st.session_state.tg_sl_pct / 100.0):
+                            return True, "STOP LOSS", ent_p * (1 - st.session_state.tg_sl_pct / 100.0)
+                        if tp_on and px_now >= ent_p * (1 + st.session_state.tg_tp_pct / 100.0):
+                            return True, "TAKE PROFIT", ent_p * (1 + st.session_state.tg_tp_pct / 100.0)
+                        if atr_on:
+                            ts_mult = st.session_state.get("tg_ts_atr_end", 0.2) if st.session_state.tg_macd_weakness_count >= st.session_state.get("tg_ts_weakness_bars", 2) else st.session_state.get("tg_ts_atr_start", 1.5)
+                            ts_dist = st.session_state.tg_entry_atr * ts_mult
+                            if px_now <= st.session_state.tg_highest_price - ts_dist:
+                                return True, "TRAILING STOP", st.session_state.tg_highest_price - ts_dist
+                        elif ts_pct_on and st.session_state.tg_highest_price >= ent_p * 1.0075:
+                            ts_stop = st.session_state.tg_highest_price * (1 - st.session_state.tg_ts_pct / 100.0)
+                            if px_now <= ts_stop:
+                                return True, "TRAILING STOP", ts_stop
+                    elif pos == "SHORT":
+                        st.session_state.tg_lowest_price = min(st.session_state.tg_lowest_price, px_now)
+                        if sl_on and px_now >= ent_p * (1 + st.session_state.tg_sl_pct / 100.0):
+                            return True, "STOP LOSS", ent_p * (1 + st.session_state.tg_sl_pct / 100.0)
+                        if tp_on and px_now <= ent_p * (1 - st.session_state.tg_tp_pct / 100.0):
+                            return True, "TAKE PROFIT", ent_p * (1 - st.session_state.tg_tp_pct / 100.0)
+                        if atr_on:
+                            ts_mult = st.session_state.get("tg_ts_atr_end", 0.2) if st.session_state.tg_macd_weakness_count >= st.session_state.get("tg_ts_weakness_bars", 2) else st.session_state.get("tg_ts_atr_start", 1.5)
+                            ts_dist = st.session_state.tg_entry_atr * ts_mult
+                            if px_now >= st.session_state.tg_lowest_price + ts_dist:
+                                return True, "TRAILING STOP", st.session_state.tg_lowest_price + ts_dist
+                        elif ts_pct_on and st.session_state.tg_lowest_price <= ent_p * 0.9925:
+                            ts_stop = st.session_state.tg_lowest_price * (1 + st.session_state.tg_ts_pct / 100.0)
+                            if px_now >= ts_stop:
+                                return True, "TRAILING STOP", ts_stop
+                    return False, "", px_now
+
+                entry_p = st.session_state.tg_entry_price
+                triggered, trigger_reason, executed_price = _eval_exit_triggers(st.session_state.tg_position, price_now, entry_p)
+                if triggered:
+                    commissions = st.session_state.tg_capital * ((st.session_state.get('fee_pct_val', 0.1) + st.session_state.get('slippage_pct_val', 0.05)) / 100.0) * 2
+                    if st.session_state.tg_position == "LONG":
+                        trade_pnl_pct = (executed_price - entry_p) / entry_p * 100
+                    else:
+                        trade_pnl_pct = (entry_p - executed_price) / entry_p * 100
+                    net_pnl = st.session_state.tg_capital * (trade_pnl_pct / 100.0) - commissions
+                    st.session_state.tg_capital += net_pnl
+                    record_and_append_trade({
+                        "type": st.session_state.tg_position, "entry_price": entry_p, "exit_price": executed_price,
+                        "pnl_pct": trade_pnl_pct, "pnl_eur": net_pnl,
+                        "candles": current_step - st.session_state.tg_entry_step,
+                        "reason": trigger_reason, "entry_step": st.session_state.tg_entry_step, "exit_step": current_step
+                    })
+                    old_pos = st.session_state.tg_position
+                    st.session_state.tg_position = "NONE"
+                    st.session_state.tg_last_exit_step = current_step
+                    st.toast(f"{trigger_reason} ativado! Posicao {old_pos} liquidada a {executed_price:.2f}")
+                    st.rerun()
+            # Fim do desafio (100 velas jogadas)
+            max_c = st.session_state.get("tg_max_candles", 100)
+            if progress_candles >= max_c:
+                # Fechar posicao aberta
+                if st.session_state.tg_position != "NONE":
+                    entry_p = st.session_state.tg_entry_price
+                    commissions = st.session_state.tg_capital * ((st.session_state.get('fee_pct_val', 0.1) + st.session_state.get('slippage_pct_val', 0.05)) / 100.0) * 2
+                    trade_pnl_pct = (price_now - entry_p)/entry_p*100 if st.session_state.tg_position == "LONG" else (entry_p - price_now)/entry_p*100
+                    net_pnl = st.session_state.tg_capital * (trade_pnl_pct/100.0) - commissions
+                    st.session_state.tg_capital += net_pnl
+                    record_and_append_trade({
+                        "type": st.session_state.tg_position, "entry_price": entry_p, "exit_price": price_now,
+                        "pnl_pct": trade_pnl_pct, "pnl_eur": net_pnl,
+                        "candles": current_step - st.session_state.tg_entry_step,
+                        "reason": "Fim do Jogo", "entry_step": st.session_state.tg_entry_step, "exit_step": current_step
+                    })
+                    st.session_state.tg_position = "NONE"
+                save_highscore(st.session_state.tg_trader_name, st.session_state.tg_capital, len(st.session_state.tg_trades))
+                save_last_game_persistent(df)
+                save_game_session()   # guarda sessão completa para análise multi-jogo
+                # Transicao para modo revisao (nao apaga os dados!)
+                st.session_state.tg_active = False
+                st.session_state.tg_game_finished = True
+                st.session_state.tg_running = False
+                st.balloons()
+                st.rerun()
+            pos_str = "FORA"
+            pos_color = "#94a3b8"
+            if st.session_state.tg_position == "LONG":
+                pos_str = f"LONG ({st.session_state.tg_entry_price:.2f})"
+                pos_color = "#10B981"
+            elif st.session_state.tg_position == "SHORT":
+                pos_str = f"SHORT ({st.session_state.tg_entry_price:.2f})"
+                pos_color = "#EF4444"
+            ret_pct = st.session_state.tg_capital - 100.0
+            ret_color = "#10B981" if ret_pct >= 0 else "#EF4444"
+            # --- Calcular eficacia para o header ---
+            _all_trades = st.session_state.get("tg_trades", [])
+            _l_trades = [t for t in _all_trades if t["type"] == "LONG"]
+            _s_trades = [t for t in _all_trades if t["type"] == "SHORT"]
+            _l_wins = sum(1 for t in _l_trades if t.get("pnl_pct", 0) > 0)
+            _s_wins = sum(1 for t in _s_trades if t.get("pnl_pct", 0) > 0)
+            _l_eff = (_l_wins / len(_l_trades) * 100) if _l_trades else 0.0
+            _s_eff = (_s_wins / len(_s_trades) * 100) if _s_trades else 0.0
+            # =========================================================
+            # BARRA DE ESTADO TOPO - dark header bar
+            # =========================================================
+            st.markdown(f"""<div style="background:linear-gradient(135deg,#eef2ff 0%,#f8fafc 55%,#ecfdf5 100%);
+border-radius:12px; padding:14px 24px; margin-bottom:14px;
+display:flex; justify-content:space-between; align-items:center;
+border:1px solid #c7d2fe;
+box-shadow:0 4px 16px rgba(79,70,229,0.08);">
+<div style="text-align:center;">
+<div style="color:#475569;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:3px;">Banca Final</div>
+<div style="color:#059669;font-size:20px;font-weight:900;font-family:monospace;">{st.session_state.tg_capital:.2f} EUR</div>
+</div>
+<div style="text-align:center;">
+<div style="color:#475569;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:3px;">Retorno Total</div>
+<div style="color:{'#059669' if ret_pct >= 0 else '#dc2626'};font-size:20px;font-weight:900;font-family:monospace;">{ret_pct:+.2f}%</div>
+</div>
+<div style="text-align:center;">
+<div style="color:#475569;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:3px;">Eficiencia de Sessao</div>
+<div style="font-size:13px;font-weight:700;font-family:monospace;">
+<span style="color:#059669;">LONG {_l_eff:.0f}% ({_l_wins}/{len(_l_trades)})</span>
+&nbsp;&nbsp;|&nbsp;&nbsp;
+<span style="color:#dc2626;">SHORT {_s_eff:.0f}% ({_s_wins}/{len(_s_trades)})</span>
+</div>
+</div>
+<div style="text-align:center;">
+<div style="color:#475569;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:3px;">Posicao</div>
+<div style="color:{pos_color};font-size:16px;font-weight:900;font-family:monospace;">{pos_str}</div>
+</div>
+<div style="text-align:center;">
+<div style="color:#475569;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:3px;">Progresso</div>
+<div style="color:#1e293b;font-size:18px;font-weight:900;font-family:monospace;">{progress_candles} <span style="font-size:11px;color:#64748b;">/ {st.session_state.get('tg_max_candles', 100)}</span></div>
+</div>
+</div>
+""", unsafe_allow_html=True)
+            # =========================================================
+            # LAYOUT PRINCIPAL: 3 colunas
+            # col_chart | col_ctrl | col_advisor
+            # =========================================================
+            st.markdown("<div class='arena-row-marker'></div>", unsafe_allow_html=True)
+            col_chart, col_ctrl, col_advisor = st.columns([6.8, 2.2, 2.5])
+            # =========================================================
+            # COL CHART - Grafico
+            # =========================================================
+            with col_chart:
+                start_idx_c = max(50, current_step - 49)
+                sub_df = df.iloc[start_idx_c:current_step+1]
+                max_c = st.session_state.get('tg_max_candles', 100)
+                fig = _build_chart(
+                    sub_df, df,
+                    title_str=f"Arena Real \U0001f4c8 Batimento {progress_candles} / {max_c} Velas (ultimas {len(sub_df)})"
+                )
+                st.plotly_chart(fig, width="stretch")
+            # =========================================================
+            # COL CTRL - Controlo de fluxo + Botoes casino
+            # =========================================================
+            with col_ctrl:
+                st.markdown("<div class='game-control-anchor'></div>", unsafe_allow_html=True)
+                # --- Fluxo ---
+                col_flow1, col_flow2 = st.columns([1, 1])
+                with col_flow1:
+                    if st.button("Avancar", width="stretch", key="tg_step_btn"):
+                        st.session_state.tg_step += 1
+                        st.rerun()
+                with col_flow2:
+                    btn_label = "Pausar" if st.session_state.tg_running else "Auto"
+                    if st.button(btn_label, width="stretch", key="tg_loop_btn"):
+                        st.session_state.tg_running = not st.session_state.tg_running
+                        st.rerun()
+                
+                # Botão premium para Simulação Instantânea até ao Fim do Jogo
+                if st.button("⚡ Simular Até ao Fim (Instantâneo)", width='stretch', key="tg_simulate_to_end_btn"):
+                    st.session_state.tg_running = False  # Pausa o auto loop se estivesse a correr
+                    max_c = st.session_state.get('tg_max_candles', 100)
+                    while (st.session_state.tg_step - 144) < max_c:
+                        st.session_state.tg_step += 1
+                        current_step = st.session_state.tg_step
+                        price_now = df['close'].iloc[current_step]
+                        
+                        # 1. Processar Stop Loss, Take Profit, Trailing Stop
+                        if st.session_state.tg_position != "NONE":
+                            entry_p = st.session_state.tg_entry_price
+                            triggered = False
+                            trigger_reason = ""
+                            executed_price = price_now
+                            
+                            sl_on = st.session_state.get("tg_sl_pct_active", True) and (st.session_state.get("tg_sl_pct", 0) > 0)
+                            tp_on = st.session_state.get("tg_tp_pct_active", True) and (st.session_state.get("tg_tp_pct", 0) > 0)
+                            atr_on = st.session_state.get("tg_garrafao_atr_active", False)
+                            ts_pct_on = st.session_state.get("tg_ts_pct_active", False) and (st.session_state.get("tg_ts_pct", 0) > 0)
+                            if st.session_state.tg_position == "LONG":
+                                st.session_state.tg_highest_price = max(st.session_state.tg_highest_price, price_now)
+                                if sl_on and price_now <= entry_p * (1 - st.session_state.tg_sl_pct/100.0):
+                                    triggered, trigger_reason = True, "STOP LOSS"
+                                    executed_price = entry_p * (1 - st.session_state.tg_sl_pct/100.0)
+                                elif tp_on and price_now >= entry_p * (1 + st.session_state.tg_tp_pct/100.0):
+                                    triggered, trigger_reason = True, "TAKE PROFIT"
+                                    executed_price = entry_p * (1 + st.session_state.tg_tp_pct/100.0)
+                                elif atr_on:
+                                    ts_mult = st.session_state.get("tg_ts_atr_end", 0.2) if st.session_state.tg_macd_weakness_count >= st.session_state.get("tg_ts_weakness_bars", 2) else st.session_state.get("tg_ts_atr_start", 1.5)
+                                    ts_dist = st.session_state.tg_entry_atr * ts_mult
+                                    if price_now <= st.session_state.tg_highest_price - ts_dist:
+                                        triggered, trigger_reason = True, "TRAILING STOP"
+                                        executed_price = st.session_state.tg_highest_price - ts_dist
+                                elif ts_pct_on and st.session_state.tg_highest_price >= entry_p * 1.0075:
+                                    ts_stop = st.session_state.tg_highest_price * (1 - st.session_state.tg_ts_pct / 100.0)
+                                    if price_now <= ts_stop:
+                                        triggered, trigger_reason = True, "TRAILING STOP"
+                                        executed_price = ts_stop
+                            elif st.session_state.tg_position == "SHORT":
+                                st.session_state.tg_lowest_price = min(st.session_state.tg_lowest_price, price_now)
+                                if sl_on and price_now >= entry_p * (1 + st.session_state.tg_sl_pct/100.0):
+                                    triggered, trigger_reason = True, "STOP LOSS"
+                                    executed_price = entry_p * (1 + st.session_state.tg_sl_pct/100.0)
+                                elif tp_on and price_now <= entry_p * (1 - st.session_state.tg_tp_pct/100.0):
+                                    triggered, trigger_reason = True, "TAKE PROFIT"
+                                    executed_price = entry_p * (1 - st.session_state.tg_tp_pct/100.0)
+                                elif atr_on:
+                                    ts_mult = st.session_state.get("tg_ts_atr_end", 0.2) if st.session_state.tg_macd_weakness_count >= st.session_state.get("tg_ts_weakness_bars", 2) else st.session_state.get("tg_ts_atr_start", 1.5)
+                                    ts_dist = st.session_state.tg_entry_atr * ts_mult
+                                    if price_now >= st.session_state.tg_lowest_price + ts_dist:
+                                        triggered, trigger_reason = True, "TRAILING STOP"
+                                        executed_price = st.session_state.tg_lowest_price + ts_dist
+                                elif ts_pct_on and st.session_state.tg_lowest_price <= entry_p * 0.9925:
+                                    ts_stop = st.session_state.tg_lowest_price * (1 + st.session_state.tg_ts_pct / 100.0)
+                                    if price_now >= ts_stop:
+                                        triggered, trigger_reason = True, "TRAILING STOP"
+                                        executed_price = ts_stop
+                                    
+                            if triggered:
+                                commissions = st.session_state.tg_capital * ((st.session_state.get('fee_pct_val', 0.1) + st.session_state.get('slippage_pct_val', 0.05)) / 100.0) * 2
+                                if st.session_state.tg_position == "LONG":
+                                    trade_pnl_pct = (executed_price - entry_p) / entry_p * 100
+                                else:
+                                    trade_pnl_pct = (entry_p - executed_price) / entry_p * 100
+                                net_pnl = st.session_state.tg_capital * (trade_pnl_pct / 100.0) - commissions
+                                st.session_state.tg_capital += net_pnl
+                                record_and_append_trade({
+                                    "type": st.session_state.tg_position, "entry_price": entry_p, "exit_price": executed_price,
+                                    "pnl_pct": trade_pnl_pct, "pnl_eur": net_pnl,
+                                    "candles": current_step - st.session_state.tg_entry_step,
+                                    "reason": trigger_reason, "entry_step": st.session_state.tg_entry_step, "exit_step": current_step
+                                })
+                                st.session_state.tg_position = "NONE"
+                                st.session_state.tg_last_exit_step = current_step
+                                
+                        # 2. Processar decisão do Robô Autónomo / Co-piloto
+                        if st.session_state.tg_bot_mode == "Bot Autonomo":
+                            _bot_signal, _bot_conf, _bot_conds = compute_bot_signal(df, current_step)
+                            _pos = st.session_state.tg_position
+                            
+                            # A) Saídas Primeiro
+                            if _pos == "LONG" and (_bot_signal == "SHORT" or (_bot_signal == "HOLD" and _bot_conf >= st.session_state.get("tg_min_confidence_pct", 80.0))):
+                                entry_p = st.session_state.tg_entry_price
+                                commissions = st.session_state.tg_capital * ((st.session_state.get('fee_pct_val', 0.1) + st.session_state.get('slippage_pct_val', 0.05)) / 100.0) * 2
+                                pnl_pct = (price_now - entry_p) / entry_p * 100
+                                net_pnl = st.session_state.tg_capital * (pnl_pct/100.0) - commissions
+                                st.session_state.tg_capital += net_pnl
+                                record_and_append_trade({
+                                    "type": "LONG", "entry_price": entry_p, "exit_price": price_now,
+                                    "pnl_pct": pnl_pct, "pnl_eur": net_pnl,
+                                    "candles": current_step - st.session_state.tg_entry_step,
+                                    "reason": f"Bot Exit ({_bot_signal})", "entry_step": st.session_state.tg_entry_step, "exit_step": current_step
+                                })
+                                st.session_state.tg_position = "NONE"
+                                st.session_state.tg_last_exit_step = current_step
+                                _pos = "NONE"
+                            elif _pos == "SHORT" and (_bot_signal == "LONG" or (_bot_signal == "HOLD" and _bot_conf >= st.session_state.get("tg_min_confidence_pct", 80.0))):
+                                entry_p = st.session_state.tg_entry_price
+                                commissions = st.session_state.tg_capital * ((st.session_state.get('fee_pct_val', 0.1) + st.session_state.get('slippage_pct_val', 0.05)) / 100.0) * 2
+                                pnl_pct = (entry_p - price_now) / entry_p * 100
+                                net_pnl = st.session_state.tg_capital * (pnl_pct/100.0) - commissions
+                                st.session_state.tg_capital += net_pnl
+                                record_and_append_trade({
+                                    "type": "SHORT", "entry_price": entry_p, "exit_price": price_now,
+                                    "pnl_pct": pnl_pct, "pnl_eur": net_pnl,
+                                    "candles": current_step - st.session_state.tg_entry_step,
+                                    "reason": f"Bot Exit ({_bot_signal})", "entry_step": st.session_state.tg_entry_step, "exit_step": current_step
+                                })
+                                st.session_state.tg_position = "NONE"
+                                st.session_state.tg_last_exit_step = current_step
+                                _pos = "NONE"
+                                
+                            # B) Entradas Imediatamente (reversão na mesma vela)
+                            if _pos == "NONE" and not (st.session_state.get("tg_only_one_move_per_candle", True) and current_step == st.session_state.get("tg_last_exit_step", -1)):
+                                if _bot_signal == "LONG":
+                                    st.session_state.tg_position = "LONG"
+                                    st.session_state.tg_entry_price = price_now
+                                    st.session_state.tg_entry_atr = df['atr_14'].iloc[current_step] if 'atr_14' in df.columns and not pd.isna(df['atr_14'].iloc[current_step]) else 1.0
+                                    st.session_state.tg_macd_weakness_count = 0
+                                    st.session_state.tg_entry_step = current_step
+                                    st.session_state.tg_highest_price = price_now
+                                elif _bot_signal == "SHORT":
+                                    st.session_state.tg_position = "SHORT"
+                                    st.session_state.tg_entry_price = price_now
+                                    st.session_state.tg_entry_atr = df['atr_14'].iloc[current_step] if 'atr_14' in df.columns and not pd.isna(df['atr_14'].iloc[current_step]) else 1.0
+                                    st.session_state.tg_macd_weakness_count = 0
+                                    st.session_state.tg_entry_step = current_step
+                                    st.session_state.tg_lowest_price = price_now
+                    st.rerun()
+
+                tg_speed_select = st.selectbox(
+                    "Velocidade:", ["Lento (1.0s)", "Medio (0.3s)", "Rapido (0.05s)", "Super-Rapido (0.02s)", "Hiper-Rapido (0.01s)", "Turbo (0.0s)"],
+                    index=1, label_visibility="collapsed", key="tg_speed_widget"
+                )
+                tg_delay = 1.0 if "Lento" in tg_speed_select else (0.3 if "Medio" in tg_speed_select else (0.05 if "Rapido" in tg_speed_select else (0.02 if "Super-Rapido" in tg_speed_select else (0.01 if "Hiper-Rapido" in tg_speed_select else 0.0))))
+                # Combined separator and heading to save vertical space
+                st.markdown("<hr style='margin:4px 0;border:0;border-top:1px solid rgba(255,255,255,0.08);'><h6 style='margin:0;font-weight:bold;color:#a78bfa;margin-bottom:2px;'>Co-piloto:</h6>", unsafe_allow_html=True)
+                bot_mode_choice = st.radio(
+                    "Modo:", ["Manual", "Co-piloto", "Bot Autonomo"],
+                    horizontal=True,
+                    index=["Manual","Co-piloto","Bot Autonomo"].index(st.session_state.tg_bot_mode) if st.session_state.tg_bot_mode in ["Manual","Co-piloto","Bot Autonomo"] else 0,
+                    key="tg_bot_mode_radio", label_visibility="collapsed"
+                )
+                if bot_mode_choice != st.session_state.tg_bot_mode:
+                    st.session_state.tg_bot_mode = bot_mode_choice
+                st.markdown("<hr style='margin:4px 0;border:0;border-top:1px solid rgba(255,255,255,0.08);'>", unsafe_allow_html=True)
+                # --- Compute signal ---
+                _bot_signal, _bot_conf, _bot_conds = compute_bot_signal(df, current_step)
+                _sig_color = {"LONG": "#10B981", "SHORT": "#EF4444", "HOLD": "#94a3b8"}[_bot_signal]
+                # --- BOT AUTONOMO ---
+                if st.session_state.tg_bot_mode == "Bot Autonomo":
+                    _pos = st.session_state.tg_position
+                    
+                    # A) Verificar Saídas Primeiro
+                    if _pos == "LONG" and (_bot_signal == "SHORT" or (_bot_signal == "HOLD" and _bot_conf >= st.session_state.get("tg_min_confidence_pct", 80.0))):
+                        entry_p = st.session_state.tg_entry_price
+                        commissions = st.session_state.tg_capital * ((st.session_state.get('fee_pct_val', 0.1) + st.session_state.get('slippage_pct_val', 0.05)) / 100.0) * 2
+                        pnl_pct = (price_now - entry_p) / entry_p * 100
+                        net_pnl = st.session_state.tg_capital * (pnl_pct/100.0) - commissions
+                        st.session_state.tg_capital += net_pnl
+                        record_and_append_trade({
+                            "type": "LONG", "entry_price": entry_p, "exit_price": price_now,
+                            "pnl_pct": pnl_pct, "pnl_eur": net_pnl,
+                            "candles": current_step - st.session_state.tg_entry_step,
+                            "reason": f"Bot Exit ({_bot_signal})", "entry_step": st.session_state.tg_entry_step, "exit_step": current_step
+                        })
+                        st.session_state.tg_position = "NONE"
+                        _pos = "NONE"
+                        st.session_state.tg_last_exit_step = current_step
+                        st.toast(f"Bot saiu LONG a {price_now:.2f} ({pnl_pct:+.2f}%)")
+                    elif _pos == "SHORT" and (_bot_signal == "LONG" or (_bot_signal == "HOLD" and _bot_conf >= st.session_state.get("tg_min_confidence_pct", 80.0))):
+                        entry_p = st.session_state.tg_entry_price
+                        commissions = st.session_state.tg_capital * ((st.session_state.get('fee_pct_val', 0.1) + st.session_state.get('slippage_pct_val', 0.05)) / 100.0) * 2
+                        pnl_pct = (entry_p - price_now) / entry_p * 100
+                        net_pnl = st.session_state.tg_capital * (pnl_pct/100.0) - commissions
+                        st.session_state.tg_capital += net_pnl
+                        record_and_append_trade({
+                            "type": "SHORT", "entry_price": entry_p, "exit_price": price_now,
+                            "pnl_pct": pnl_pct, "pnl_eur": net_pnl,
+                            "candles": current_step - st.session_state.tg_entry_step,
+                            "reason": f"Bot Exit ({_bot_signal})", "entry_step": st.session_state.tg_entry_step, "exit_step": current_step
+                        })
+                        st.session_state.tg_position = "NONE"
+                        _pos = "NONE"
+                        st.session_state.tg_last_exit_step = current_step
+                        st.toast(f"Bot saiu SHORT a {price_now:.2f} ({pnl_pct:+.2f}%)")
+
+                    # B) Verificar Entradas Imediatamente (incluindo reversões automáticas no mesmo ponto/vela!)
+                    if _pos == "NONE" and not (st.session_state.get("tg_only_one_move_per_candle", True) and current_step == st.session_state.get("tg_last_exit_step", -1)):
+                        if _bot_signal == "LONG":
+                            st.session_state.tg_position = "LONG"
+                            st.session_state.tg_entry_price = price_now
+                            st.session_state.tg_entry_atr = df['atr_14'].iloc[current_step] if 'atr_14' in df.columns and not pd.isna(df['atr_14'].iloc[current_step]) else 1.0
+                            st.session_state.tg_macd_weakness_count = 0
+                            st.session_state.tg_entry_step = current_step
+                            st.session_state.tg_highest_price = price_now
+                            st.toast(f"Bot entrou LONG a {price_now:.2f}")
+                        elif _bot_signal == "SHORT":
+                            st.session_state.tg_position = "SHORT"
+                            st.session_state.tg_entry_price = price_now
+                            st.session_state.tg_entry_atr = df['atr_14'].iloc[current_step] if 'atr_14' in df.columns and not pd.isna(df['atr_14'].iloc[current_step]) else 1.0
+                            st.session_state.tg_macd_weakness_count = 0
+                            st.session_state.tg_entry_step = current_step
+                            st.session_state.tg_lowest_price = price_now
+                            st.toast(f"Bot entrou SHORT a {price_now:.2f}")
+                # --- CASINO BUTTONS ---
+                st.markdown("<div class='casino-buttons-marker'></div>", unsafe_allow_html=True)
+                _long_on  = st.session_state.tg_position == "LONG"
+                _short_on = st.session_state.tg_position == "SHORT"
+                col_btn_long, col_btn_short = st.columns(2)
+                with col_btn_long:
+                    if st.session_state.tg_position == "LONG":
+                        long_pnl = (price_now - st.session_state.tg_entry_price)/st.session_state.tg_entry_price*100
+                        st.markdown('<div class="casino-long-active">', unsafe_allow_html=True)
+                        if st.button(f"LONG ATIVO  {long_pnl:+.2f}%", width="stretch", key="tg_btn_long_act"):
+                            entry_p = st.session_state.tg_entry_price
+                            commissions = st.session_state.tg_capital * ((st.session_state.get('fee_pct_val', 0.1) + st.session_state.get('slippage_pct_val', 0.05)) / 100.0) * 2
+                            trade_pnl_pct = (price_now - entry_p)/entry_p*100
+                            net_pnl = st.session_state.tg_capital * (trade_pnl_pct/100.0) - commissions
+                            st.session_state.tg_capital += net_pnl
+                            record_and_append_trade({
+                                "type": "LONG", "entry_price": entry_p, "exit_price": price_now,
+                                "pnl_pct": trade_pnl_pct, "pnl_eur": net_pnl,
+                                "candles": current_step - st.session_state.tg_entry_step,
+                                "reason": "Manual Exit", "entry_step": st.session_state.tg_entry_step, "exit_step": current_step
+                            })
+                            st.session_state.tg_position = "NONE"
+                            save_last_game_persistent(df)
+                            st.toast(f"LONG fechado a {price_now:.2f}")
+                            st.rerun()
+                        st.markdown("</div>", unsafe_allow_html=True)
+                    elif st.session_state.tg_position == "NONE":
+                        st.markdown('<div class="casino-long-inactive">', unsafe_allow_html=True)
+                        if st.button("ENTRAR LONG  [OFF]", width="stretch", key="tg_btn_long_inact"):
+                            st.session_state.tg_position = "LONG"
+                            st.session_state.tg_entry_price = price_now
+                            st.session_state.tg_entry_atr = df['atr_14'].iloc[current_step] if 'atr_14' in df.columns and not pd.isna(df['atr_14'].iloc[current_step]) else 1.0
+                            st.session_state.tg_macd_weakness_count = 0
+                            st.session_state.tg_entry_step = current_step
+                            st.session_state.tg_highest_price = price_now
+                            st.toast(f"LONG ativado a {price_now:.2f}")
+                            st.rerun()
+                        st.markdown("</div>", unsafe_allow_html=True)
+                    else:
+                        st.markdown('<div class="casino-blocked">', unsafe_allow_html=True)
+                        st.button("LONG BLOQUEADO", disabled=True, width="stretch", key="tg_btn_long_blk")
+                        st.markdown("</div>", unsafe_allow_html=True)
+                with col_btn_short:
+                    if st.session_state.tg_position == "SHORT":
+                        short_pnl = (st.session_state.tg_entry_price - price_now)/st.session_state.tg_entry_price*100
+                        st.markdown('<div class="casino-short-active">', unsafe_allow_html=True)
+                        if st.button(f"SHORT ATIVO  {short_pnl:+.2f}%", width="stretch", key="tg_btn_short_act"):
+                            entry_p = st.session_state.tg_entry_price
+                            commissions = st.session_state.tg_capital * ((st.session_state.get('fee_pct_val', 0.1) + st.session_state.get('slippage_pct_val', 0.05)) / 100.0) * 2
+                            trade_pnl_pct = (entry_p - price_now)/entry_p*100
+                            net_pnl = st.session_state.tg_capital * (trade_pnl_pct/100.0) - commissions
+                            st.session_state.tg_capital += net_pnl
+                            record_and_append_trade({
+                                "type": "SHORT", "entry_price": entry_p, "exit_price": price_now,
+                                "pnl_pct": trade_pnl_pct, "pnl_eur": net_pnl,
+                                "candles": current_step - st.session_state.tg_entry_step,
+                                "reason": "Manual Exit", "entry_step": st.session_state.tg_entry_step, "exit_step": current_step
+                            })
+                            st.session_state.tg_position = "NONE"
+                            save_last_game_persistent(df)
+                            st.toast(f"SHORT fechado a {price_now:.2f}")
+                            st.rerun()
+                        st.markdown("</div>", unsafe_allow_html=True)
+                    elif st.session_state.tg_position == "NONE":
+                        st.markdown('<div class="casino-short-inactive">', unsafe_allow_html=True)
+                        if st.button("ENTRAR SHORT  [OFF]", width="stretch", key="tg_btn_short_inact"):
+                            st.session_state.tg_position = "SHORT"
+                            st.session_state.tg_entry_price = price_now
+                            st.session_state.tg_entry_atr = df['atr_14'].iloc[current_step] if 'atr_14' in df.columns and not pd.isna(df['atr_14'].iloc[current_step]) else 1.0
+                            st.session_state.tg_macd_weakness_count = 0
+                            st.session_state.tg_entry_step = current_step
+                            st.session_state.tg_lowest_price = price_now
+                            st.toast(f"SHORT ativado a {price_now:.2f}")
+                            st.rerun()
+                        st.markdown("</div>", unsafe_allow_html=True)
+                    else:
+                        st.markdown('<div class="casino-short-inactive">', unsafe_allow_html=True)
+                        st.button("SHORT BLOQUEADO", disabled=True, width="stretch", key="tg_btn_short_blk")
+                        st.markdown("</div>", unsafe_allow_html=True)
+            # =========================================================
+            # =========================================================
+            # COL ADVISOR - Sinal do co-piloto + 12 variaveis
+            # =========================================================
+            with col_advisor:
+                dna_active = st.session_state.get("tg_strategy_type", "Default") == "Cérebro de Consenso (IA)"
+                
+                # --- Regime label ---
+                if dna_active:
+                    regime_name = df["regime"].iloc[current_step]
+                    regime_color = {"BULL": "#10B981", "BEAR": "#EF4444", "LATERAL": "#F59E0B", "CAOTICO": "#8B5CF6"}.get(regime_name, "#94a3b8")
+                    st.markdown(
+                        f'<div style="font-size:11px;margin-bottom:4px;font-weight:bold;color:#7c3aed;">'
+                        f'DNA ATIVO | REGIME DETETADO: <span style="color:{regime_color};">{regime_name}</span></div>',
+                        unsafe_allow_html=True
+                    )
+                
+                # --- Sinal principal ---
+                _sig_icons = {"LONG": "&#9650;", "SHORT": "&#9660;", "HOLD": "&#9632;"}
+                _sig_icon = _sig_icons.get(_bot_signal, "&#9632;")
+                st.markdown(
+                    f'<div style="background:rgba(15,23,42,0.85);border-radius:12px;padding:10px 14px;'
+                    f'border-left:4px solid {_sig_color};border:1px solid rgba(124,58,237,0.25);'
+                    f'box-shadow:0 4px 20px rgba(0,0,0,0.3);margin-bottom:8px;">'
+                    f'<div style="font-size:20px;font-weight:900;color:{_sig_color};">{_sig_icon} {_bot_signal} '
+                    f'<span style="font-size:14px;color:#94a3b8;font-weight:bold;margin-left:8px;">confianca {_bot_conf}%</span></div>'
+                    f'</div>',
+                    unsafe_allow_html=True
+                )
+                
+                # --- 12 variaveis (unificadas num unico bloco HTML) ---
+                conds_html = []
+                for _ck, _cv in _bot_conds.items():
+                    _ccolor = "#10B981" if _cv else "#EF4444"
+                    _cmark  = "&#10003;" if _cv else "&#10007;"
+                    conds_html.append(
+                        f'<div style="font-size:13.5px;padding:3px 0;color:#cbd5e1;line-height:1.4;">'
+                        f'<span style="color:{_ccolor};font-weight:bold;margin-right:6px;">{_cmark}</span>{_ck}</div>'
+                    )
+
+                adx_val = df['adx_14'].iloc[current_step] if 'adx_14' in df.columns else 0.0
+                adx_color = "#10B981" if adx_val > 25 else "#F59E0B"
+                adx_text = "Em Tendência" if adx_val > 25 else "Lateral"
+                adx_icon = "🟢" if adx_val > 25 else "🟡"
+                
+                conds_html.append(
+                    f'<div style="font-size:13.5px;padding:3px 0;color:#cbd5e1;line-height:1.4;">'
+                    f'<span style="font-weight:bold;margin-right:6px;">{adx_icon}</span>Tendência (ADX): <span style="color:{adx_color};font-weight:bold;">{adx_text} ({adx_val:.1f})</span></div>'
+                )
+
+                vol_pct = df['volume_pct_diff'].iloc[current_step] if 'volume_pct_diff' in df.columns else 0.0
+                vol_color = "#10B981" if vol_pct >= 0 else "#EF4444"
+                vol_icon = "✅" if vol_pct >= 0 else "❌"
+                
+                conds_html.append(
+                    f'<div style="font-size:13.5px;padding:3px 0;color:#cbd5e1;line-height:1.4;">'
+                    f'<span style="font-weight:bold;margin-right:6px;">{vol_icon}</span>Volume (VS Média): <span style="color:{vol_color};font-weight:bold;">{vol_pct:+.1f}%</span></div>'
+                )
+                
+                conds_block = (
+                    f'<div style="background:rgba(15,23,42,0.7);border-radius:10px;padding:12px 14px;'
+                    f'border:1px solid rgba(124,58,237,0.15);">'
+                    f'{"".join(conds_html)}'
+                    f'</div>'
+                )
+                st.markdown(conds_block, unsafe_allow_html=True)
+                
+                st.markdown("<div class='advisor-bottom-marker'></div>", unsafe_allow_html=True)
+                # --- Previsao de Markov (Vela Seguinte) ---
+                ret_prev = 0.0
+                if current_step > 0:
+                    val_curr = df['close'].iloc[current_step]
+                    val_prev = df['close'].iloc[current_step - 1]
+                    ret_prev = ((val_curr - val_prev) / val_prev) * 100
+                
+                threshold = 0.03
+                if ret_prev > threshold:
+                    current_state = 'UP'
+                elif ret_prev < -threshold:
+                    current_state = 'DOWN'
+                else:
+                    current_state = 'FLAT'
+                
+                markov_matrix = st.session_state.get("tg_markov_matrix", None)
+                if markov_matrix is None:
+                    markov_matrix = train_markov_chain(df, threshold=threshold)
+                    st.session_state.tg_markov_matrix = markov_matrix
+                
+                probs = markov_matrix.get(current_state, {'UP': 1/3, 'DOWN': 1/3, 'FLAT': 1/3})
+                prob_up = probs.get('UP', 0.0)
+                prob_down = probs.get('DOWN', 0.0)
+                prob_flat = probs.get('FLAT', 0.0)
+                
+                max_prob = max(prob_up, prob_down, prob_flat)
+                if max_prob == prob_up:
+                    pred_text = "Subir"
+                    pred_icon = "\u2197"
+                    pred_color = "#10B981"
+                elif max_prob == prob_down:
+                    pred_text = "Descer"
+                    pred_icon = "\u2198"
+                    pred_color = "#EF4444"
+                else:
+                    pred_text = "Manter"
+                    pred_icon = "\u2192"
+                    pred_color = "#F59E0B"
+                
+                curr_color = "#10B981" if current_state == "UP" else ("#EF4444" if current_state == "DOWN" else "#F59E0B")
+                
+                st.markdown(
+                    f'<div style="background:rgba(15,23,42,0.85);border-radius:12px;padding:12px 16px;'
+                    f'border:1px solid rgba(124,58,237,0.25);box-shadow:0 4px 20px rgba(0,0,0,0.3);margin-top:10px;">'
+                    f'<div style="font-size:12px;font-weight:bold;color:#a78bfa;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">\U0001f52e Previs\u00e3o de Markov (Vela +1)</div>'
+                    f'<div style="font-size:14px;font-weight:900;color:{pred_color};display:flex;align-items:center;gap:6px;margin-bottom:10px;">'
+                    f'{pred_icon} {pred_text} <span style="font-size:11px;color:#94a3b8;font-weight:bold;">(confian\u00e7a {max_prob*100:.1f}%)</span>'
+                    f'</div>'
+                    f'<div style="font-size:11px;color:#94a3b8;margin-bottom:8px;">'
+                    f'Estado atual: <span style="color:{curr_color};font-weight:bold;">{current_state}</span> (retorno {ret_prev:+.3f}%)'
+                    f'</div>'
+                    f'<div style="display:flex;flex-direction:column;gap:4px;">'
+                    f'<div style="display:flex;justify-content:space-between;font-size:11px;color:#cbd5e1;">'
+                    f'<span>\u2197 Subir</span><span>{prob_up*100:.1f}%</span>'
+                    f'</div>'
+                    f'<div style="background:rgba(255,255,255,0.06);height:4px;border-radius:2px;">'
+                    f'<div style="background:#10B981;width:{prob_up*100}%;height:4px;border-radius:2px;"></div>'
+                    f'</div>'
+                    f'<div style="display:flex;justify-content:space-between;font-size:11px;color:#cbd5e1;margin-top:2px;">'
+                    f'<span>\u2198 Descer</span><span>{prob_down*100:.1f}%</span>'
+                    f'</div>'
+                    f'<div style="background:rgba(255,255,255,0.06);height:4px;border-radius:2px;">'
+                    f'<div style="background:#EF4444;width:{prob_down*100}%;height:4px;border-radius:2px;"></div>'
+                    f'</div>'
+                    f'<div style="display:flex;justify-content:space-between;font-size:11px;color:#cbd5e1;margin-top:2px;">'
+                    f'<span>\u2192 Manter</span><span>{prob_flat*100:.1f}%</span>'
+                    f'</div>'
+                    f'<div style="background:rgba(255,255,255,0.06);height:4px;border-radius:2px;">'
+                    f'<div style="background:#F59E0B;width:{prob_flat*100}%;height:4px;border-radius:2px;"></div>'
+                    f'</div>'
+                    f'</div>'
+                    f'</div>',
+                    unsafe_allow_html=True
+                )
+# Loop automatico
+            if st.session_state.tg_running and st.session_state.tg_active:
+                time.sleep(tg_delay)
+                max_c = st.session_state.get('tg_max_candles', 100)
+                if (st.session_state.tg_step - 144) < max_c:
+                    st.session_state.tg_step += 1
+                    st.rerun()
+                else:
+                    st.session_state.tg_running = False
+                    st.rerun()
+        # Histórico e Leaderboard
+        if st.session_state.tg_data is not None or st.session_state.tg_trades:
+            st.markdown("---")
+            
+            # 1. Histórico de Ordens - Ocupando a tela toda (Full Width)
+            st.markdown("### 📋 Histórico Detalhado de Ordens")
+            if st.session_state.tg_trades:
+                th_df = pd.DataFrame(st.session_state.tg_trades)
+                
+                # Enriquecer o histórico com mais colunas
+                cols_to_use = ["type", "entry_price", "exit_price", "pnl_pct", "pnl_eur", "candles", "entry_std", "entry_step", "exit_step", "reason"]
+                existing_cols = [c for c in cols_to_use if c in th_df.columns]
+                
+                # Criar um DataFrame bem formatado com as colunas certas e nomes legíveis
+                rename_map = {
+                    "type": "Operação",
+                    "entry_price": "Preço Entrada",
+                    "exit_price": "Preço Saída",
+                    "pnl_pct": "PnL (%)",
+                    "pnl_eur": "Retorno (EUR)",
+                    "candles": "Duração (Velas)",
+                    "entry_std": "Dispersão Entrada",
+                    "entry_step": "Vela Entrada",
+                    "exit_step": "Vela Saída",
+                    "reason": "Motivo do Fecho"
+                }
+                
+                # Ordenar por vela de entrada decrescente para mostrar as ordens mais recentes primeiro
+                if "entry_step" in th_df.columns:
+                    th_df = th_df.sort_values(by="entry_step", ascending=False)
+                    
+                display_df = th_df[existing_cols].copy()
+                
+                # Formatando os valores de PnL e Retorno de forma bonita
+                if "pnl_pct" in display_df.columns:
+                    display_df["pnl_pct"] = display_df["pnl_pct"].map(lambda x: f"{x:+.2f}%")
+                if "pnl_eur" in display_df.columns:
+                    display_df["pnl_eur"] = display_df["pnl_eur"].map(lambda x: f"{x:+.2f} EUR")
+                if "entry_std" in display_df.columns:
+                    display_df["entry_std"] = display_df["entry_std"].map(lambda x: f"{x:.2f}")
+                if "entry_price" in display_df.columns:
+                    display_df["entry_price"] = display_df["entry_price"].map(lambda x: f"{x:.2f}")
+                if "exit_price" in display_df.columns:
+                    display_df["exit_price"] = display_df["exit_price"].map(lambda x: f"{x:.2f}")
+                    
+                st.dataframe(display_df.rename(columns=rename_map), width='stretch')
+                
+                # --- BOTAO DE DOWNLOAD DO RELATORIO COMPLETO DE DECISOES ---
+                try:
+                    csv_df = th_df.copy()
+                    csv_rename = {
+                        "type": "Operação", "entry_price": "Preço Entrada", "exit_price": "Preço Saída",
+                        "pnl_pct": "PnL (%)", "pnl_eur": "Retorno (EUR)", "candles": "Duração (Velas)",
+                        "entry_step": "Vela Entrada", "exit_step": "Vela Saída", "reason": "Motivo do Fecho",
+                        "entry_std": "Desvio Entrada", "entry_mola": "Mola Entrada", "entry_rsi": "RSI Entrada",
+                        "entry_bb_dist": "BB Dist Entrada", "entry_macd": "MACD Entrada", "entry_atr": "ATR Entrada",
+                        "entry_sma5": "SMA 5 Entrada", "entry_sma13": "SMA 13 Entrada", "entry_sma21": "SMA 21 Entrada",
+                        "entry_sma55": "SMA 55 Entrada", "entry_sma144": "SMA 144 Entrada",
+                        "exit_std": "Desvio Saída", "exit_mola": "Mola Saída", "exit_rsi": "RSI Saída",
+                        "exit_bb_dist": "BB Dist Saída", "exit_macd": "MACD Saída", "exit_atr": "ATR Saída",
+                        "exit_sma5": "SMA 5 Saída", "exit_sma13": "SMA 13 Saída", "exit_sma21": "SMA 21 Saída",
+                        "exit_sma55": "SMA 55 Saída", "exit_sma144": "SMA 144 Saída"
+                    }
+                    csv_df = csv_df.rename(columns={k: v for k, v in csv_rename.items() if k in csv_df.columns})
+                    csv_data = csv_df.to_csv(index=False).encode('utf-8')
+                    st.download_button(
+                        label="📥 Descarregar Relatório Completo de Decisões (CSV)",
+                        data=csv_data,
+                        file_name="relatorio_completo_decisoes.csv",
+                        mime="text/csv",
+                        key="tg_download_csv_btn"
+                    )
+                except Exception as e_csv:
+                    st.error(f"Erro ao gerar CSV: {str(e_csv)}")
+            else:
+                st.info("Nenhuma ordem fechada neste jogo até ao momento.")
+                
+            st.markdown("---")
+            
+            # 2. Leaderboards - Melhores e Piores ocupando a tela toda em tabs
+            st.markdown("### 🏆 Leaderboards da Arena (Histórico Cumulativo)")
+            col_ldr1, col_ldr2 = st.columns([8, 2])
+            with col_ldr2:
+                if st.button("🗑️ Apagar Histórico", key="clear_leaderboard"):
+                    if os.path.exists(highscores_file):
+                        os.remove(highscores_file)
+                    st.toast("Histórico da Arena apagado com sucesso!")
+                    st.rerun()
+
+            scores = load_highscores()
+            
+            if scores:
+                tab_melhores, tab_piores = st.tabs(["🥇 TOP 20 Melhores (Hall of Fame)", "💀 Piores Desempenhos (Hall of Shame)"])
+                
+                # Função auxiliar para formatar a tabela de recordes
+                def format_records_df(records_list):
+                    formatted = []
+                    for rank, s in enumerate(records_list, 1):
+                        # Se existirem os dados de eficácia, exibe-os de forma amigável, senão mostra "-"
+                        ef_ls = "-"
+                        if "l_eff" in s and "s_eff" in s:
+                            ef_ls = f"L: {s.get('l_eff', 0.0):.0f}% | S: {s.get('s_eff', 0.0):.0f}%"
+                        elif "l_eff" in s:
+                            ef_ls = f"L: {s.get('l_eff', 0.0):.0f}% | S: 0%"
+                        elif "s_eff" in s:
+                            ef_ls = f"L: 0% | S: {s.get('s_eff', 0.0):.0f}%"
+                            
+                        formatted.append({
+                            "Posição": f"{rank}º",
+                            "Nome": s.get("name", "Trader Anon"),
+                            "Banca Final": f"{s.get('capital', 100.0):.2f} EUR",
+                            "Retorno": f"{s.get('return', 0.0):+.2f}%",
+                            "Trades": s.get("trades", 0),
+                            "Testes": s.get("num_tests", 100),
+                            "Eficácia L/S": ef_ls,
+                            "Estratégia": s.get("strategy", "Default (Fórmula do Jogo)"),
+                            "Linha Ref.": s.get("ref_line", "-") if s.get("ref_line") else "-",
+                            "Modo": s.get("bot_mode", "Manual"),
+                            "Configuração": s.get("config", "-"),
+                            "Data": s.get("date", "-")
+                        })
+                    return pd.DataFrame(formatted)
+                
+                with tab_melhores:
+                    # Ordenar por banca final descendente (melhores primeiro)
+                    top_list = sorted(scores, key=lambda x: x.get("capital", 100.0), reverse=True)[:20]
+                    df_top = format_records_df(top_list)
+                    st.dataframe(df_top, width='stretch', hide_index=True)
+                    
+                with tab_piores:
+                    # Ordenar por banca final ascendente (piores primeiro)
+                    worst_list = sorted(scores, key=lambda x: x.get("capital", 100.0), reverse=False)[:20]
+                    # Para a tabela dos piores, vamos colocar na posição 1º o pior de todos, 2º o segundo pior, etc.
+                    df_worst = format_records_df(worst_list)
+                    # Alterar o cabeçalho da posição para ficar claro
+                    df_worst = df_worst.rename(columns={"Posição": "Nível de Perda"})
+                    # Vamos mudar "1º" para "Pior", "2º" para "2º Pior", etc. para dar estilo e graça!
+                    df_worst["Nível de Perda"] = df_worst["Nível de Perda"].replace("1º", "💀 Pior de Todos")
+                    st.dataframe(df_worst, width='stretch', hide_index=True)
+            else:
+                st.info("Ainda não existem recordes gravados na Arena. Termine um jogo para inaugurar a leaderboard!")
+# =========================================================================
+# SEPARADOR 6: CENTRAL DE VARIÁVEIS
+# =========================================================================
+# =========================================================================
+# SEPARADOR 7: CÉREBRO DO BOT (DNA) - ARQUIVO OFF
+# =========================================================================
+def _render_legacy_bot_brain():
+    global symbol, st, os, json, time, np, pd, DataCollector
+    import variables_registry
+    import json
+    
+    st.markdown("<h3 style='text-align: center; color: #7c3aed; margin-bottom:5px;'>🧠 Cérebro Consolidado do Bot</h3>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; color: #64748b; font-size:13px; margin-bottom:20px; text-align: center;'>Cockpit estatístico cumulativo que unifica 100% das lições de treino do robô de forma automática.</p>", unsafe_allow_html=True)
+
+    with st.expander("ℹ️ Como funciona esta aba (Cérebro do Bot / DNA)?", expanded=False):
+        st.markdown("""
+**Para que serve:** É a memória de longo prazo do robô. Junta todas as lições acumuladas nos treinos (`bot_knowledge_base.json`) e consolida o "DNA" estatístico (`bot_consensus_dna.json`) usado pela estratégia **Quantum Consensus**.
+
+1. **🧠 Otimizador de Auto-Treino:** Podes escolher uma fonte (Mercado Sintético ou Binance `BTC/USDT` / `ETH/USDT`), definir o número de velas e clicar em **🚀 Iniciar Auto-Treino Estatístico** para o bot encontrar fundos/topos e aprender novas regras automaticamente.
+2. **Tabela do Cérebro & DNA:** Mostra os parâmetros médios aprendidos por regime (`BULL`, `BEAR`, `LATERAL`, `CAOTICO`).
+3. **📚 Lições Guardadas:** Lista todos os exames já gravados em disco (data, médias aplicadas, total de oportunidades e ameaças).
+4. **🗑️ Limpar Todo o Cérebro:** Permite fazer reset completo à memória (`bot_knowledge_base.json` e `bot_consensus_dna.json`) para recomeçar um ciclo do zero.
+""")
+    import os, json, time
+    import numpy as np
+    import pandas as pd
+
+    # =========================================================================
+    # OTIMIZADOR DE AUTO-TREINO (MACHINE LEARNING AUTONOMO)
+    # =========================================================================
+    # --- NOVO EXPANDER: AUTO-TREINO (MACHINE LEARNING AUTÓNOMO) ---
+    with st.expander("🧠 Otimizador de Auto-Treino (Machine Learning Autónomo)", expanded=False):
+        col_t1, col_t2 = st.columns([1, 1])
+        with col_t1:
+            training_source = st.selectbox(
+                "Fonte de Aprendizagem:",
+                ["Sintético (Aleatório)", "Real Binance (BTC/USDT)", "Real Binance (ETH/USDT)"],
+                key="tg_train_source"
+            )
+            training_candles = st.number_input(
+                "Volume de Treino (Velas):",
+                min_value=100, max_value=20000, value=1000, step=100,
+                key="tg_train_candles"
+            )
+        with col_t2:
+            st.markdown("<div style='height:28px;'></div>", unsafe_allow_html=True)
+            if st.button("🚀 Iniciar Auto-Treino Estatístico", width='stretch', type="primary", key="tg_btn_train"):
+                st.toast("A inicializar motor de aprendizagem...")
+                
+                # 1. Obter dados
+                df_train = None
+                if "Sintético" in training_source:
+                    st.toast("A gerar mercado didático...")
+                    np.random.seed(int(time.time() * 100) % 100000)
+                    drift = np.random.choice([0.08, -0.04, 0.0, 0.12])
+                    volatility = np.random.uniform(1.3, 3.2)
+                    dt = 0.1
+                    prices = [100.0]
+                    for _ in range(int(training_candles) - 1):
+                        change = prices[-1] * (drift / 100.0 * dt + volatility / 100.0 * np.sqrt(dt) * np.random.normal())
+                        prices.append(max(10.0, prices[-1] + change))
+                    dates = pd.date_range(start="2026-01-01", periods=int(training_candles), freq="1h")
+                    df_train = pd.DataFrame({
+                        'close': prices,
+                        'open': [p - np.random.normal(0, 0.1) for p in prices],
+                        'high': [p + abs(np.random.normal(0, 0.15)) for p in prices],
+                        'low': [p - abs(np.random.normal(0, 0.15)) for p in prices],
+                        'volume': [1000] * int(training_candles)
+                    }, index=dates)
+                else:
+                    st.toast("A descarregar dados históricos da Binance...")
+                    from data_collector import DataCollector
+                    symbol = "BTC/USDT" if "BTC" in training_source else "ETH/USDT"
+                    try:
+                        collector = DataCollector({'EXCHANGE_NAME': 'binance', 'SYMBOL': symbol, 'TIMEFRAME': '1h'})
+                        df_train = collector.get_ohlcv(limit=int(training_candles))
+                    except Exception as e:
+                        st.error(f"Erro ao descarregar da Binance: {e}")
+                        
+                if df_train is not None and not df_train.empty:
+                    st.toast("A calcular feixe de médias de Fibonacci...")
+                    p2_t = st.session_state.get('tg_p2', 5)
+                    p3_t = st.session_state.get('tg_p3', 13)
+                    p4_t = st.session_state.get('tg_p4', 21)
+                    p5_t = st.session_state.get('tg_p5', 55)
+                    p6_t = st.session_state.get('tg_p6', 144)
+                    
+                    df_train['sma_5'] = df_train['close'].rolling(window=p2_t).mean()
+                    df_train['sma_13'] = df_train['close'].rolling(window=p3_t).mean()
+                    df_train['sma_21'] = df_train['close'].rolling(window=p4_t).mean()
+                    df_train['sma_55'] = df_train['close'].rolling(window=p5_t).mean()
+                    df_train['sma_144'] = df_train['close'].rolling(window=p6_t).mean()
+                    smas_t = ['sma_5','sma_13','sma_21','sma_55','sma_144']
+                    df_train['avg_sma'] = df_train[smas_t].mean(axis=1)
+                    df_train['sma_std'] = df_train[smas_t].std(axis=1)
+                    df_train['stretching'] = df_train[smas_t].sub(df_train['avg_sma'], axis=0).abs().mean(axis=1).div(df_train['avg_sma']).mul(100)
+                    df_train['velocity'] = df_train['close'].diff(periods=1)
+                    df_train['acceleration'] = df_train['velocity'].diff(periods=2)
+                    df_train['volatility'] = df_train['close'].rolling(window=20, min_periods=1).std()
+                    # 4 novos indicadores dinâmicos
+                    delta_t = df_train['close'].diff()
+                    gain_t = delta_t.clip(lower=0).rolling(window=14).mean()
+                    loss_t = (-delta_t.clip(upper=0)).rolling(window=14).mean()
+                    rs_t = gain_t / (loss_t + 1e-9)
+                    df_train['rsi_14'] = 100 - (100 / (1 + rs_t))
+                    bb_std_t = df_train['close'].rolling(window=20).std()
+                    bb_mid_t = df_train['close'].rolling(window=20).mean()
+                    df_train['bb_dist'] = ((df_train['close'] - (bb_mid_t - 2 * bb_std_t)) / (4 * bb_std_t + 1e-9)) * 100
+                    macd_line_t = df_train['close'].ewm(span=12, adjust=False).mean() - df_train['close'].ewm(span=26, adjust=False).mean()
+                    macd_signal_t = macd_line_t.ewm(span=9, adjust=False).mean()
+                    df_train['macd_hist'] = macd_line_t - macd_signal_t
+                    if 'high' in df_train.columns and 'low' in df_train.columns:
+                        tr_t = np.maximum(df_train['high'] - df_train['low'], np.maximum((df_train['high'] - df_train['close'].shift()).abs(), (df_train['low'] - df_train['close'].shift()).abs()))
+                    else:
+                        tr_t = df_train['close'].diff().abs()
+                    df_train['atr_14'] = tr_t.rolling(window=14).mean()
+                    
+                    def classify_regime_row_t(row):
+                        p = row['close']
+                        s2 = row['sma_5']
+                        s3 = row['sma_13']
+                        s4 = row['sma_21']
+                        s5 = row['sma_55']
+                        s6 = row['sma_144']
+                        v = row['velocity']
+                        vol = row['volatility']
+                        stretch = row['stretching']
+                        if pd.isna(s6) or pd.isna(v) or pd.isna(vol) or pd.isna(stretch):
+                            return "LATERAL"
+                        is_bull_trend = (s2 > s3) and (s3 > s4) and (s4 > s5) and (v > 0)
+                        is_bear_trend = (s2 < s3) and (s3 < s4) and (s4 < s5) and (v < 0)
+                        if stretch < 0.6:
+                            return "LATERAL"
+                        elif is_bull_trend:
+                            return "BULL"
+                        elif is_bear_trend:
+                            return "BEAR"
+                        elif vol > p * 0.012:
+                            return "CAOTICO"
+                        else:
+                            return "LATERAL"
+                    
+                    df_train['regime'] = df_train.apply(classify_regime_row_t, axis=1)
+                    df_train['disp_pct'] = (df_train['sma_5'] - df_train['sma_144']) / df_train['sma_144'] * 100
+                    df_train['mola_pct'] = df_train[smas_t].std(axis=1) / df_train[smas_t].mean(axis=1) * 100
+                    df_train['infil_bull'] = (df_train['sma_5'] > df_train['sma_13']) & (df_train['sma_13'] > df_train['sma_21']) & (df_train['sma_55'] < df_train['sma_144'])
+                    df_train['infil_bear'] = (df_train['sma_5'] < df_train['sma_13']) & (df_train['sma_13'] < df_train['sma_21']) & (df_train['sma_55'] > df_train['sma_144'])
+                    df_train['reteste_val'] = ((df_train['close'] - df_train['sma_55']).abs() / df_train['sma_55'] * 100 < 0.8) | ((df_train['close'] - df_train['sma_144']).abs() / df_train['sma_144'] * 100 < 0.8)
+                    df_train.bfill(inplace=True)
+                    
+                    # Renomear close para price para ser compativel com o laboratorio
+                    if 'price' not in df_train.columns:
+                        df_train.rename(columns={'close': 'price'}, inplace=True)
+                        
+                    st.toast("A calcular topos e fundos ideais (Aprendizagem Profunda)...")
+                    import tab_math_lab
+                    
+                    # Garantir que a analise usa os SMAs selecionados no treino
+                    import streamlit as st
+                    
+                    old_p2 = st.session_state.get('math_active_sma_p2', 5)
+                    old_p3 = st.session_state.get('math_active_sma_p3', 13)
+                    old_p4 = st.session_state.get('math_active_sma_p4', 21)
+                    old_p5 = st.session_state.get('math_active_sma_p5', 55)
+                    old_p6 = st.session_state.get('math_active_sma_p6', 144)
+                    
+                    st.session_state.math_active_sma_p2 = p2_t
+                    st.session_state.math_active_sma_p3 = p3_t
+                    st.session_state.math_active_sma_p4 = p4_t
+                    st.session_state.math_active_sma_p5 = p5_t
+                    st.session_state.math_active_sma_p6 = p6_t
+                    
+                    df_train[f'sma_{p2_t}'] = df_train['sma_5']
+                    df_train[f'sma_{p3_t}'] = df_train['sma_13']
+                    df_train[f'sma_{p4_t}'] = df_train['sma_21']
+                    df_train[f'sma_{p5_t}'] = df_train['sma_55']
+                    df_train[f'sma_{p6_t}'] = df_train['sma_144']
+                    
+                    fundos_list, topos_list = tab_math_lab.find_structural_points(df_train)
+                    
+                    test_name = f"Auto-Treino {training_source} ({pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')})"
+                    
+                    st.toast("A gravar as novas descobertas no Cérebro...")
+                    tab_math_lab.save_current_test_rules(test_name, df_train, fundos_list, topos_list)
+                    
+                    # Restaurar as variáveis do Laboratório Matemático para não corromper o gráfico da outra aba
+                    st.session_state.math_active_sma_p2 = old_p2
+                    st.session_state.math_active_sma_p3 = old_p3
+                    st.session_state.math_active_sma_p4 = old_p4
+                    st.session_state.math_active_sma_p5 = old_p5
+                    st.session_state.math_active_sma_p6 = old_p6
+                    
+                    winning_t = fundos_list + topos_list
+                    
+                    st.success(f"🔥 **Auto-Treino Integrado com Sucesso!** Gravámos as conclusões na base de conhecimento e o cérebro consolidado do Bot evoluiu automaticamente em background com {len(winning_t)} padrões detetados de forma 100% matemática e objetiva.")
+                else:
+                    st.error("Erro ao obter dados para o treino!")
+
+    
+    knowledge_path = "bot_knowledge_base.json"
+    dna_path = "bot_consensus_dna.json"
+    
+    has_knowledge = os.path.exists(knowledge_path)
+    knowledge = {}
+    if has_knowledge:
+        try:
+            with open(knowledge_path, "r", encoding="utf-8") as f:
+                knowledge = json.load(f)
+        except Exception:
+            pass
+            
+    has_dna = os.path.exists(dna_path)
+    dna = {}
+    if has_dna:
+        try:
+            with open(dna_path, "r", encoding="utf-8") as f:
+                dna = json.load(f)
+        except Exception:
+            pass
+            
+    tests_list = list(knowledge.keys())
+    opp_total = 0
+    thr_total = 0
+    has_conflict = False
+    
+    for t_name, t_data in knowledge.items():
+        for reg in ["BULL", "BEAR", "LATERAL", "CAOTICO"]:
+            reg_data = t_data.get("regimes", {}).get(reg, {})
+            opp_total += reg_data.get("opp_count", 0)
+            thr_total += reg_data.get("thr_count", 0)
+            
+    if has_dna:
+        for reg, r_data in dna.get("regimes", {}).items():
+            for action in ["buy_rules", "sell_rules"]:
+                for var, v_data in r_data.get(action, {}).items():
+                    if isinstance(v_data, dict) and not v_data.get("stable", True):
+                        has_conflict = True
+                        
+    state_desc = "🟢 Consistente"
+    if has_conflict:
+        state_desc = "⚠️ Contradição Detetada"
+    elif not tests_list:
+        state_desc = "⚪ Sem Treinos"
+        
+    last_up = dna.get("last_updated", "Nunca")
+    
+    # Cartões Compactos de Métrica
+    col_c1, col_c2, col_c3, col_c4 = st.columns(4)
+    with col_c1:
+        st.metric("Estado do Cérebro", state_desc, help="Identifica se existem contradições entre as lições")
+    with col_c2:
+        st.metric("Sessões Integradas", f"{len(tests_list)} Treinos", help="Lições na base de conhecimento")
+    with col_c3:
+        st.metric("Amostras Estudadas", f"{opp_total + thr_total} Padrões", help="Total de fundos (BUY) e topos (SELL) estudados")
+    with col_c4:
+        st.metric("Última Sincronização", last_up, help="Data e hora do último recálculo cumulativo")
+        
+    st.markdown("<div style='margin-top:10px;'></div>", unsafe_allow_html=True)
+    variables_registry.render_bot_brain_table()
+    
+    st.markdown("<div style='margin-top:10px;'></div>", unsafe_allow_html=True)
+    col_h1, col_h2 = st.columns([3, 1])
+    
+    with col_h1:
+        st.markdown("##### 📚 Lições Guardadas na Base de Conhecimento")
+        if tests_list:
+            records = []
+            for t_name, t_data in knowledge.items():
+                smas_str = ", ".join(map(str, t_data.get("smas", [])))
+                opp_cnt = sum(t_data.get("regimes", {}).get(r, {}).get("opp_count", 0) for r in ["BULL","BEAR","LATERAL","CAOTICO"])
+                thr_cnt = sum(t_data.get("regimes", {}).get(r, {}).get("thr_count", 0) for r in ["BULL","BEAR","LATERAL","CAOTICO"])
+                records.append({
+                    "Identificação do Exame": t_name,
+                    "Data/Hora": t_data.get("timestamp", "Desconhecido"),
+                    "Médias Aplicadas": smas_str,
+                    "Total Oportunidades (Fundos)": opp_cnt,
+                    "Total Ameaças (Topos)": thr_cnt
+                })
+            df_hist = pd.DataFrame(records)
+            st.dataframe(df_hist, width='stretch', hide_index=True, height=350)
+        else:
+            st.info("ℹ️ Nenhuma lição de treino ativa na memória do Bot. Execute simulações para treinar.")
+            
+    with col_h2:
+        st.markdown("##### ⚙️ Gestão de Memória")
+        st.markdown("<p style='font-size:11px; color:#64748b; margin-top:5px;'>O cérebro acumula lições infinitamente. Se desejar começar um ciclo do zero, faça reset.</p>", unsafe_allow_html=True)
+        st.markdown("<div style='margin-top:10px;'></div>", unsafe_allow_html=True)
+        
+        if st.button("🗑️ Limpar Todo o Cérebro", type="secondary", width='stretch', key="btn_clear_entire_brain"):
+            for path in [knowledge_path, dna_path]:
+                if os.path.exists(path):
+                    try:
+                        os.remove(path)
+                    except Exception:
+                        pass
+            st.toast("🧠 Cérebro limpo e redefinido com sucesso!")
+            st.rerun()
+
+with tab_auto_trainer:
+    import tab_auto_trainer as _tab_auto_trainer
+    _tab_auto_trainer.render()
+
+with stage_paper:
+    import tab_stage2_paper as _tab_stage2
+    _tab_stage2.render()
+
+with stage_live:
+    import tab_stage3_live as _tab_stage3
+    _tab_stage3.render()
+
+if stage_archive is not None:
+    with stage_archive:
+        st.info("🗄️ **Arquivo de Ferramentas Antigas (OFF):** Nada foi apagado — todas as abas antigas continuam preservadas aqui para consulta.")
+        _arch_t1, _arch_t2, _arch_t3, _arch_t4 = st.tabs([
+            "📈 Simulação Clássica",
+            "🔬 Simulador Antigo",
+            "🎛️ Lab Matemático",
+            "🧠 Cérebro DNA Antigo",
+        ])
+        with _arch_t1:
+            _render_legacy_backtest()
+        with _arch_t2:
+            _render_legacy_simulator()
+        with _arch_t3:
+            _render_legacy_math_lab()
+        with _arch_t4:
+            _render_legacy_bot_brain()

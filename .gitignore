@@ -1,0 +1,42 @@
+# Python standard ignores
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+
+# Environments and secrets
+.env
+.env.local
+.env.*
+
+# Logs
+*.log
+
+# Streamlit
+.streamlit/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Runtime data files
+last_game_data.csv
+last_game_state.json
+market_data.sqlite
+trader_highscores.json
+bot_consensus_dna.json
+*.sqlite
+
+
+# Additional ignores
+temp_scripts/
+game_sessions.json
+trainer/
+*.bak
+
+ultimo_relatorio_estrategia.md
+bot_live_control.json
+trained_best_strategy.json
+relatorios/
+alpaca_market_checks.csv
+vps_*.log
