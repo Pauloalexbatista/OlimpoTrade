@@ -9,3 +9,4 @@ streamlit
 streamlit-autorefresh
 plotly
 alpaca-py
+fastapi
