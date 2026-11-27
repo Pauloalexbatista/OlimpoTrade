@@ -6,21 +6,10 @@ import pandas as pd
 
 
 def render():
-    st.markdown("## 🚀 Deploy Alpaca — Paper Trading")
-    st.markdown("Executa as estratégias testadas no laboratório diretamente na conta Alpaca Paper.")
-
-    with st.expander("ℹ️ Como funciona esta aba (Deploy Alpaca)?", expanded=False):
-        st.markdown("""
-**Para que serve:** Liga o OlimpoTrade à tua conta **Alpaca Paper Trading** (dinheiro virtual, sem risco real) para executar ordens e testar o bot em tempo real no mercado.
-
-1. **🔌 Testar Ligação:** Verifica se as chaves da Alpaca no ficheiro `.env` estão válidas.
-2. **💰 Conta & Posições:** Mostra o saldo (*Cash*, *Equity*, *Buying Power*), posições abertas e permite fechá-las manualmente.
-3. **📋 Ordens Recentes:** Lista as ordens abertas e fechadas na conta.
-4. **🤖 Execução Automática:** Permite correr a estratégia escolhida sobre dados reais da Alpaca em modo Paper.
-""")
-
-    # ── Teste de ligação ────────────────────────────────────────────────────────
-    col_status, col_btn = st.columns([3, 1])
+    # ── Barra de topo compacta: Título + Ligação ────────────────────────────────
+    col_title, col_status, col_btn = st.columns([2.2, 2.8, 1])
+    with col_title:
+        st.markdown("### 🎛️ Sala de Controlo — Alpaca")
     with col_btn:
         test_btn = st.button("🔌 Testar Ligação", use_container_width=True)
 
@@ -41,18 +30,15 @@ def render():
             return
 
     if not st.session_state.get("alpaca_connected"):
-        st.info("👆 Clica em **Testar Ligação** para começar. Certifica-te que as chaves estão no ficheiro `.env`.")
+        st.info("👆 Clica em **Testar Ligação** para iniciar a Sala de Controlo.")
         _show_env_help()
         return
 
-    from alpaca_connector import get_account, get_positions, get_orders, place_order, close_position, get_market_clock
+    from alpaca_connector import get_account, get_positions, get_orders, place_order, close_position, get_market_clock, SYMBOL_MAP
 
-    # ── Quadro de Mercados Abertos ─────────────────────────────────────────────
+    # ── Painel superior compacto: Mercados + Conta ─────────────────────────────
     _render_open_markets_panel(get_market_clock)
 
-    # ── Account Overview ───────────────────────────────────────────────────────
-    st.markdown("---")
-    st.markdown("### 💰 Conta Paper Trading")
     try:
         acc = get_account()
         c1, c2, c3, c4 = st.columns(4)
@@ -63,121 +49,37 @@ def render():
     except Exception as e:
         st.error(f"Erro ao obter conta: {e}")
 
-    # ── Posições abertas ───────────────────────────────────────────────────────
-    st.markdown("---")
-    st.markdown("### 📊 Posições Abertas")
-    try:
-        positions = get_positions()
-        if positions:
-            df_pos = pd.DataFrame(positions)
-            df_pos["unrealized_plpc"] = df_pos["unrealized_plpc"].map(lambda x: f"{x:.2f}%")
-            df_pos["unrealized_pl"] = df_pos["unrealized_pl"].map(lambda x: f"${x:+.2f}")
-            df_pos.columns = ["Símbolo", "Qty", "Entrada Média", "Preço Atual", "P&L ($)", "P&L (%)", "Direção"]
-            st.dataframe(df_pos, use_container_width=True)
+    # ── Sala de Controlo do Bot Automático ─────────────────────────────────────
+    st.markdown("#### 🤖 Bot Automático")
+    all_syms = list(SYMBOL_MAP.keys())
+    default_i = all_syms.index("SPY") if "SPY" in all_syms else 0
+    strategies = [
+        "🦎 Camaleão ADX (3 Mercados — Lateral + Tendência)",
+        "SMA Cruzamento (Curta/Longa)",
+        "🎯 Reversão à Média (Bollinger + RSI)",
+        "Lagarta (Todas as Linhas)",
+        "Linha Solitária",
+        "Média Camadas (Duas Linhas)",
+        "Cérebro de Consenso (IA)",
+    ]
+    interval_options = [10, 30, 60, 120, 300, 600, 900, 1800, 3600]
 
-            st.markdown("#### Fechar Posição")
-            pos_symbols = [p["symbol"] for p in positions]
-            close_sym = st.selectbox("Seleciona símbolo a fechar:", pos_symbols, key="alpaca_close_sym")
-            try:
-                _open_for_sym = [o for o in get_orders(status="open", limit=20) if o["symbol"] == close_sym]
-            except Exception:
-                _open_for_sym = []
-            if _open_for_sym:
-                st.warning(
-                    f"⏳ Já existe uma ordem pendente para **{close_sym}** (`{_open_for_sym[0]['side']}` | estado: `{_open_for_sym[0]['status']}`). "
-                    "Se o mercado estiver fechado, será executada automaticamente na abertura."
-                )
-            if st.button("❌ Fechar Posição Selecionada", type="primary", disabled=bool(_open_for_sym)):
-                result = close_position(close_sym)
-                st.success(f"Posição {result['symbol']} fechada! Order ID: {result['order_id']}")
-                st.rerun()
-        else:
-            st.info("Nenhuma posição aberta de momento.")
-    except Exception as e:
-        st.error(f"Erro ao obter posições: {e}")
-
-    # ── Ordens recentes ────────────────────────────────────────────────────────
-    st.markdown("---")
-    st.markdown("### 📋 Ordens Recentes")
-    try:
-        col_ord1, col_ord2 = st.columns(2)
-        with col_ord1:
-            orders_open = get_orders(status="open", limit=10)
-            st.markdown("**🟡 Abertas**")
-            if orders_open:
-                st.dataframe(pd.DataFrame(orders_open)[["symbol","side","qty","status","created_at"]], use_container_width=True)
-            else:
-                st.caption("Nenhuma ordem aberta.")
-        with col_ord2:
-            orders_closed = get_orders(status="closed", limit=10)
-            st.markdown("**✅ Fechadas (últimas 10)**")
-            if orders_closed:
-                df_cl = pd.DataFrame(orders_closed)[["symbol","side","qty","filled_avg_price","status"]]
-                st.dataframe(df_cl, use_container_width=True)
-            else:
-                st.caption("Nenhuma ordem fechada.")
-    except Exception as e:
-        st.error(f"Erro ao obter ordens: {e}")
-
-    # ── Execução manual ────────────────────────────────────────────────────────
-    st.markdown("---")
-    st.markdown("### ⚡ Executar Ordem Manual")
-    st.caption("Testa a ligação executando uma ordem pequena de forma manual.")
-
-    from alpaca_connector import SYMBOL_MAP
-    col_m1, col_m2, col_m3, col_m4 = st.columns(4)
-    with col_m1:
-        all_symbols = list(SYMBOL_MAP.keys())
-        # Default to SPY (stock) until crypto is enabled on Alpaca account
-        default_idx = all_symbols.index("SPY") if "SPY" in all_symbols else 0
-        manual_symbol = st.selectbox("Par / Ativo", all_symbols, index=default_idx, key="alpaca_manual_sym")
-    with col_m2:
-        manual_side = st.radio("Direção", ["buy", "sell"], horizontal=True, key="alpaca_manual_side")
-    with col_m3:
-        manual_notional = st.number_input("Valor USD ($)", min_value=1.0, max_value=1000.0, value=10.0, step=1.0, key="alpaca_manual_notional")
-    with col_m4:
-        st.markdown("<br>", unsafe_allow_html=True)
-        execute_btn = st.button("🚀 Executar", type="primary", use_container_width=True)
-
-    if execute_btn:
-        try:
-            result = place_order(manual_symbol, manual_side, qty=None, notional=manual_notional)
-            st.success(f"✅ Ordem submetida! ID: `{result['id']}` | {result['side']} {result['symbol']} ~${manual_notional:.2f}")
-            st.json(result)
-        except Exception as e:
-            st.error(f"❌ Erro ao executar ordem: {e}")
-
-    # ── Deploy automático da estratégia ───────────────────────────────────────
-    st.markdown("---")
-    st.markdown("### 🤖 Bot Automático — Ligar Estratégia à Alpaca")
-    st.caption("O bot lê os sinais da estratégia escolhida e executa ordens na Alpaca automaticamente.")
-
-    col_b1, col_b2, col_b3 = st.columns(3)
-
+    col_b1, col_b2, col_b3, col_b4 = st.columns([1.1, 2.2, 1.0, 0.9])
     with col_b1:
-        st.markdown("**1. Escolhe o Ativo**")
-        from alpaca_connector import SYMBOL_MAP
-        all_syms = list(SYMBOL_MAP.keys())
-        default_i = all_syms.index("SPY") if "SPY" in all_syms else 0
-        bot_symbol = st.selectbox("Ativo para o Bot", all_syms, index=default_i, key="alpaca_bot_sym")
-
+        bot_symbol = st.selectbox("Ativo", all_syms, index=default_i, key="alpaca_bot_sym")
     with col_b2:
-        st.markdown("**2. Escolhe a Estratégia**")
-        strategies = [
-            "🦎 Camaleão ADX (3 Mercados — Lateral + Tendência)",
-            "SMA Cruzamento (Curta/Longa)",
-            "🎯 Reversão à Média (Bollinger + RSI)",
-            "Lagarta (Todas as Linhas)",
-            "Linha Solitária",
-            "Média Camadas (Duas Linhas)",
-            "Cérebro de Consenso (IA)",
-        ]
         bot_strategy = st.selectbox("Estratégia", strategies, key="alpaca_bot_strategy")
-
     with col_b3:
-        st.markdown("**3. Capital por Operação ($)**")
-        bot_capital = st.number_input("USD por ordem", min_value=10.0, max_value=10000.0,
+        bot_capital = st.number_input("Capital ($)", min_value=10.0, max_value=10000.0,
                                       value=100.0, step=10.0, key="alpaca_bot_capital")
+    with col_b4:
+        interval_sec = st.selectbox(
+            "Intervalo",
+            options=interval_options,
+            index=2,
+            format_func=lambda x: f"{x}s" if x < 60 else f"{x//60}min" if x < 3600 else "1h",
+            key="alpaca_interval",
+        )
 
     # Parâmetros lidos automaticamente do Centro de Comando
     p2 = int(st.session_state.get("tg_p2", 5))
@@ -187,25 +89,16 @@ def render():
     p6 = int(st.session_state.get("tg_p6", 144))
     sl_pct = float(st.session_state.get("tg_sl_pct", 1.0))
 
-    st.info(f"🧬 Parâmetros do Centro de Comando: **P2={p2} | P3={p3} | P4={p4} | P5={p5} | P6={p6}** | SL={sl_pct}%")
-
-    interval_sec = st.select_slider(
-        "⏱️ Intervalo de verificação",
-        options=[10, 30, 60, 120, 300, 600, 900, 1800, 3600],
-        value=60,
-        format_func=lambda x: f"{x}s" if x < 60 else f"{x//60}min" if x < 3600 else "1h",
-        key="alpaca_interval"
-    )
-
-    # Estado do bot
     if "alpaca_bot_running" not in st.session_state:
         st.session_state.alpaca_bot_running = False
     if "alpaca_bot_log" not in st.session_state:
         st.session_state.alpaca_bot_log = []
 
-    col_start, col_stop = st.columns(2)
+    col_info, col_start, col_stop = st.columns([2.6, 1, 1])
+    with col_info:
+        st.caption(f"🧬 Centro de Comando: **P2={p2} · P3={p3} · P4={p4} · P5={p5} · P6={p6} · SL={sl_pct}%**")
     with col_start:
-        if st.button("▶️ Iniciar Bot", type="primary", width="stretch",
+        if st.button("▶️ Iniciar Bot", type="primary", use_container_width=True,
                      disabled=st.session_state.alpaca_bot_running):
             st.session_state.alpaca_bot_running = True
             st.session_state.alpaca_bot_log = []
@@ -221,28 +114,55 @@ def render():
                 "position": None,
             }
             st.rerun()
-
     with col_stop:
-        if st.button("⏹️ Parar Bot", width="stretch",
+        if st.button("⏹️ Parar Bot", use_container_width=True,
                      disabled=not st.session_state.alpaca_bot_running):
             st.session_state.alpaca_bot_running = False
             st.rerun()
 
-    # Painel de estado e log
+    # Estado ativo + ciclo
     if st.session_state.alpaca_bot_running:
-        import time
         from streamlit_autorefresh import st_autorefresh
 
         cfg = st.session_state.get("alpaca_bot_config", {})
         interval = cfg.get("interval", 60)
-
-        # Auto-refresh da página a cada `interval` segundos
         st_autorefresh(interval=interval * 1000, key="alpaca_autorefresh")
 
-        st.success(f"🟢 Bot ATIVO — **{cfg.get('symbol')}** | **{cfg.get('strategy')}** | **${cfg.get('capital'):.0f}/ordem** | verificação a cada **{interval}s**")
-
-        # Executar ciclo do bot
+        st.success(f"🟢 Bot ATIVO — **{cfg.get('symbol')}** | **{cfg.get('strategy')}** | **${cfg.get('capital'):.0f}/ordem** | ciclo **{interval}s**")
         _run_bot_cycle(place_order, close_position, get_positions)
+
+    # ── Posições & Ordens lado a lado (compacto) ───────────────────────────────
+    col_pos, col_ord = st.columns(2)
+    with col_pos:
+        st.markdown("#### 📊 Posições Abertas")
+        try:
+            positions = get_positions()
+            if positions:
+                df_pos = pd.DataFrame(positions)
+                df_pos["unrealized_plpc"] = df_pos["unrealized_plpc"].map(lambda x: f"{x:.2f}%")
+                df_pos["unrealized_pl"] = df_pos["unrealized_pl"].map(lambda x: f"${x:+.2f}")
+                df_pos.columns = ["Símbolo", "Qty", "Entrada", "Atual", "P&L ($)", "P&L (%)", "Dir."]
+                st.dataframe(df_pos, use_container_width=True, height=180)
+            else:
+                st.caption("Nenhuma posição aberta de momento.")
+        except Exception as e:
+            st.error(f"Erro ao obter posições: {e}")
+
+    with col_ord:
+        st.markdown("#### 📋 Ordens Recentes")
+        try:
+            orders_open = get_orders(status="open", limit=5)
+            orders_closed = get_orders(status="closed", limit=5)
+            if orders_open:
+                st.caption("🟡 **Abertas**")
+                st.dataframe(pd.DataFrame(orders_open)[["symbol", "side", "qty", "status"]], use_container_width=True, height=120)
+            if orders_closed:
+                st.caption("✅ **Fechadas (últimas 5)**")
+                st.dataframe(pd.DataFrame(orders_closed)[["symbol", "side", "qty", "filled_avg_price", "status"]], use_container_width=True, height=150)
+            if not orders_open and not orders_closed:
+                st.caption("Nenhuma ordem recente.")
+        except Exception as e:
+            st.error(f"Erro ao obter ordens: {e}")
 
     # Log de atividade + histórico de sinais
     if st.session_state.alpaca_bot_log:

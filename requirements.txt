@@ -10,3 +10,4 @@ streamlit-autorefresh
 plotly
 alpaca-py
 fastapi
+pyarrow<19
